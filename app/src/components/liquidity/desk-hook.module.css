@@ -1,0 +1,256 @@
+.section {
+  margin-top: 34px;
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 2px 12px;
+}
+
+.eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.title {
+  margin: 5px 0 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.blurb {
+  margin: 5px 0 0;
+  max-width: 62ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.headStats {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+}
+
+.headStat {
+  padding: 9px 18px;
+  border-right: 1px solid var(--color-border);
+}
+
+.headStat:last-child {
+  border-right: 0;
+}
+
+.headStatValue {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.shell {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+}
+
+.header,
+.row {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.4fr) minmax(120px, 0.8fr) minmax(140px, 0.9fr) minmax(190px, 1.15fr) minmax(120px, 0.8fr) 104px;
+  align-items: center;
+}
+
+.header {
+  min-height: 44px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+}
+
+.header > span,
+.row > div {
+  min-width: 0;
+  padding: 0 16px;
+}
+
+.columnLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.row {
+  min-height: 74px;
+  border-bottom: 1px solid var(--color-border-soft, var(--color-border));
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row:hover {
+  background: var(--color-bg-hover);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pair {
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pairMuted {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.badge {
+  padding: 1px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-size: 10.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.badgeNight {
+  border-color: var(--color-border);
+  background: var(--color-bg-raised);
+}
+
+.value {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 15.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/* the one accent on this table: a live scarcity premium */
+.accent {
+  color: var(--color-accent-solid);
+}
+
+.quote {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ask {
+  font-family: var(--font-display);
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.slash {
+  color: var(--color-text-muted);
+}
+
+.bid {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+/* inventory: stock against cash, with the target split marked */
+.bar {
+  position: relative;
+  display: flex;
+  height: 7px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  overflow: hidden;
+}
+
+.barAsset {
+  background: var(--color-text-primary);
+}
+
+.barCash {
+  background: var(--color-border-muted);
+}
+
+.barTarget {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--color-accent-solid);
+}
+
+.barLegend {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border: 1px solid var(--color-border);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.link:hover {
+  background: var(--color-bg-hover);
+}
+
+.note {
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}

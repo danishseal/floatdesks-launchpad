@@ -298,8 +298,12 @@ export async function fetchTokens(): Promise<TokenListItem[]> {
   const curves = await Promise.all(
     rows.map((t) => tokenCurve(t.token as `0x${string}`).catch(() => undefined)),
   );
-  return rows.map((t, i) => {
+  return rows.flatMap((t, i) => {
     const c = curves[i];
+    // A launchpad that has never seen this token returns a zero struct rather
+    // than reverting, so an indexer pointed at a different deployment would
+    // otherwise surface tokens that do not exist on the active chain.
+    if (c && c.gradTarget === 0n && c.sold === 0n && c.rQuote === 0n) return [];
     const token = toToken(t, rates.get(t.underlying) ?? 0, c);
     if (c) {
       token.hodl_reserves = String((Number(c.rQuote) / 1e18) * 1e6);
@@ -309,7 +313,7 @@ export async function fetchTokens(): Promise<TokenListItem[]> {
         if (b > 0) token.current_price = String((q / b) * 1e6);
       }
     }
-    return token;
+    return [token];
   });
 }
 

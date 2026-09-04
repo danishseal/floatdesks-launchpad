@@ -2,13 +2,14 @@
 
 import { ArrowRight, FunnelSimple, MagnifyingGlass } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   usePools, fromUnits, usd, pct, px8, duration, STATUS_LABEL,
   type PoolsMarket, type PoolsResponse,
 } from "./use-pools";
 import styles from "./liquidity.module.css";
 import { TokenPair } from "./token-pair";
+import { DeskHookSection, type HookPoolRow } from "./desk-hook-section";
 
 /**
  * The liquidity board.
@@ -31,6 +32,23 @@ export function LiquidityMarket() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
 
+  // DeskHook pools come from their own route (session 01LqS83j), so a hook read
+  // that reverts cannot take down the vault board people actually deposit into.
+  // Empty is the normal answer: the hook is not deployed on any real network yet.
+  const [hook, setHook] = useState<{
+    pools: HookPoolRow[];
+    quote: { symbol: string; decimals: number } | null;
+  }>({ pools: [], quote: null });
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/float/hook-pools")
+      .then((r) => r.json())
+      .then((d) => { if (live) setHook({ pools: d.pools ?? [], quote: d.quote ?? null }); })
+      .catch(() => { /* section stays absent */ });
+    return () => { live = false; };
+  }, []);
+
   if (error) return <BoardError message={(error as Error).message} />;
   if (isLoading || !data) return <BoardSkeleton />;
 
@@ -38,6 +56,13 @@ export function LiquidityMarket() {
     <div className={styles.page}>
       <Summary data={data} />
       <DeskVaultCard data={data} />
+      {hook.quote && hook.pools.length > 0 ? (
+        <DeskHookSection
+          pools={hook.pools}
+          quoteSymbol={hook.quote.symbol}
+          quoteDecimals={hook.quote.decimals}
+        />
+      ) : null}
 
       <div className={styles.toolbar}>
         <label className={styles.searchWrap}>

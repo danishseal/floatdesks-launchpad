@@ -134,7 +134,13 @@ export async function GET() {
       } catch { /* indexer down: fall through with none */ }
       tokens = await Promise.all(rows.map(async (t) => {
         const c = await tokenCurve(t.token as `0x${string}`).catch(() => null);
-        return c && {
+        // curves() returns a ZERO STRUCT rather than reverting for a token this
+        // launchpad has never seen, which happens whenever the indexer and the
+        // active chain disagree (pointing the app at a localnet while the
+        // indexer still serves testnet). Rendering that as a real token showed
+        // a $0 raise against a $0 target. Drop it instead.
+        if (!c || (c.gradTarget === 0n && c.sold === 0n && c.rQuote === 0n)) return null;
+        return {
           token: t.token,
           name: t.name,
           symbol: t.symbol,
