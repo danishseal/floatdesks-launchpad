@@ -18,7 +18,7 @@
 //! `PlaceSellOrder`). A taker's swap is offered to the book first, and any order
 //! priced *better than the pool's marginal price* fills first. The taker gets an
 //! execution at least as good as the pool alone, the maker gets filled without
-//! watching a screen, and only the residual reaches the pool. This is the ANSEM
+//! watching a screen, and only the residual reaches the pool. This is the Floatdesk
 //! port of Vector's `limit-vector`.
 //!
 //! # The two guarantees (identical to the Solana original)
@@ -306,7 +306,7 @@ struct BalanceResponse {
 pub struct SwapContext {
     pub token_address: String,
     pub sender: String,
-    /// true = ANSEM/quote in, token out.
+    /// true = Floatdesk/quote in, token out.
     pub offer_ansem: bool,
     pub input_amount: Uint128,
     pub ansem_reserve: Uint128,

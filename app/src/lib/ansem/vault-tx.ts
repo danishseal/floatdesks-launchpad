@@ -1,6 +1,6 @@
 // CosmWasm transactions + smart queries against the ansem-horn-vault contract.
 //
-// The vault has two GLOBAL sinks, the native denoms `uansem` (ANSEM) and
+// The vault has two GLOBAL sinks, the native denoms `uansem` (Floatdesk) and
 // `uchanse` (CHANSE), both 6 decimals. Stakers of either denom earn a cut of
 // every graduated pool's swap-fee skim. There is NO APR / reward-rate query, so
 // the UI never fabricates one.

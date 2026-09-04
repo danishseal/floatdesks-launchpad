@@ -2,7 +2,7 @@
 //
 // Launch-day model: only TWO things are baked into the build and both are
 // genesis-stable: the config-registry ADDRESS and the REST endpoint. Every
-// mutable address (launchpad / amm / oracle / names contracts, the ANSEM SPL
+// mutable address (launchpad / amm / oracle / names contracts, the Floatdesk SPL
 // mint, and optional RPC/REST overrides) is read LIVE from the registry at
 // runtime. On a fresh genesis the developer changes nothing: the pinned
 // registry (same address) auto-points to the new contracts and this resolver

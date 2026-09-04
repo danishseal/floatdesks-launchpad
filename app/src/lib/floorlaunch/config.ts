@@ -1,4 +1,4 @@
-// Config for the ANSEM launchpad, repointed from the old Solana/floorlaunch
+// Config for the Floatdesk launchpad, repointed from the old Solana/floorlaunch
 // backend to the ansem-1 CosmWasm stack (indexer + launchpad + AMM). The export
 // names are kept so existing imports across the app keep resolving.
 
@@ -29,7 +29,7 @@ export type BaseDenomKey = keyof typeof BASE_DENOMS;
 // other denom falls back to CHANSE.
 const DENOM_LABELS: Record<string, string> = {
   uchanse: "CHANSE",
-  uansem: "ANSEM",
+  uansem: "Floatdesk",
   unvdax: "NVDA",
   utslax: "TSLA",
   uaaplx: "AAPL",
@@ -81,7 +81,7 @@ export const AMM_CONTRACT =
   process.env.NEXT_PUBLIC_ANSEM_AMM ??
   "ansem14wzrxt6u557ecr98w2z22ygnu77w34uqfel72k8t8xatneajy2xqkn4m6e";
 
-// ── indexer (our ansemchain-indexer on val1) ───────────────────────────────
+// ── indexer (our Floatdesk-indexer on val1) ───────────────────────────────
 export const INDEXER_HTTP = (
   process.env.NEXT_PUBLIC_ANSEM_API_URL ?? "https://api.ansemchain.fun/api"
 ).replace(/\/+$/, "");
@@ -107,8 +107,8 @@ export const TOKEN_SUPPLY = 100_000;
 // micro-USD per CHANSE (e.g. 100 = $0.0001). Everything denominated in USD on
 // the UI resolves the rate from here, per the "hit the oracle, do the math"
 // model. NOTE: this rate is the base-asset/USD rate the contract applies to
-// BOTH CHANSE and ANSEM curves; a distinct ANSEM(SPL)/USD feed does not exist
-// yet, so ANSEM-denominated tokens use the same rate as a documented fallback.
+// BOTH CHANSE and Floatdesk curves; a distinct Floatdesk(SPL)/USD feed does not exist
+// yet, so Floatdesk-denominated tokens use the same rate as a documented fallback.
 export const ORACLE_CONTRACT =
   process.env.NEXT_PUBLIC_ANSEM_ORACLE ??
   "ansem1d2wr6ej95xepd3wmmpgrkyxwjns6gt5tfscrr3jcuetz7m7z0req0u7slp";

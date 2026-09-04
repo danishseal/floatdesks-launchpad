@@ -12,8 +12,6 @@ import { useTokenHolders } from "@/hooks/use-token-holders";
 import { useCandles } from "@/hooks/use-candles";
 import { TradingChartSkeleton } from "@/components/trading/trading-chart-skeleton";
 import { FloorlaunchTradePanel } from "@/components/trading/floorlaunch-trade-panel";
-import { HornsFeeSplitPanel } from "@/components/trading/horns-panels";
-import { HornLiveTracker } from "@/components/trading/horn-live-tracker";
 import { TokenComments } from "@/components/utoken/feed";
 import { TokenProposals } from "@/components/proposals/token-proposals";
 import { fetchTokenChange24h } from "@/lib/api";
@@ -216,20 +214,11 @@ export default function TokenDetailPage() {
             onRetry={() => candles.refetch()}
           />
         </div>
-        {/* Live horn tracker, directly under the chart. Preview simulation of a
-            pool's fee mechanic (Fee Decay by default) until the Horns program is
-            wired in; see the component for the live-data seam. */}
-        <HornLiveTracker token={token} />
         </div>
-        {/* TOP-RIGHT: trade + about + horns rail. Grid stretches this cell to the
-            chart's height; the Horns wrapper is flex-1 so its surface fills the
-            remaining rail height and its bottom lands level with the chart. */}
+        {/* TOP-RIGHT: trade + about rail. */}
         <aside className="flex min-w-0 flex-col gap-4">
           <FloorlaunchTradePanel token={token} />
           <Overview token={token} trades={visibleTrades} />
-          <div className="flex min-h-0 flex-1 flex-col [&>section]:flex-1">
-            <HornsFeeSplitPanel token={token} />
-          </div>
         </aside>
         {/* BOTTOM-LEFT: expanded info panel (Holders / Transactions / Comments) */}
         <TokenInformationPanel
@@ -700,10 +689,10 @@ function Overview({ token, trades }: { token: TokenListItem; trades: TokenTrade[
             </div>
             <div className="mt-2 text-[10px]">
               <OverviewDetailRow label="Created" value={overviewCreatedLabel(token, now)} />
-              <OverviewDetailRow label="Chain" value="ansemchain" />
+              <OverviewDetailRow label="Chain" value="Floatdesk" />
               <OverviewDetailRow
                 label="Venue"
-                value={token.market.dbcPool ? "Meteora DBC" : token.graduated ? "ANSEM AMM" : "Launch curve"}
+                value={token.market.dbcPool ? "Meteora DBC" : token.graduated ? "Floatdesk AMM" : "Launch curve"}
               />
               <OverviewDetailRow label="Contract address">
                 <CopyValue value={token.mint} />

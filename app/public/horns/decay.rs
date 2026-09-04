@@ -52,7 +52,7 @@ use thiserror::Error;
 
 const MAX_HOOK_FEE_BPS: u16 = 1000; // must match amm::hooks::MAX_HOOK_FEE_BPS
 const BPS: u128 = 10_000;
-/// Fixed-point scale for the recorded execution price (token per ANSEM). Large
+/// Fixed-point scale for the recorded execution price (token per Floatdesk). Large
 /// enough to keep resolution on lopsided reserves, small enough that
 /// `token_amt * PRICE_SCALE` stays inside Uint256 for any realistic swap.
 const PRICE_SCALE: u128 = 1_000_000_000_000; // 1e12
@@ -119,7 +119,7 @@ pub struct Config {
     // Mutable surge state.
     /// Unix second the surge last armed; zero means unarmed.
     pub armed_time: u64,
-    /// Last observed execution price, token-per-ANSEM scaled by `PRICE_SCALE`.
+    /// Last observed execution price, token-per-Floatdesk scaled by `PRICE_SCALE`.
     pub last_price: Uint128,
 }
 
@@ -232,12 +232,12 @@ pub fn fee_at(cfg: &Config, now: u64) -> u16 {
     launch_fee(cfg, now).max(surge_fee(cfg, now)).min(MAX_HOOK_FEE_BPS)
 }
 
-/// Execution price of a swap as token-per-ANSEM, scaled by `PRICE_SCALE`, from
+/// Execution price of a swap as token-per-Floatdesk, scaled by `PRICE_SCALE`, from
 /// the input/output the callback was handed. Normalised to one orientation so
 /// consecutive buys and sells compare on the same axis. `None` for a degenerate
 /// or non-representable trade (record nothing, arm nothing).
 fn exec_price(offer_ansem: bool, input: Uint128, output: Uint128) -> Option<Uint128> {
-    // token per ansem: on a buy ANSEM is the input and token the output; on a
+    // token per ansem: on a buy Floatdesk is the input and token the output; on a
     // sell it is the reverse.
     let (token_amt, ansem_amt) = if offer_ansem {
         (output, input)
@@ -570,9 +570,9 @@ mod tests {
 
     #[test]
     fn execution_price_is_token_per_ansem_both_directions() {
-        // Buy: 100 ANSEM in, 200 token out -> 2 token per ANSEM.
+        // Buy: 100 Floatdesk in, 200 token out -> 2 token per Floatdesk.
         let buy = exec_price(true, Uint128::new(100), Uint128::new(200)).unwrap();
-        // Sell: 200 token in, 100 ANSEM out -> the same 2 token per ANSEM.
+        // Sell: 200 token in, 100 Floatdesk out -> the same 2 token per Floatdesk.
         let sell = exec_price(false, Uint128::new(200), Uint128::new(100)).unwrap();
         assert_eq!(buy, sell, "a buy and a sell at the same price agree");
         assert_eq!(buy, Uint128::new(2 * PRICE_SCALE));

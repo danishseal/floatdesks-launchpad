@@ -68,7 +68,7 @@ export function AccountDisplay({
               <Wallet size={17} weight="fill" className="shrink-0 text-[var(--color-text-secondary)]" />
               <span className="flex min-w-0 flex-col items-start font-sans text-[12px] font-semibold leading-tight">
                 <span className="truncate">{balance === null ? "-" : formatSol(balance)} CHANSE</span>
-                <span className="truncate text-[var(--color-text-secondary)]">{ansemBalance ? formatSol(ansemBalance) : "0"} ANSEM</span>
+                <span className="truncate text-[var(--color-text-secondary)]">{ansemBalance ? formatSol(ansemBalance) : "0"} Floatdesk</span>
               </span>
             </>
           ) : (
@@ -79,7 +79,7 @@ export function AccountDisplay({
                   <span className="shrink-0 text-[var(--color-text-subtle)]">|</span>
                   <span className="shrink-0">
                     {formatSol(balance)} CHANSE
-                    {ansemBalance ? ` · ${formatSol(ansemBalance)} ANSEM` : ""}
+                    {ansemBalance ? ` · ${formatSol(ansemBalance)} Floatdesk` : ""}
                   </span>
                 </>
               )}
@@ -116,9 +116,9 @@ export function AccountDisplay({
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[var(--color-text-muted)]">ANSEM balance</span>
+            <span className="text-[var(--color-text-muted)]">Floatdesk balance</span>
             <span className="font-semibold text-[var(--color-text-primary)]">
-              {ansemBalance ? `${formatSol(ansemBalance)} ANSEM` : "0 ANSEM"}
+              {ansemBalance ? `${formatSol(ansemBalance)} Floatdesk` : "0 Floatdesk"}
             </span>
           </div>
         </div>

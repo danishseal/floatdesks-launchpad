@@ -1,5 +1,5 @@
 //! Gauge Horn — a vesting gate that bounds (not eliminates) JIT reward capture,
-//! ported to ANSEM.
+//! ported to Floatdesk.
 //!
 //! ## What the source does (Vector `gauge-vector`, Super DCA's gauge)
 //!
@@ -13,9 +13,9 @@
 //! position up resets its clock. "Reward only liquidity that was actually
 //! present."
 //!
-//! ## The ANSEM adaptation (LP → staker), and why it is different
+//! ## The Floatdesk adaptation (LP → staker), and why it is different
 //!
-//! On ANSEM a token *graduates* into a constant-product AMM pool whose LP is
+//! On Floatdesk a token *graduates* into a constant-product AMM pool whose LP is
 //! **permanently locked** — there are no withdrawable LP positions to reward or
 //! to donate into. So the classic "reward the LPs" target does not exist here.
 //! The value that Horns capture is instead paid to **Horn Vault stakers**
@@ -34,7 +34,7 @@
 //! ## Mechanic: a vesting gate in front of the Vault
 //!
 //! `after_swap` never forwards the skim synchronously. It splits the skim by the
-//! pool's ANSEM/CHANSE percentage and parks each side in a per-sink **vesting
+//! pool's Floatdesk/CHANSE percentage and parks each side in a per-sink **vesting
 //! buffer**, stamped `mature_at = now + min_stake_seconds`. A separate,
 //! permissionless `Settle` later deposits into the Vault only the buffered value
 //! that has *matured* (its `mature_at` has passed) and only into a sink that
@@ -174,12 +174,12 @@ pub struct Config {
     /// The vesting gate: a swap's skim is withheld from the Vault for this many
     /// seconds. This is the anti-JIT knob; see the module docs.
     pub min_stake_seconds: u64,
-    /// Fallback ANSEM-sink share (bps) for pools with no registered split.
+    /// Fallback Floatdesk-sink share (bps) for pools with no registered split.
     pub default_ansem_bps: u16,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
-/// Per-pool ANSEM-sink share in bps (CHANSE share = 10000 - this). Key: token_address.
+/// Per-pool Floatdesk-sink share in bps (CHANSE share = 10000 - this). Key: token_address.
 const POOL_ANSEM_BPS: Map<&str, u16> = Map::new("pool_ansem_bps");
 /// The vesting buffer: skimmed reward coins waiting out the gate before they may
 /// be deposited into the Vault. Key: (sink, mature_at_seconds) -> merged coins.
@@ -196,7 +196,7 @@ pub struct InstantiateMsg {
     pub vault: String,
     /// The vesting gate in seconds. MUST be > 0 and <= `MAX_STAKE_SECONDS`.
     pub min_stake_seconds: u64,
-    /// Default ANSEM-sink share in bps (e.g. 5000 = 50/50). CHANSE gets the rest.
+    /// Default Floatdesk-sink share in bps (e.g. 5000 = 50/50). CHANSE gets the rest.
     pub default_ansem_bps: u16,
 }
 
@@ -220,7 +220,7 @@ pub enum ExecuteMsg {
     /// waited out the gate. Bounded: it drains at most `SETTLE_LIMIT` matured keys
     /// per call (oldest first); call it repeatedly to drain a large backlog.
     Settle {},
-    /// Set a pool's ANSEM/CHANSE split. Called by the launchpad at graduation
+    /// Set a pool's Floatdesk/CHANSE split. Called by the launchpad at graduation
     /// (or the admin). CHANSE share is `10000 - ansem_bps`.
     RegisterPool { token_address: String, ansem_bps: u16 },
     UpdateConfig {
@@ -515,8 +515,8 @@ fn update_config(
 
 // ── pure helpers ────────────────────────────────────────────────────────────
 
-/// Split `funds` into the ANSEM side (`ansem_bps`) and CHANSE side (the rest).
-/// Integer division rounds the ANSEM share down; the remainder rides on the
+/// Split `funds` into the Floatdesk side (`ansem_bps`) and CHANSE side (the rest).
+/// Integer division rounds the Floatdesk share down; the remainder rides on the
 /// CHANSE side so nothing is ever dropped and the two sides sum to the input.
 fn split_funds(ansem_bps: u128, funds: &[Coin]) -> (Vec<Coin>, Vec<Coin>) {
     let mut to_ansem = vec![];
@@ -527,7 +527,7 @@ fn split_funds(ansem_bps: u128, funds: &[Coin]) -> (Vec<Coin>, Vec<Coin>) {
         }
         // Checked ratio math: `multiply_ratio` widens to Uint256 internally, so
         // `amount * ansem_bps` cannot overflow a native u128. Floor division
-        // rounds the ANSEM share down; the remainder rides on the CHANSE side so
+        // rounds the Floatdesk share down; the remainder rides on the CHANSE side so
         // the two sides always sum back to the input and nothing is dropped.
         let a = c.amount.multiply_ratio(ansem_bps, BPS);
         let ch = c.amount - a; // a <= amount, so this never underflows.
@@ -869,12 +869,12 @@ mod tests {
     #[test]
     fn matured_value_for_an_empty_sink_is_deferred_not_deposited() {
         let mut deps = setup(100);
-        // ANSEM sink has stakers, CHANSE sink is empty.
+        // Floatdesk sink has stakers, CHANSE sink is empty.
         wire_vault(&mut deps.querier, 1, 0);
         do_swap(&mut deps, 1_000, &coins(1_000, "uchanse")); // mature_at = 1_100
 
         let resp = settle(deps.as_mut(), env_at(1_200)).unwrap();
-        // Only the ANSEM sink is paid; the CHANSE sink's matured share is retained.
+        // Only the Floatdesk sink is paid; the CHANSE sink's matured share is retained.
         assert_eq!(resp.messages.len(), 1);
         if let CosmosMsg::Wasm(WasmMsg::Execute { msg, .. }) = &resp.messages[0].msg {
             let vm: VaultExecuteMsg = from_binary(msg).unwrap();
@@ -947,7 +947,7 @@ mod tests {
     fn settle_stays_bounded_under_a_flood() {
         let mut deps = setup(100);
         wire_vault(&mut deps.querier, 1, 1);
-        register(&mut deps, "tokenX", 10_000); // all skim -> ANSEM sink only
+        register(&mut deps, "tokenX", 10_000); // all skim -> Floatdesk sink only
 
         // A cheap one-swap-per-second flood stamps one distinct matured key per
         // second. Pre-fix, settle would try to load ALL of them in one call and

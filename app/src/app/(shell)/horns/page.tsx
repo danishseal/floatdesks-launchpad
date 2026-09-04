@@ -27,12 +27,12 @@ export default function HornsPage() {
           </span>
         </div>
         <h1 className="mt-3 font-display text-[32px] font-bold leading-[1.05] tracking-tight text-[var(--color-text-primary)]">
-          Hooks that pay ANSEM and CHANSE holders.
+          Hooks that pay Floatdesk and CHANSE holders.
         </h1>
         <p className="mt-3 text-[14px] leading-6 text-[var(--color-text-secondary)]">
           Horns are v4-style hooks on the graduation AMM. When a coin graduates, its creator can attach
           one or more Horns that skim a slice of every swap fee to the{" "}
-          <span className="text-[var(--color-text-primary)]">Horn Vault</span>, where ANSEM and CHANSE stakers earn it, or
+          <span className="text-[var(--color-text-primary)]">Horn Vault</span>, where Floatdesk and CHANSE stakers earn it, or
           reshape how the pool prices, gates, and fills trades. Pick any Horn to read what it does and
           preview its real source.
         </p>

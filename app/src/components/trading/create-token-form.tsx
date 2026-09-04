@@ -61,7 +61,7 @@ export function CreateTokenForm() {
   const [website, setWebsite] = useState("");
   const [telegram, setTelegram] = useState("");
   const [base, setBase] = useState<BaseChoice>("chanse");
-  const [gradAnsem, setGradAnsem] = useState(""); // ANSEM graduation target (whole ANSEM)
+  const [gradAnsem, setGradAnsem] = useState(""); // Floatdesk graduation target (whole Floatdesk)
   const [submitting, setSubmitting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [imgBusy, setImgBusy] = useState(false);
@@ -69,10 +69,10 @@ export function CreateTokenForm() {
 
   // Wizard: 1 = customize the coin, 2 = launch config (denomination + Horns).
   const [step, setStep] = useState<1 | 2>(1);
-  // Horns: attach a fee-skim Horn at graduation, split ANSEM/CHANSE.
+  // Horns: attach a fee-skim Horn at graduation, split Floatdesk/CHANSE.
   const [attachHorns, setAttachHorns] = useState(true);
   const [skimPct, setSkimPct] = useState(3); // % of each swap fee -> Horn Vault (0..10)
-  const [ansemPct, setAnsemPct] = useState(50); // share of the skim to the ANSEM sink
+  const [ansemPct, setAnsemPct] = useState(50); // share of the skim to the Floatdesk sink
   const [composite, setComposite] = useState<string[]>([]); // extra Horns via the Composite router
 
   const handleFile = useCallback(async (file: File | null | undefined) => {
@@ -260,7 +260,7 @@ export function CreateTokenForm() {
                   : "border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
               }`}
             >
-              {b === "chanse" ? "CHANSE" : "ANSEM"}
+              {b === "chanse" ? "CHANSE" : "Floatdesk"}
             </button>
           ))}
         </div>
@@ -273,7 +273,7 @@ export function CreateTokenForm() {
       {base === "ansem" ? (
         <div>
           <label className="mb-2 block text-[13px] font-medium text-[var(--color-text-secondary)]">
-            Graduation target (ANSEM)
+            Graduation target (Floatdesk)
           </label>
           <input
             className={field}
@@ -283,7 +283,7 @@ export function CreateTokenForm() {
             inputMode="decimal"
           />
           <p className="mt-2 text-[12px] text-[var(--color-text-muted)]">
-            ANSEM launches bypass the CHANSE/USD oracle. Set how much ANSEM the curve
+            Floatdesk launches bypass the CHANSE/USD oracle. Set how much Floatdesk the curve
             raises before graduating to the AMM.
           </p>
         </div>
@@ -338,7 +338,7 @@ export function CreateTokenForm() {
               <div className="flex items-center justify-between text-[12px]">
                 <span className="text-[var(--color-text-secondary)]">Sink split</span>
                 <span className="mono font-semibold text-[var(--color-text-primary)]">
-                  <span className="text-[var(--color-accent-strong)]">{ansemPct}%</span> ANSEM /{" "}
+                  <span className="text-[var(--color-accent-strong)]">{ansemPct}%</span> Floatdesk /{" "}
                   <span className="text-[#8ab4ff]">{chansePct}%</span> CHANSE
                 </span>
               </div>
@@ -409,7 +409,7 @@ export function CreateTokenForm() {
 
             <p className="text-[11px] leading-4 text-[var(--color-text-subtle)]">
               When your coin graduates to the AMM, {skimPct}% of every swap fee ({skimBps} bps
-              of the fee) is skimmed to the Horn Vault and split to ANSEM / CHANSE stakers.
+              of the fee) is skimmed to the Horn Vault and split to Floatdesk / CHANSE stakers.
               Horns is in preview; this activates with the Horns program.
             </p>
           </div>

@@ -24,16 +24,16 @@ export function Header() {
       >
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">
-            <Link href="/" aria-label="ANSEM home" className="flex items-center gap-2">
+            <Link href="/" aria-label="Floatdesk home" className="flex items-center gap-2">
               <Image
-                src="/logo.png"
-                alt="ANSEM logo"
-                width={40}
-                height={40}
-                className="h-10 w-10 rounded-full object-cover"
+                src="/sailboat.png"
+                alt="Floatdesk logo"
+                width={48}
+                height={48}
+                className="h-12 w-12 rounded-full object-cover"
                 priority
               />
-              <span className="text-lg font-semibold tracking-[0.12em]">ANSEM</span>
+              <span className="text-lg font-semibold tracking-[0.12em]">Floatdesk</span>
             </Link>
             <nav className="flex items-center gap-1">
               {navItems.map((item) => {

@@ -8,7 +8,7 @@
  * and tiles near the pointer glow. Rendered fixed behind all app content
  * (pointer-events off, low z-index) so it never blocks clicks. Respects
  * prefers-reduced-motion. The tile ink is read from the --hero-ink CSS var
- * (ANSEM green) so it stays on-brand.
+ * (Floatdesk green) so it stays on-brand.
  */
 
 import { useEffect, useRef } from "react";

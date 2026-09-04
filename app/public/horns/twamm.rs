@@ -1,6 +1,6 @@
 //! TWAMM Horn — time-weighted long orders executed in slices against the AMM.
 //!
-//! A trader parks a large buy as a resting order ("spend this CHANSE/ANSEM on
+//! A trader parks a large buy as a resting order ("spend this CHANSE/Floatdesk on
 //! the token, evenly, over the next N seconds"). Anyone may then call `Advance`
 //! on that order: the Horn works out how much of the order should have executed
 //! since the last tick (`time_elapsed / total_duration` of the whole order),

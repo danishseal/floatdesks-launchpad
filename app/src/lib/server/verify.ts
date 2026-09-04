@@ -52,7 +52,7 @@ export async function verifyArbitrary(params: {
 /**
  * Verify a SIGN_MODE_DIRECT signature over a SignDoc whose TxBody carries the
  * auth message in its `memo` and has no messages (so nothing is broadcast).
- * This is the path for wallets that expose only `signDirect` (the ANSEM wallet).
+ * This is the path for wallets that expose only `signDirect` (the Floatdesk wallet).
  *
  * Rebuilds the exact sign bytes from the client-supplied body/authInfo bytes,
  * hashes them, checks the secp256k1 signature against the pubkey, confirms the
@@ -112,7 +112,7 @@ export async function verifyDirect(params: {
 
 /**
  * Dispatch to the right verifier by scheme. "direct" uses a SIGN_MODE_DIRECT
- * SignDoc (ANSEM wallet); anything else falls back to ADR-36 (Keplr/Leap).
+ * SignDoc (Floatdesk wallet); anything else falls back to ADR-36 (Keplr/Leap).
  */
 export async function verifySocial(params: {
   prefix: string;

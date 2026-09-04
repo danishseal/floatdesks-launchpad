@@ -13,7 +13,7 @@
 //! Doppler (and Vector) state the schedule in ticks and drive it with an
 //! **accumulator** that reads realised demand (`netSold`) in `after_swap` and
 //! rebalances the curve up or down against it. That demand feedback needs
-//! mutable state written on every swap. The ANSEM Horns interface is a single
+//! mutable state written on every swap. The Floatdesk Horns interface is a single
 //! read-only `before_swap` QUERY (`Deps`, not `DepsMut`) with no `after_swap`
 //! execute hook, so there is nowhere to keep a running accumulator and nothing
 //! measures demand. What is left, and what this Horn implements, is the honest
@@ -26,7 +26,7 @@
 //! Vector's `schedule-vector` could not use `BEFORE_SWAP_RETURNS_DELTA` (its
 //! curve venue rejects deltas and settling one needs deps it could not add), so
 //! it expressed the whole auction as an **LP fee override**, which can only ever
-//! make the trader's price *worse* than pool spot. The ANSEM AMM re-validates
+//! make the trader's price *worse* than pool spot. The Floatdesk AMM re-validates
 //! and settles a returned `Delta` itself (`amount_in == offered`,
 //! `amount_out <= reserve`, `amount_out > 0`), so this port takes the path
 //! Vector wanted but could not reach: it prices the swap directly against the

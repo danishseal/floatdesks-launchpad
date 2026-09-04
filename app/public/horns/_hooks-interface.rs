@@ -43,7 +43,7 @@ impl HookConfig {
 pub struct SwapContext {
     pub token_address: String,
     pub sender: String,
-    /// true = ANSEM in / token out
+    /// true = Floatdesk in / token out
     pub offer_ansem: bool,
     pub input_amount: Uint128,
     pub ansem_reserve: Uint128,

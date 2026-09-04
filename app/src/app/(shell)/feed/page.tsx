@@ -32,7 +32,7 @@ export default function FeedPage() {
       <div className="mb-4">
         <h1 className="font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">Feed</h1>
         <p className="mt-0.5 font-sans text-[13px] text-[var(--color-text-muted)]">
-          The global timeline of everyone on ansemchain.
+          The global timeline of everyone on Floatdesk.
         </p>
       </div>
 

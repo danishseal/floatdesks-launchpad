@@ -37,7 +37,7 @@ export function UtokenHome() {
               Live coins
             </h2>
             <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">
-              Launches moving across the curve and into the ANSEM AMM.
+              Launches moving across the curve and into the Floatdesk AMM.
             </p>
           </div>
         </div>
@@ -77,8 +77,8 @@ const HERO_SLIDES: HeroSlide[] = [
     accent: "l2",
     body: (
       <>
-        Every coin launches on a bonding curve and graduates to the ANSEM AMM. A{" "}
-        <span className="text-[var(--color-on-accent)]">Horn</span> skims a slice of every swap fee to CHANSE and ANSEM
+        Every coin launches on a bonding curve and graduates to the Floatdesk AMM. A{" "}
+        <span className="text-[var(--color-on-accent)]">Horn</span> skims a slice of every swap fee to CHANSE and Floatdesk
         stakers, so real trading becomes real yield.
       </>
     ),
@@ -95,7 +95,7 @@ const HERO_SLIDES: HeroSlide[] = [
     body: (
       <>
         No presale, no team allocation. Your coin opens on a fair bonding curve, and once it fills it
-        graduates straight into a live ANSEM AMM pool with <span className="text-[var(--color-on-accent)]">Horns</span>{" "}
+        graduates straight into a live Floatdesk AMM pool with <span className="text-[var(--color-on-accent)]">Horns</span>{" "}
         attached from block one.
       </>
     ),
@@ -106,13 +106,13 @@ const HERO_SLIDES: HeroSlide[] = [
   },
   {
     badge: "Stake · earn the skim",
-    l1: "STAKE ANSEM OR CHANSE.",
+    l1: "STAKE Floatdesk OR CHANSE.",
     l2: "EARN EVERY POOL'S FEES.",
     accent: "l2",
     body: (
       <>
         Stake into the <span className="text-[var(--color-on-accent)]">Horn Vault</span> and collect a per-block cut of
-        the fees skimmed from every graduated pool, in both CHANSE and ANSEM. One vault, two sinks.
+        the fees skimmed from every graduated pool, in both CHANSE and Floatdesk. One vault, two sinks.
       </>
     ),
     ctas: [
@@ -355,7 +355,7 @@ function FeaturedCard({
         </div>
 
         <p className="mt-2 text-[11px] leading-[1.28] text-[var(--color-text-secondary)]">
-          {token.description?.trim() || `${token.name} is trading live on the ANSEM market.`}
+          {token.description?.trim() || `${token.name} is trading live on the Floatdesk market.`}
         </p>
 
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px]">
@@ -501,7 +501,7 @@ function VenueBadge({ token }: { token: TokenListItem }) {
         graduated ? "bg-[var(--color-accent-solid)]/15 text-[var(--color-accent-strong)]" : "bg-[var(--color-bg-raised)] text-[var(--color-text-secondary)]"
       }`}
     >
-      {graduated ? "ANSEM AMM" : "Bonding"}
+      {graduated ? "Floatdesk AMM" : "Bonding"}
     </span>
   );
 }

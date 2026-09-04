@@ -143,9 +143,9 @@ function changesLine(cat: Horn["category"]): string {
   return "For traders: reshapes how the pool prices and holds depth.";
 }
 
-// A launch denomination: CHANSE, ANSEM, or one of the tokenized-stock (RWA)
+// A launch denomination: CHANSE, Floatdesk, or one of the tokenized-stock (RWA)
 // denoms. All map 1:1 to a key in BASE_DENOMS, so BASE_DENOMS[base] is the
-// utoken denom sent on-chain. Stock denoms (and ANSEM) are oracle-derived.
+// utoken denom sent on-chain. Stock denoms (and Floatdesk) are oracle-derived.
 type BaseChoice = keyof typeof BASE_DENOMS;
 type StepKey = "intro" | "horn" | "skim" | "name" | "review";
 const STEP_LABEL: Record<StepKey, string> = {
@@ -226,7 +226,7 @@ export function CreateTokenWizard() {
   const [imgBusy, setImgBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Horns: attach a fee-skim Horn at graduation, split ANSEM/CHANSE, compose extras.
+  // Horns: attach a fee-skim Horn at graduation, split Floatdesk/CHANSE, compose extras.
   const [attachHorns, setAttachHorns] = useState(true);
   const [skimPct, setSkimPct] = useState(25);
   const [ansemPct, setAnsemPct] = useState(50);
@@ -260,7 +260,7 @@ export function CreateTokenWizard() {
     }
   }, []);
 
-  // A manual graduation target is only required for ANSEM launches. CHANSE and
+  // A manual graduation target is only required for Floatdesk launches. CHANSE and
   // the stock (RWA) denoms are oracle-derived, so no target input is needed.
   const nameValid = useMemo(
     () =>
@@ -317,9 +317,9 @@ export function CreateTokenWizard() {
         socialLinks,
         // BASE_DENOMS maps the choice (chanse|ansem|nvdax|tslax|aaplx|spyx) to
         // its utoken denom (uchanse|uansem|unvdax|utslax|uaaplx|uspyx). Stock
-        // launches send their denom exactly like CHANSE/ANSEM do.
+        // launches send their denom exactly like CHANSE/Floatdesk do.
         baseDenom: BASE_DENOMS[base],
-        // Only ANSEM carries a manual graduation raise; stock launches are
+        // Only Floatdesk carries a manual graduation raise; stock launches are
         // oracle-derived, so the client sends base_denom alone.
         baseGradThreshold:
           base === "ansem" ? String(Math.round(Number(gradAnsem) * 1_000_000)) : undefined,
@@ -554,7 +554,7 @@ function IntroStep({ onChoose }: { onChoose: () => void }) {
         Launch with Horns
       </h1>
       <p style={BODY} className="mt-3 max-w-[440px] text-[var(--color-text-secondary)]">
-        Add programmable liquidity to your token on ANSEM Chain
+        Add programmable liquidity to your token on Floatdesk Chain
       </p>
 
       <ol className="mt-8 w-full max-w-[500px] space-y-4 text-left">
@@ -579,7 +579,7 @@ function IntroStep({ onChoose }: { onChoose: () => void }) {
       </p>
 
       <div className="relative mt-9 h-[208px] w-[208px]" aria-hidden>
-        {/* Super-subtle ANSEM glow behind the revolving Horns. */}
+        {/* Super-subtle Floatdesk glow behind the revolving Horns. */}
         <div className="absolute inset-10 rounded-full bg-[var(--color-accent-solid)]/[0.06] blur-2xl" />
         <div className="wiz-orbit absolute inset-0">
           {RING.slice(0, 8).map((item, i) => {
@@ -958,7 +958,7 @@ function SkimStep({
       <div className="mt-5 w-full space-y-3 text-left">
         <div className="flex min-h-[72px] items-center gap-5 rounded-[13px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]/[0.035] px-5">
           <span style={{ ...POPPINS, fontWeight: 600 }} className="w-[76px] shrink-0 text-[20px] text-[var(--color-accent-strong)]">{ansemPct}%</span>
-          <span className="text-[14px] text-[var(--color-text-secondary)]">rewards ANSEM stakers</span>
+          <span className="text-[14px] text-[var(--color-text-secondary)]">rewards Floatdesk stakers</span>
         </div>
         <div className="flex min-h-[72px] items-center gap-5 rounded-[13px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]/[0.035] px-5">
           <span style={{ ...POPPINS, fontWeight: 600 }} className="w-[76px] shrink-0 text-[20px] text-[#8ab4ff]">{chansePct}%</span>
@@ -999,7 +999,7 @@ function SkimStep({
             onChange={(e) => setAnsemPct(Number(e.target.value))}
             className="fee-range w-full"
             style={{ background: `linear-gradient(to right, #2563eb 0%, #2563eb ${ansemPct}%, #8ab4ff ${ansemPct}%, #8ab4ff 100%)` }}
-            aria-label="ANSEM share of the skim"
+            aria-label="Floatdesk share of the skim"
           />
         </div>
       </div>
@@ -1175,7 +1175,7 @@ function NameStep(props: {
                 base === b ? "bg-[var(--color-accent-solid)] text-[var(--color-on-accent)]" : "border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] text-[var(--color-text-secondary)] hover:border-[var(--color-border)] hover:text-[var(--color-text-primary)]"
               }`}
             >
-              {b === "chanse" ? "CHANSE" : "ANSEM"}
+              {b === "chanse" ? "CHANSE" : "Floatdesk"}
             </button>
           ))}
         </div>
@@ -1186,8 +1186,8 @@ function NameStep(props: {
       </div>
 
       {/* Launch against a stock (RWA). Selecting one is a launch-denomination
-          choice: it overrides the CHANSE/ANSEM picker above (they share `base`),
-          and picking CHANSE/ANSEM there deselects the stock here. */}
+          choice: it overrides the CHANSE/Floatdesk picker above (they share `base`),
+          and picking CHANSE/Floatdesk there deselects the stock here. */}
       <div className="mt-6">
         <label className="mb-1 block text-[14px] font-semibold text-[var(--color-text-primary)]">
           Launch against a stock <span className="ml-1 font-normal text-[var(--color-text-muted)]">(RWA)</span>
@@ -1236,10 +1236,10 @@ function NameStep(props: {
 
       {base === "ansem" && (
         <div className="mt-5 ansem-fade-in">
-          <label className="mb-2 block text-[14px] font-semibold text-[var(--color-text-primary)]">Graduation target (ANSEM)</label>
+          <label className="mb-2 block text-[14px] font-semibold text-[var(--color-text-primary)]">Graduation target (Floatdesk)</label>
           <input className={field} value={gradAnsem} onChange={(e) => setGradAnsem(e.target.value)} placeholder="e.g. 50" inputMode="decimal" />
           <p className="mt-2 text-[11.5px] leading-5 text-[var(--color-text-muted)]">
-            ANSEM launches bypass the CHANSE/USD oracle. Set how much ANSEM the curve raises before graduating.
+            Floatdesk launches bypass the CHANSE/USD oracle. Set how much Floatdesk the curve raises before graduating.
           </p>
         </div>
       )}
@@ -1385,7 +1385,7 @@ function ReviewStep({
               Denominated in {denomLabel(BASE_DENOMS[base])}
             </span>
             {base === "ansem" && Number(gradAnsem) > 0 && (
-              <span className="ml-2 text-[13px] text-[var(--color-text-muted)]">Graduates at {gradAnsem} ANSEM</span>
+              <span className="ml-2 text-[13px] text-[var(--color-text-muted)]">Graduates at {gradAnsem} Floatdesk</span>
             )}
             {isStockDenomKey(base) && (
               <span className="ml-2 text-[13px] text-[var(--color-text-muted)]">RWA · oracle-derived graduation</span>
@@ -1424,7 +1424,7 @@ function ReviewStep({
           {attachHorns ? (
             <div className="text-[14px] text-[var(--color-text-primary)]">
               Horn Vault · {skimPct}% of swap fees
-              <span className="ml-2 text-[var(--color-text-muted)]">{ansemPct}% ANSEM / {chansePct}% CHANSE</span>
+              <span className="ml-2 text-[var(--color-text-muted)]">{ansemPct}% Floatdesk / {chansePct}% CHANSE</span>
             </div>
           ) : (
             <span className="text-[14px] text-[var(--color-text-secondary)]">No skim — all fees stay in the pool</span>

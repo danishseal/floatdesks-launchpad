@@ -11,17 +11,17 @@ const geist = Geist({
   display: "swap",
 });
 
-const SITE_TITLE = "ANSEM";
+const SITE_TITLE = "Floatdesk";
 const SITE_DESCRIPTION =
-  "Launch and trade tokens on the ANSEM bonding curve. Attach Horns, split fees, stake the Horn Vault. On-chain, no presale.";
+  "Launch and trade tokens on the Floatdesk bonding curve. Attach Horns, split fees, stake the Horn Vault. On-chain, no presale.";
 
 export const metadata: Metadata = {
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/sailboat-white.png",
+    shortcut: "/sailboat-white.png",
+    apple: "/sailboat-white.png",
   },
   openGraph: {
     title: SITE_TITLE,

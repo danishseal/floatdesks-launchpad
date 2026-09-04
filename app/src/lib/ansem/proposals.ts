@@ -1,6 +1,6 @@
 // Token-scoped community proposals for the launchpad token page.
 //
-// This is the SAME memo/treasury governance protocol the ANSEM proposals web
+// This is the SAME memo/treasury governance protocol the Floatdesk proposals web
 // app (ansemm-proposal) and @chanseproposalbot speak - proposals and votes are
 // 1-uchanse bank transfers to a treasury address carrying an encoded memo,
 // read back from tx history. NOTHING here uses the CosmWasm proposals contract;

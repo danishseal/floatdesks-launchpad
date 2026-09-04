@@ -1,5 +1,5 @@
 // Data layer, repointed from the Solana/floorlaunch backend to the ansem-1
-// CosmWasm stack: reads come from our ansemchain-indexer (HTTP + SSE) and the
+// CosmWasm stack: reads come from our Floatdesk-indexer (HTTP + SSE) and the
 // launchpad contract's REST smart queries. Exported names + type shapes are
 // preserved so the UI components keep compiling; collectible-only fields are
 // filled with neutral defaults (this is a plain bonding-curve launchpad).
@@ -149,7 +149,7 @@ export interface TokenListItem {
   price_change_24h: number | null;
   /** ansem-1: native base denom this token trades in ("uchanse" | "uansem"). */
   base_denom: string;
-  /** ansem-1: "CHANSE" | "ANSEM" display label. */
+  /** ansem-1: "CHANSE" | "Floatdesk" display label. */
   base_label: string;
   market: MarketInfo;
   listing: ListingMeta;
@@ -195,7 +195,7 @@ export interface AggregatorRow {
 
 // Neutral MarketInfo for a plain bonding-curve token (no collectible venue).
 // `solUsd` here is the base-denom -> USD rate from the oracle (name kept for the
-// preserved shape; it is CHANSE/USD, or the same rate for ANSEM curves).
+// preserved shape; it is CHANSE/USD, or the same rate for Floatdesk curves).
 function stubMarket(t: IndexerToken, solUsd: number): MarketInfo {
   const reserves = Number(t.ansem_reserves) / 1e6;
   return {

@@ -12,10 +12,10 @@
 //! between the two, so the trader gets a better fill than the pool and the Horn
 //! captures the spread that a Jito searcher's backrun would otherwise have taken.
 //!
-//! # The ANSEM adaptation, stated plainly
+//! # The Floatdesk adaptation, stated plainly
 //!
-//! **ANSEM has no second AMM venue to read as the reference price.** There is one
-//! constant-product AMM per token. So this Horn uses the **ANSEM oracle contract**
+//! **Floatdesk has no second AMM venue to read as the reference price.** There is one
+//! constant-product AMM per token. So this Horn uses the **Floatdesk oracle contract**
 //! as its reference instead of a second venue: it queries a configured oracle
 //! address for a price and compares that against what the pool would pay.
 //!
@@ -161,7 +161,7 @@ pub enum ContractError {
 pub struct SwapContext {
     pub token_address: String,
     pub sender: String,
-    /// true = ANSEM/quote in, token out.
+    /// true = Floatdesk/quote in, token out.
     pub offer_ansem: bool,
     pub input_amount: Uint128,
     pub ansem_reserve: Uint128,
@@ -177,7 +177,7 @@ pub enum HookDecision {
     Delta { amount_in: Uint128, amount_out: Uint128 },
 }
 
-// ── minimal mirror of the ANSEM oracle's query surface ──────────────────────
+// ── minimal mirror of the Floatdesk oracle's query surface ──────────────────────
 // Only the shape this Horn reads. cw_serde does not deny unknown fields, so the
 // oracle's fuller `PriceResponse` (sol price, heights, source…) deserializes
 // fine into this subset.
@@ -211,7 +211,7 @@ struct BalanceResponse {
 #[cw_serde]
 pub struct Config {
     pub admin: Addr,
-    /// The ANSEM oracle contract queried for the reference price.
+    /// The Floatdesk oracle contract queried for the reference price.
     pub oracle: Addr,
     /// The AMM — the only address allowed to call `after_swap` (which decrements
     /// the subsidy budget). Mirrors `horn-feeshare`.

@@ -40,13 +40,13 @@ export const HORNS: Horn[] = [
     slug: "vault",
     icon: "/horns/art/vault.png",
     name: "Horn Vault",
-    tagline: "The reward keystone: stake ANSEM or CHANSE, earn every pool's skim",
+    tagline: "The reward keystone: stake Floatdesk or CHANSE, earn every pool's skim",
     category: "Reward layer",
     hooks: ["stake / unstake / claim"],
     blurb:
-      "A MasterChef-style staking contract with two global sinks (ANSEM and CHANSE). Every graduated pool's skimmed fee flows into these sinks, and stakers earn a per-share cut that accrues each block. Rewards are tracked with a 1e18-precision accumulator in 256-bit math so dust never strands.",
+      "A MasterChef-style staking contract with two global sinks (Floatdesk and CHANSE). Every graduated pool's skimmed fee flows into these sinks, and stakers earn a per-share cut that accrues each block. Rewards are tracked with a 1e18-precision accumulator in 256-bit math so dust never strands.",
     points: [
-      "Two shared sinks: one for ANSEM stakers, one for CHANSE stakers",
+      "Two shared sinks: one for Floatdesk stakers, one for CHANSE stakers",
       "Accrue-per-share accounting; deposits are permissionless",
       "Optional stake cooldown (min_stake_seconds) to blunt just-in-time farming",
       "Reward denominations are capped so the harvest loop is always bounded",
@@ -62,14 +62,14 @@ export const HORNS: Horn[] = [
     category: "Reward layer",
     hooks: ["after_swap"],
     blurb:
-      "The plumbing between the AMM and the Vault. It receives the after-swap skim and splits it into the ANSEM and CHANSE sinks by a configured ratio. The deposit rides as a reply-on-error sub-message, so a paused or broken Vault can never revert the underlying swap; the skim is simply retained for a later flush.",
+      "The plumbing between the AMM and the Vault. It receives the after-swap skim and splits it into the Floatdesk and CHANSE sinks by a configured ratio. The deposit rides as a reply-on-error sub-message, so a paused or broken Vault can never revert the underlying swap; the skim is simply retained for a later flush.",
     points: [
-      "Splits the skim ANSEM/CHANSE by a set ratio",
+      "Splits the skim Floatdesk/CHANSE by a set ratio",
       "reply-on-error: a broken Vault never breaks a trade",
       "Vault liveness is queried defensively; a failed query degrades, not reverts",
     ],
     example:
-      "A trader swaps on a graduated coin and the pool takes its usual fee. Fee-Share catches that skim and drops, say, 60% into the ANSEM sink and 40% into the CHANSE sink. If the Vault happens to be paused, the swap still completes and the skim is held safely for the next flush.",
+      "A trader swaps on a graduated coin and the pool takes its usual fee. Fee-Share catches that skim and drops, say, 60% into the Floatdesk sink and 40% into the CHANSE sink. If the Vault happens to be paused, the swap still completes and the skim is held safely for the next flush.",
   },
   {
     slug: "gauge",
@@ -233,14 +233,14 @@ export const HORNS: Horn[] = [
     category: "Liquidity & pricing",
     hooks: ["before_swap (Delta)", "after_swap"],
     blurb:
-      "References the ANSEM oracle: when the oracle price beats the pool's marginal price for the trader, it returns a capped Delta handing over the improvement, nudging the pool toward the reference. Every subsidy is drawn from a funded budget that decrements on each swap, so cumulative LP give-away is bounded. Requires a fresh oracle or it steps aside.",
+      "References the Floatdesk oracle: when the oracle price beats the pool's marginal price for the trader, it returns a capped Delta handing over the improvement, nudging the pool toward the reference. Every subsidy is drawn from a funded budget that decrements on each swap, so cumulative LP give-away is bounded. Requires a fresh oracle or it steps aside.",
     points: [
       "Oracle-referenced price improvement, per-swap capped",
       "Funded SUBSIDY_BUDGET bounds total LP-funded subsidy",
       "Stale/unavailable oracle → plain swap, never a panic",
     ],
     example:
-      "The ANSEM oracle reads a fair price a couple percent above the pool's current marginal price. Oracle Arb hands the next buyer a capped slice of that improvement, nudging the pool toward fair value and drawing the subsidy from a funded budget that runs down over time. If the oracle is stale, it does nothing.",
+      "The Floatdesk oracle reads a fair price a couple percent above the pool's current marginal price. Oracle Arb hands the next buyer a capped slice of that improvement, nudging the pool toward fair value and drawing the subsidy from a funded budget that runs down over time. If the oracle is stale, it does nothing.",
   },
   {
     slug: "twamm",

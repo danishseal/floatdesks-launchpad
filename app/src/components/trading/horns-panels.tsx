@@ -33,7 +33,7 @@ const FEE_SHARE_ADDRESS = getHornFeeShareAddress() ?? "";
 type Coin = { denom: string; amount: string }; // micro-units, cosmos Coin shape
 
 const DENOM_LABEL: Record<string, string> = {
-  uansem: "ANSEM",
+  uansem: "Floatdesk",
   uchanse: "CHANSE",
 };
 
@@ -90,7 +90,7 @@ export function HornsFeeSplitPanel({ token }: { token: TokenListItem }) {
         Horns are v4-style hooks on the graduation AMM. When a Horn is attached,
         a slice of <span className="text-[var(--color-text-primary)]">every swap fee</span> is skimmed
         off and routed to the <span className="text-[var(--color-text-primary)]">Horn Vault</span>,
-        split between the ANSEM and CHANSE staker sinks by a ratio the creator sets
+        split between the Floatdesk and CHANSE staker sinks by a ratio the creator sets
         at launch. Stakers of either token earn a real cut of the pool&apos;s trading.
       </p>
 
@@ -99,7 +99,7 @@ export function HornsFeeSplitPanel({ token }: { token: TokenListItem }) {
         <FlowRow tone="#2563eb" label="Swap fee" value="pool rate" sub="charged on every trade" />
         <div className="my-1.5 ml-[3px] h-3 w-px bg-[var(--color-bg-raised)]" />
         <FlowRow tone="#2563eb" label="Skim to Horns" value={flowSkim} sub="of the swap fee" />
-        <FlowRow tone="#8ab4ff" label="ANSEM + CHANSE sinks" value={flowSplit} sub="to Vault stakers" />
+        <FlowRow tone="#8ab4ff" label="Floatdesk + CHANSE sinks" value={flowSplit} sub="to Vault stakers" />
       </div>
 
       {/* This pool: real per-pool params. Pre-hook pools honestly read "None". */}
@@ -108,7 +108,7 @@ export function HornsFeeSplitPanel({ token }: { token: TokenListItem }) {
         <div className="space-y-1.5 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] p-3">
           <PoolRow label="Attached Horn" value={attachedHornValue} />
           <PoolRow label="Skim to Vault" value={skimValue} />
-          <PoolRow label="ANSEM / CHANSE split" value={splitValue} />
+          <PoolRow label="Floatdesk / CHANSE split" value={splitValue} />
         </div>
       </div>
 
@@ -220,7 +220,7 @@ export function HornVaultPanel({ token: _token }: { token: TokenListItem }) {
         <VaultStat label="Your stake" value={DASH} />
       </div>
 
-      {/* Denom tabs: two sinks, ANSEM (uansem) + CHANSE (uchanse) */}
+      {/* Denom tabs: two sinks, Floatdesk (uansem) + CHANSE (uchanse) */}
       <div className="mt-4 grid grid-cols-2 gap-1 rounded-[6px] bg-[var(--color-bg-page)] p-1">
         {(["uansem", "uchanse"] as StakeDenom[]).map((d) => (
           <button
@@ -298,7 +298,7 @@ export function HornVaultPanel({ token: _token }: { token: TokenListItem }) {
         </div>
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="mono text-[11px] text-[var(--color-text-muted)]">ANSEM</span>
+            <span className="mono text-[11px] text-[var(--color-text-muted)]">Floatdesk</span>
             <span className="mono text-[13px] font-semibold text-[var(--color-text-muted)]">{DASH}</span>
           </div>
           <div className="flex items-center justify-between">
@@ -310,7 +310,7 @@ export function HornVaultPanel({ token: _token }: { token: TokenListItem }) {
 
       <p className="mt-2 text-[10px] leading-4 text-[var(--color-text-subtle)]">
         {live
-          ? "Stake ANSEM or CHANSE into this coin's Horn Vault sink to earn its skimmed swap fees. Rewards accrue per block in both denoms and are claimed independently."
+          ? "Stake Floatdesk or CHANSE into this coin's Horn Vault sink to earn its skimmed swap fees. Rewards accrue per block in both denoms and are claimed independently."
           : "Preview of the live Horn Vault. Staking, sink TVL and rewards activate once the Horns program is wired in; the interface is final."}
       </p>
     </section>

@@ -1,6 +1,6 @@
 //! LDF Horn — a `before_swap` pricing Horn that emulates Bunni v2's
 //! **liquidity distribution function** (shapeshifting liquidity, the successor
-//! to Uniswap v3's concentrated liquidity) on top of ANSEM's constant-product
+//! to Uniswap v3's concentrated liquidity) on top of Floatdesk's constant-product
 //! AMM.
 //!
 //! # What Vector's `ldf-vector` does, and why it can't be ported literally
@@ -13,7 +13,7 @@
 //! never runs. Liquidity providers deposit into the ladder and hold shares of
 //! it; there are real, positioned reserves.
 //!
-//! **ANSEM's AMM has none of that.** It is a single constant-product pair
+//! **Floatdesk's AMM has none of that.** It is a single constant-product pair
 //! `(ansem_reserve, token_reserve)` with no ranged or positioned liquidity, so
 //! a true LDF — real inventory resting in discrete price bins — is not
 //! representable: there is nowhere to *put* the per-bin reserves, and the Horn
@@ -26,7 +26,7 @@
 //! `horn-curve` takes and prices the swap against a **liquidity-distribution
 //! shape expressed as a curve**. The shape is two parameters:
 //!
-//! - a **target price** `p = target_price_num / target_price_den` — the ANSEM
+//! - a **target price** `p = target_price_num / target_price_den` — the Floatdesk
 //!   value of one token, i.e. the price around which depth is concentrated
 //!   (Bunni's "peak" / live price), and
 //! - a **concentration** factor (a StableSwap amplification `A`) that makes the
@@ -113,7 +113,7 @@ pub enum ContractError {
 pub struct SwapContext {
     pub token_address: String,
     pub sender: String,
-    /// true = ANSEM in / token out
+    /// true = Floatdesk in / token out
     pub offer_ansem: bool,
     pub input_amount: Uint128,
     pub ansem_reserve: Uint128,
@@ -134,7 +134,7 @@ pub enum HookDecision {
 #[cw_serde]
 pub struct Config {
     pub admin: Addr,
-    /// Target price = the ANSEM value of one token, as `num/den`. Depth is
+    /// Target price = the Floatdesk value of one token, as `num/den`. Depth is
     /// concentrated around the reserve ratio where `ansem_reserve` equals
     /// `token_reserve * num/den`. `num == den` concentrates at parity and this
     /// Horn reduces exactly to `horn-curve`'s StableSwap.
@@ -331,7 +331,7 @@ fn get_y(x_new: Uint256, d: Uint256, amp: Uint256) -> Option<Uint256> {
 /// cannot produce a valid, positive, reserve-bounded fill (caller falls back to
 /// constant product).
 ///
-/// The trick is the frame: the token reserve is rescaled to ANSEM value by the
+/// The trick is the frame: the token reserve is rescaled to Floatdesk value by the
 /// target price, so StableSwap's flat region — its natural concentration peak —
 /// sits at the target price instead of at 1:1. `concentration` is the
 /// amplification; higher makes the value-balanced neighbourhood flatter (deeper
@@ -359,7 +359,7 @@ fn shaped_out(
     let den = u(price_den.u128());
     let a = u(concentration as u128);
 
-    // Scaled frame: x is ANSEM as-is, y is the token reserve expressed in ANSEM
+    // Scaled frame: x is Floatdesk as-is, y is the token reserve expressed in Floatdesk
     // value. Concentration peak = where x == y = the target price. Every step is
     // `checked_*`: if the price-scaled reserves don't fit a range the solver can
     // evaluate, we return None (→ Proceed) rather than panic.
@@ -378,14 +378,14 @@ fn shaped_out(
     }
 
     if offer_ansem {
-        // ANSEM in (x side), token out. Output comes back in ANSEM value and is
+        // Floatdesk in (x side), token out. Output comes back in Floatdesk value and is
         // converted to token units by the inverse price.
         let x_new = x.checked_add(u(input.u128())).ok()?;
         let y_new = get_y(x_new, d, a)?;
         if y_new >= y {
             return None; // no output
         }
-        let out_value = y - y_new; // ANSEM value of the token leaving
+        let out_value = y - y_new; // Floatdesk value of the token leaving
         let out_tokens = out_value.checked_mul(den).ok()?.checked_div(num).ok()?; // back to token units
         let out_u128: u128 = Uint128::try_from(out_tokens).ok()?.u128();
         if out_u128 == 0 || out_u128 > token_reserve.u128() {
@@ -393,7 +393,7 @@ fn shaped_out(
         }
         Some(out_u128)
     } else {
-        // token in, ANSEM out (x side). Convert the token input to ANSEM value,
+        // token in, Floatdesk out (x side). Convert the token input to Floatdesk value,
         // add it to the y side, solve for the new x.
         let in_value = u(input.u128()).checked_mul(num).ok()?.checked_div(den).ok()?;
         if in_value.is_zero() {
@@ -404,7 +404,7 @@ fn shaped_out(
         if x_new >= x {
             return None; // no output
         }
-        let out: Uint256 = x - x_new; // already ANSEM units
+        let out: Uint256 = x - x_new; // already Floatdesk units
         let out_u128: u128 = Uint128::try_from(out).ok()?.u128();
         if out_u128 == 0 || out_u128 > ansem_reserve.u128() {
             return None;
@@ -668,20 +668,20 @@ mod tests {
 
     #[test]
     fn target_price_moves_the_peak() {
-        // Target price = 2 ANSEM per token. Value-balanced reserves are
-        // ansem = token * 2. A small ANSEM buy should net ~= input / price and
+        // Target price = 2 Floatdesk per token. Value-balanced reserves are
+        // ansem = token * 2. A small Floatdesk buy should net ~= input / price and
         // strictly beat constant product.
         let out = shaped(1_000_000, 2_000_000_000, 1_000_000_000, true, 2, 1, 100).unwrap();
         let cp = cp_out(1_000_000, 2_000_000_000, 1_000_000_000);
         assert!(out > cp, "shaped {out} not flatter than cp {cp} at p=2");
-        // ~500_000 tokens for 1e6 ANSEM at price 2, near-flat.
+        // ~500_000 tokens for 1e6 Floatdesk at price 2, near-flat.
         assert!(out > 499_800 && out <= 500_100, "out {out} not near 1/price");
     }
 
     #[test]
     fn token_in_direction_prices() {
-        // Selling token for ANSEM at price 2: ~1e6 tokens should fetch ~2e6
-        // ANSEM near the peak, beating constant product.
+        // Selling token for Floatdesk at price 2: ~1e6 tokens should fetch ~2e6
+        // Floatdesk near the peak, beating constant product.
         let out = shaped(1_000_000, 2_000_000_000, 1_000_000_000, false, 2, 1, 100).unwrap();
         let cp = cp_out(1_000_000, 1_000_000_000, 2_000_000_000);
         assert!(out > cp, "shaped {out} not flatter than cp {cp}");
@@ -739,7 +739,7 @@ mod tests {
     #[test]
     fn tolerance_band_gates_the_delta() {
         // Pool ratio is ~1:1 (balanced 1e9/1e9), target says the token is worth
-        // 5 ANSEM. 400% off, 1% band -> Proceed.
+        // 5 Floatdesk. 400% off, 1% band -> Proceed.
         let mut deps = cosmwasm_std::testing::mock_dependencies();
         init(deps.as_mut(), 5, 1, 100, 0, 100);
         assert_eq!(

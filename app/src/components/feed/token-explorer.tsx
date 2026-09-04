@@ -54,7 +54,7 @@ export function TokenExplorer() {
       <div className="flex flex-col gap-2">
         <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-[var(--color-text-primary)]">Explore tokens</h1>
         <p className="text-[15px] text-[var(--color-text-secondary)]">
-          Every token launched on ANSEM, across CHANSE and ANSEM bonding curves.
+          Every token launched on Floatdesk, across CHANSE and Floatdesk bonding curves.
           {total > 0 ? ` ${total.toLocaleString()} live.` : ""}
         </p>
       </div>

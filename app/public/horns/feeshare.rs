@@ -3,7 +3,7 @@
 //! The AMM skims a slice of each swap's fee (see the pool's `skim_bps`) and
 //! forwards it to this Horn via the `after_swap` callback with the skimmed
 //! coins attached. This Horn splits that value, by the pool's configured
-//! ANSEM/CHANSE percentage, and routes it into the Horn Vault's two staking
+//! Floatdesk/CHANSE percentage, and routes it into the Horn Vault's two staking
 //! sinks (`uansem` stakers and `uchanse` stakers) via `DepositReward`.
 //!
 //! Robustness: an `after_swap` failure reverts the whole swap, so this Horn must
@@ -55,12 +55,12 @@ pub struct Config {
     pub launchpad: Addr,
     /// The Horn Vault this Horn deposits rewards into.
     pub vault: Addr,
-    /// Fallback ANSEM-sink share (bps) for pools with no registered split.
+    /// Fallback Floatdesk-sink share (bps) for pools with no registered split.
     pub default_ansem_bps: u16,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
-/// Per-pool ANSEM-sink share in bps (CHANSE share = 10000 - this). Key: token_address.
+/// Per-pool Floatdesk-sink share in bps (CHANSE share = 10000 - this). Key: token_address.
 const POOL_ANSEM_BPS: Map<&str, u16> = Map::new("pool_ansem_bps");
 
 // ── messages ────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ pub struct InstantiateMsg {
     pub amm: String,
     pub launchpad: String,
     pub vault: String,
-    /// Default ANSEM-sink share in bps (e.g. 5000 = 50/50). CHANSE gets the rest.
+    /// Default Floatdesk-sink share in bps (e.g. 5000 = 50/50). CHANSE gets the rest.
     pub default_ansem_bps: u16,
 }
 
@@ -87,7 +87,7 @@ pub enum ExecuteMsg {
         output_amount: Uint128,
         fee_amount: Uint128,
     },
-    /// Set a pool's ANSEM/CHANSE split. Called by the launchpad at graduation
+    /// Set a pool's Floatdesk/CHANSE split. Called by the launchpad at graduation
     /// (or the admin). CHANSE share is `10000 - ansem_bps`.
     RegisterPool { token_address: String, ansem_bps: u16 },
     /// Permissionless: sweep this Horn's retained balance (skims that had no
@@ -237,7 +237,7 @@ fn flush(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     Ok(Response::new().add_submessages(msgs).add_attribute("action", "flush"))
 }
 
-/// Split `funds` into the ANSEM sink (`ansem_bps`) and CHANSE sink (the rest),
+/// Split `funds` into the Floatdesk sink (`ansem_bps`) and CHANSE sink (the rest),
 /// redirecting an empty sink's share to the other, and building one
 /// `DepositReward` per non-empty sink. Anything with no eligible sink is left in
 /// this Horn's balance (a later Flush handles it). Never errors on a routine
@@ -264,7 +264,7 @@ fn route(
         }
         let a = c.amount.u128() * ansem_bps / BPS;
         let ch = c.amount.u128() - a;
-        // ANSEM share: ANSEM sink, else redirect to CHANSE, else retain.
+        // Floatdesk share: Floatdesk sink, else redirect to CHANSE, else retain.
         if a > 0 {
             if ansem_has {
                 *to_ansem.entry(c.denom.clone()).or_default() += Uint128::new(a);
@@ -272,7 +272,7 @@ fn route(
                 *to_chanse.entry(c.denom.clone()).or_default() += Uint128::new(a);
             }
         }
-        // CHANSE share: CHANSE sink, else redirect to ANSEM, else retain.
+        // CHANSE share: CHANSE sink, else redirect to Floatdesk, else retain.
         if ch > 0 {
             if chanse_has {
                 *to_chanse.entry(c.denom.clone()).or_default() += Uint128::new(ch);
@@ -497,7 +497,7 @@ mod tests {
     #[test]
     fn route_splits_and_is_reply_on_error() {
         let mut deps = deps_with_stakes(1, 1);
-        init(&mut deps, 6000); // 60% ANSEM / 40% CHANSE
+        init(&mut deps, 6000); // 60% Floatdesk / 40% CHANSE
         let resp = after_swap_call(&mut deps, "amm", &coins(100, "uchanse")).unwrap();
         assert_eq!(resp.messages.len(), 2);
         for sub in &resp.messages {
@@ -517,7 +517,7 @@ mod tests {
     // ── route: empty sink redirected to the other ────────────────────────────
     #[test]
     fn route_redirects_empty_sink() {
-        let mut deps = deps_with_stakes(0, 1); // ANSEM empty, CHANSE has stakers
+        let mut deps = deps_with_stakes(0, 1); // Floatdesk empty, CHANSE has stakers
         init(&mut deps, 6000);
         let resp = after_swap_call(&mut deps, "amm", &coins(100, "uchanse")).unwrap();
         // Both shares collapse into the one live (CHANSE) sink -> a single deposit of 100.

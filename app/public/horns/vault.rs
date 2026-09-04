@@ -1,14 +1,14 @@
 //! Horn Vault — the rewards distributor for the Horns system.
 //!
-//! Holders stake a native asset (ANSEM `uansem` or CHANSE `uchanse`) into a
+//! Holders stake a native asset (Floatdesk `uansem` or CHANSE `uchanse`) into a
 //! per-asset "sink" and earn a pro-rata share of whatever fee value Horns route
 //! in. Every graduated pool's Fee-Share Horn skims a slice of each swap's fee
 //! and forwards it here via `DepositReward { sink }`, split by the pool's chosen
-//! ANSEM/CHANSE percentage.
+//! Floatdesk/CHANSE percentage.
 //!
 //! Design notes:
 //! * **Multi-reward accounting.** A sink can receive rewards in more than one
-//!   denom (a CHANSE-quoted pool forwards `uchanse`; an ANSEM-quoted pool
+//!   denom (a CHANSE-quoted pool forwards `uchanse`; an Floatdesk-quoted pool
 //!   forwards `uansem`), so accounting is keyed by `(sink, reward_denom)` — the
 //!   classic MasterChef `acc_reward_per_share` + per-staker `reward_debt`, one
 //!   accumulator per reward denom.
@@ -599,15 +599,15 @@ mod tests {
     #[test]
     fn pro_rata_split_and_claim() {
         let mut deps = setup();
-        // Alice 100, Bob 300 into the ANSEM sink -> total 400.
+        // Alice 100, Bob 300 into the Floatdesk sink -> total 400.
         stake(&mut deps, "alice", 100, "uansem");
         stake(&mut deps, "bob", 300, "uansem");
-        // A Horn routes 400 uchanse of rewards into the ANSEM sink.
+        // A Horn routes 400 uchanse of rewards into the Floatdesk sink.
         deposit(&mut deps, "uansem", 400, "uchanse");
         // Split is exactly pro-rata: 100 / 300.
         assert_eq!(pending(&deps, "uansem", "alice"), coins(100, "uchanse"));
         assert_eq!(pending(&deps, "uansem", "bob"), coins(300, "uchanse"));
-        // Bob's stake in the ANSEM sink is unaffected by a CHANSE-sink deposit.
+        // Bob's stake in the Floatdesk sink is unaffected by a CHANSE-sink deposit.
         stake(&mut deps, "carol", 100, "uchanse");
         deposit(&mut deps, "uchanse", 50, "uchanse");
         assert_eq!(pending(&deps, "uansem", "bob"), coins(300, "uchanse")); // unchanged

@@ -63,7 +63,7 @@ export default function CreatorPage() {
     staleTime: 30_000,
   });
 
-  // Native ANSEM + CHANSE balances for THIS profile address, straight from the
+  // Native Floatdesk + CHANSE balances for THIS profile address, straight from the
   // chain REST bank module. Works for any address, not just the connected one.
   const nativeBalances = useQuery({
     queryKey: ["native-balances", address],
@@ -146,7 +146,7 @@ export default function CreatorPage() {
 
   async function handleShare() {
     const url = `${window.location.origin}/creator/${address}`;
-    const title = `${displayName} on ansemchain`;
+    const title = `${displayName} on Floatdesk`;
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
         await navigator.share({ url, title });
@@ -365,7 +365,7 @@ export default function CreatorPage() {
                   ))}
                 </div>
               ) : (
-                <Empty title="No coins launched yet" body="Coins this wallet creates on ANSEM will show here." />
+                <Empty title="No coins launched yet" body="Coins this wallet creates on Floatdesk will show here." />
               ))}
 
             {tab === "holdings" &&
@@ -488,7 +488,7 @@ function HoldingsCard({
       <p className="font-display text-[14px] font-semibold text-[var(--color-accent-strong)]">Holdings</p>
       <div className="mt-2 space-y-1.5">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[12px] font-semibold text-[var(--color-text-secondary)]">ANSEM</span>
+          <span className="text-[12px] font-semibold text-[var(--color-text-secondary)]">Floatdesk</span>
           <span className="mono text-[20px] font-bold tracking-tight text-[var(--color-text-primary)]">{fmt(ansem)}</span>
         </div>
         <div className="flex items-baseline justify-between gap-3">

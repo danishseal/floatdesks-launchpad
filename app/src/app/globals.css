@@ -59,6 +59,7 @@
   --cream-200: #eee9dd;
   --cream-300: #e7e1d2;
   --ink-950: #1a1a1a;
+  --black-1000: #000000;
   --ink-700: #4a4a44;
   --ink-600: #5f5f57;
   --ink-500: #6b6b62;
@@ -71,6 +72,7 @@
   --color-bg-surface: var(--cream-100);
   --color-bg-raised: var(--cream-300);
   --color-bg-hover: #ddd6c6;
+  --color-logo-bg: var(--black-1000);
   --color-text-primary: var(--ink-950);
   --color-text-secondary: var(--ink-700);
   --color-text-muted: var(--ink-600);
@@ -350,7 +352,11 @@
     position: relative;
     min-width: 0;
     overflow: hidden;
-    border: 1px solid var(--color-border);
+    border: 0;
+  }
+
+  .app-shell-logo-tile {
+    background: var(--color-logo-bg, #000000);
   }
 
   .app-shell-body-frame {

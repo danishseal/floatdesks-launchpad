@@ -2,7 +2,7 @@
 //!
 //! # What is being ported
 //!
-//! This is the CosmWasm/ANSEM adaptation of Vector's `rehypo-vector`, itself a
+//! This is the CosmWasm/Floatdesk adaptation of Vector's `rehypo-vector`, itself a
 //! port of Bunni v2's headline feature (generalised in OpenZeppelin's
 //! `ReHypothecationHook`). The one-sentence pitch of the original: pair the
 //! steady APY of a lending vault with the swap fees of an AMM, by never letting
@@ -23,7 +23,7 @@
 //!    counterparty. So the "fill a slice of the trade out of the yield source"
 //!    core of Bunni/rehypo-vector is simply not expressible here.
 //!
-//! 2. **ANSEM HAS NO LENDING PROTOCOL to rehypothecate into.** There is no
+//! 2. **Floatdesk HAS NO LENDING PROTOCOL to rehypothecate into.** There is no
 //!    Kamino / Save / marginfi / Aave-equivalent live on this chain. The Vector
 //!    source is explicit that faking a lender is worse than omitting one,
 //!    because an untested integration "looks finished". The same honesty applies
@@ -48,7 +48,7 @@
 //! * `yield_sink` is an OPTIONAL external contract address. If it is `None`,
 //!   the value simply **accrues (is held)** and this Horn is a passive treasury.
 //!   There is no default sink and no address is invented; wiring a real one is a
-//!   later, explicit governance action once such a contract exists on ANSEM.
+//!   later, explicit governance action once such a contract exists on Floatdesk.
 //!
 //! * `Rebalance {}` (permissionless) moves value between the held reserve and
 //!   the sink to hit `reserve_ratio_bps`, the way the Vector source realises
@@ -61,7 +61,7 @@
 //!
 //! # The pluggable sink interface (deliberately generic)
 //!
-//! We do not know what a future ANSEM lending contract will look like, so the
+//! We do not know what a future Floatdesk lending contract will look like, so the
 //! sink boundary is a minimal, generic message/query pair that a real adapter
 //! (or a thin shim in front of one) can satisfy:
 //!
@@ -183,7 +183,7 @@ pub struct Config {
     /// The pool's quote denom (uchanse | uansem): the treasury currency.
     pub quote_denom: String,
     /// OPTIONAL external yield sink. `None` = value is simply held (accrues in
-    /// place). No address is ever invented; there is no live ANSEM lender to
+    /// place). No address is ever invented; there is no live Floatdesk lender to
     /// point this at yet, so it stays unset until governance wires a real one.
     pub yield_sink: Option<Addr>,
     /// Fraction of total treasury value (in bps) to keep as a LIQUID RESERVE
@@ -254,7 +254,7 @@ pub enum ExecuteMsg {
     },
 }
 
-/// Generic pluggable-sink interface. A real ANSEM lending adapter (or a shim in
+/// Generic pluggable-sink interface. A real Floatdesk lending adapter (or a shim in
 /// front of one) implements these. Kept minimal on purpose: no live lender
 /// exists to pin a richer shape to.
 #[cw_serde]

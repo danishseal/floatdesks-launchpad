@@ -1,6 +1,6 @@
 "use client";
 
-// ANSEM-chain wallet provider. Replaces the Solana/Privy bridge with the ANSEM
+// Floatdesk-chain wallet provider. Replaces the Solana/Privy bridge with the Floatdesk
 // browser extension (window.bwickWallet.cosmos, Keplr fallback) on ansem-1.
 // Keeps the `SolanaWalletProvider` + `useFloorWallet` names so existing imports
 // resolve unchanged; the returned shape now exposes `getSigningClient()` for
@@ -54,7 +54,7 @@ interface KeplrLike {
 function providerFor(kind: WalletKind): KeplrLike | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as {
-    // Current ANSEM extension injects its Keplr-shaped surface under
+    // Current Floatdesk extension injects its Keplr-shaped surface under
     // `ansemWallet`; older builds used `bwickWallet`. Prefer the new global and
     // fall back to the legacy one so both extension versions connect.
     ansemWallet?: { cosmos?: KeplrLike };
@@ -67,7 +67,7 @@ function providerFor(kind: WalletKind): KeplrLike | null {
 
 const CHAIN_INFO = {
   chainId: CHAIN_ID,
-  chainName: "ANSEM Chain",
+  chainName: "Floatdesk",
   rpc: RPC_URL,
   rest: REST_URL,
   bip44: { coinType: 118 },
@@ -97,7 +97,7 @@ const CHAIN_INFO = {
  *  - "adr36": the wallet's native `signArbitrary` (Keplr/Leap). Server verifies
  *    the canonical ADR-36 amino sign doc.
  *  - "direct": a SIGN_MODE_DIRECT SignDoc with no messages and the auth message
- *    carried in the TxBody memo (the ANSEM wallet's offline signer only exposes
+ *    carried in the TxBody memo (the Floatdesk wallet's offline signer only exposes
  *    `signDirect`). The byte fields let the server rebuild the exact sign bytes.
  */
 export type SocialSignature =
@@ -119,7 +119,7 @@ interface AnsemWallet {
   /** Kept for shape-compat; always null on the Cosmos chain. */
   publicKey: null;
   balance: number | null; // CHANSE (whole units)
-  ansemBalance: number | null; // ANSEM (whole units)
+  ansemBalance: number | null; // Floatdesk (whole units)
   walletName: string;
   connect: (kind?: WalletKind) => Promise<void>;
   disconnect: () => void;
@@ -147,7 +147,7 @@ export function SolanaWalletProvider({ children }: { children: ReactNode }) {
     if (!address) return;
     try {
       // Read all bank balances straight from the chain so we show both native
-      // denoms the wallet holds: CHANSE (uchanse) and ANSEM (uansem).
+      // denoms the wallet holds: CHANSE (uchanse) and Floatdesk (uansem).
       const res = await fetch(
         `${REST_URL}/cosmos/bank/v1beta1/balances/${address}`,
       );
@@ -170,7 +170,7 @@ export function SolanaWalletProvider({ children }: { children: ReactNode }) {
       try {
         let provider = providerFor(kind);
         if (!provider) provider = providerFor(kind === "ansem" ? "keplr" : "ansem");
-        if (!provider) throw new Error("No ANSEM wallet or Keplr detected.");
+        if (!provider) throw new Error("No Floatdesk wallet or Keplr detected.");
         try {
           await provider.experimentalSuggestChain(CHAIN_INFO);
         } catch {
@@ -181,7 +181,7 @@ export function SolanaWalletProvider({ children }: { children: ReactNode }) {
         const key = await provider.getKey(CHAIN_ID);
         setSigner(s);
         setAddress(key.bech32Address);
-        setWalletName(key.name || "ANSEM Wallet");
+        setWalletName(key.name || "Floatdesk Wallet");
         try {
           window.localStorage.setItem(STORAGE_KEY, kind);
         } catch {
@@ -233,7 +233,7 @@ export function SolanaWalletProvider({ children }: { children: ReactNode }) {
       }
 
       // Fallback for wallets whose offline signer only exposes signDirect (the
-      // ANSEM wallet's cosmos provider is one - it has NO signArbitrary and NO
+      // Floatdesk wallet's cosmos provider is one - it has NO signArbitrary and NO
       // signAmino). Build a deterministic SIGN_MODE_DIRECT SignDoc with no
       // messages and the auth message carried in the TxBody memo, so the
       // signature is cryptographically bound to that exact message. Nothing is

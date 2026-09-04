@@ -21,7 +21,7 @@ import { VolumeChart, LaunchesChart } from "@/components/analytics/charts";
  * Chain-wide Analytics — volume, activity and launch stats aggregated across
  * every token from the indexer's /analytics/* routes. Everything is real,
  * derived from raw_trades + tokens. Only uchanse (CHANSE) volume is priced to
- * USD (the indexer has one CHANSE oracle); ANSEM / RWA-denom volume is reported
+ * USD (the indexer has one CHANSE oracle); Floatdesk / RWA-denom volume is reported
  * in base units and flagged, never folded into the USD total at the wrong rate.
  */
 export default function AnalyticsPage() {
@@ -59,7 +59,7 @@ export default function AnalyticsPage() {
             Analytics
           </h1>
           <p className="mt-1 max-w-xl text-[13px] leading-5 text-[var(--color-text-secondary)]">
-            Chain-wide volume and activity across every ansemchain token. USD figures
+            Chain-wide volume and activity across every Floatdesk token. USD figures
             price CHANSE volume through the on-chain oracle.
           </p>
         </div>
@@ -247,7 +247,7 @@ function labelFor(w: AnalyticsWindow): string {
 function denomLabel(d: string): string {
   const m: Record<string, string> = {
     uchanse: "CHANSE",
-    uansem: "ANSEM",
+    uansem: "Floatdesk",
     unvdax: "NVDA",
     utslax: "TSLA",
     uaaplx: "AAPL",

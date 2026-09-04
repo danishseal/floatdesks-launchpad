@@ -38,7 +38,7 @@
 //! second they held the seat whether or not anyone traded.
 //!
 //! **The bid IS the deposit.** The source separates `rent_per_slot` (the auction
-//! variable) from `deposit` (the bond). The ANSEM spec is "highest deposit wins",
+//! variable) from `deposit` (the bond). The Floatdesk spec is "highest deposit wins",
 //! so here the contest is on the attached deposit and the rent rate is a single
 //! pool-wide `rent_per_second` parameter. A challenger must beat the incumbent's
 //! *remaining* deposit by `min_bid_increment_bps` and wait out `min_tenure`. This
@@ -113,7 +113,7 @@ pub enum ContractError {
 pub struct SwapContext {
     pub token_address: String,
     pub sender: String,
-    /// true = ANSEM/quote in, token out
+    /// true = Floatdesk/quote in, token out
     pub offer_ansem: bool,
     pub input_amount: Uint128,
     pub ansem_reserve: Uint128,

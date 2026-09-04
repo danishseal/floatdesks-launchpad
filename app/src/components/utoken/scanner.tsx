@@ -84,7 +84,7 @@ export function Scanner() {
         <div>
           <h1 className="font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">Scanner</h1>
           <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">
-            Every coin on ansemchain, across the bonding curve and the ANSEM AMM.
+            Every coin on Floatdesk, across the bonding curve and the Floatdesk AMM.
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--hairline)] bg-[var(--color-bg-page)] px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">

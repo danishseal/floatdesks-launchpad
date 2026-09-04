@@ -19,7 +19,7 @@ import { denomLabel, explorerUrl } from "@/lib/floorlaunch/config";
 
 /**
  * The Horn Vault, a standalone page (moved off the token terminal). The Vault
- * has two GLOBAL sinks (ANSEM + CHANSE); every graduated pool's fee-skim flows
+ * has two GLOBAL sinks (Floatdesk + CHANSE); every graduated pool's fee-skim flows
  * into them, and stakers of either token earn it.
  *
  * Two states, chosen by whether the ansem-horn-vault contract address is
@@ -35,7 +35,7 @@ const DASH = "-";
 
 type Sink = "uansem" | "uchanse";
 type Action = "stake" | "unstake";
-const LABEL: Record<Sink, string> = { uansem: "ANSEM", uchanse: "CHANSE" };
+const LABEL: Record<Sink, string> = { uansem: "Floatdesk", uchanse: "CHANSE" };
 const SINKS: Sink[] = ["uansem", "uchanse"];
 
 function fmt(n: number): string {
@@ -150,7 +150,7 @@ export default function VaultPage() {
             Horn Vault
           </h1>
           <p className="mt-1 max-w-lg text-[13px] leading-5 text-[var(--color-text-secondary)]">
-            Stake ANSEM or CHANSE into the Vault to earn a cut of every graduated
+            Stake Floatdesk or CHANSE into the Vault to earn a cut of every graduated
             pool's swap fees. Two sinks, both denoms, rewards accrue per block.{" "}
             <Link href="/horns" className="text-[var(--color-text-primary)] underline underline-offset-4 hover:text-[var(--color-accent-strong)]">
               How Horns work

@@ -99,7 +99,7 @@ function realDynfeeReadout(cfg: DynfeeConfig): Readout {
   return {
     headline: pct(basePct),
     headlineLabel: "Base fee",
-    caption: `ANSEM stakers pay ${pct(discPct)} with ${minLabel} ANSEM staked`,
+    caption: `Floatdesk stakers pay ${pct(discPct)} with ${minLabel} Floatdesk staked`,
     settled: true,
     marker: 1,
     sample: () => 0,

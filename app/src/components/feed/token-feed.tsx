@@ -255,7 +255,7 @@ function LaunchFooterBar() {
           </span>
           <div>
             <p className="font-display text-[14px] font-semibold tracking-tight text-[var(--color-text-primary)]">
-              Graduate to a locked ANSEM AMM pool with Horns attached
+              Graduate to a locked Floatdesk AMM pool with Horns attached
             </p>
             <p className="mt-0.5 font-mono text-[11px] text-[var(--color-text-subtle)]">
               bonding curve → AMM · liquidity locked · swap fees skim to holders
@@ -263,9 +263,9 @@ function LaunchFooterBar() {
           </div>
         </div>
 
-        {/* Right: creator share of fees, ANSEM vs others */}
+        {/* Right: creator share of fees, Floatdesk vs others */}
         <div className="w-full max-w-[280px] shrink-0 space-y-1.5">
-          <FeeShareBar label="ansem.fun" value={90} tone="#2563eb" display="90/10" />
+          <FeeShareBar label="Floatdesk" value={90} tone="#2563eb" display="90/10" />
           <FeeShareBar label="others" value={70} tone="#3a3a42" display="70/30" />
           <p className="pt-0.5 text-right font-display text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-subtle)]">
             Creator share of LP fees

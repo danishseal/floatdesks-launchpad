@@ -1,7 +1,7 @@
 //! Dynamic Fee Horn — a `before_swap` pricing Horn.
 //!
-//! Charges a lower swap fee to traders who stake $ANSEM in the Horn Vault, and
-//! the normal fee to everyone else. This turns "hold/stake ANSEM" into a direct,
+//! Charges a lower swap fee to traders who stake $Floatdesk in the Horn Vault, and
+//! the normal fee to everyone else. This turns "hold/stake Floatdesk" into a direct,
 //! per-trade benefit — the token-utility side of the Horns thesis — using the
 //! AMM's existing `OverrideFee` decision. Pure pricing: it takes no value and
 //! composes cleanly with an `after_swap` reward Horn (via the Composite router).
@@ -70,13 +70,13 @@ struct VaultStakeResponse {
 #[cw_serde]
 pub struct Config {
     pub admin: Addr,
-    /// Horn Vault used to read a trader's ANSEM stake.
+    /// Horn Vault used to read a trader's Floatdesk stake.
     pub vault: Addr,
-    /// Fee for a trader with insufficient ANSEM staked.
+    /// Fee for a trader with insufficient Floatdesk staked.
     pub base_fee_bps: u16,
     /// Fee for a trader who meets `min_ansem_stake`.
     pub discount_fee_bps: u16,
-    /// ANSEM (uansem, micro-units) a trader must have staked to earn the discount.
+    /// Floatdesk (uansem, micro-units) a trader must have staked to earn the discount.
     pub min_ansem_stake: Uint128,
 }
 
@@ -192,7 +192,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// The pricing decision: discounted fee if the trader has enough ANSEM staked,
+/// The pricing decision: discounted fee if the trader has enough Floatdesk staked,
 /// otherwise the base fee. A failed Vault read defaults to "no discount" (base
 /// fee) rather than erroring — a swap must never revert because the discount
 /// lookup hiccuped.

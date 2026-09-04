@@ -9,7 +9,7 @@ export const TOKEN_PROPOSALS_QUERY_KEY = (
 ) => ["token-proposals", tokenAddress, viewer ?? null] as const;
 
 /** Live token-category proposals for a single token, with vote tallies. Reads
- *  the governance treasury tx history (same source as the ANSEM proposals web
+ *  the governance treasury tx history (same source as the Floatdesk proposals web
  *  app). `viewer` marks which option the connected wallet already chose. */
 export function useTokenProposals(tokenAddress: string, viewer?: string) {
   return useQuery<TokenProposal[]>({

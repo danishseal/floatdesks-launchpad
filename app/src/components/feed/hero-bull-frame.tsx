@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-// Banner: the ANSEM "Bullpen" NFT art shown through the same holographic card
+// Banner: the Floatdesk "Bullpen" NFT art shown through the same holographic card
 // wrapper the launchpad shipped with (the portable <pokemon-card> element:
 // rounded card frame, 3D tilt on hover, foil shine + glare, drop shadow).
 // We keep that wrapper and only swap the artwork to the bulls, size the cards
@@ -47,7 +47,7 @@ export function HeroBullFrame() {
       `}</style>
       {TILES.map((src, i) => (
         // @ts-expect-error - custom element registered at runtime
-        <pokemon-card key={`${src}-${i}`} image={src} name={`ANSEM Bull #${(i % 15) + 1}`} />
+        <pokemon-card key={`${src}-${i}`} image={src} name={`Floatdesk Bull #${(i % 15) + 1}`} />
       ))}
     </div>
   );

@@ -140,7 +140,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           : await (graduated ? ammSell : sell)(client, wallet.address, token.address, inUtoken, String(minOut));
       toast.success(`${side === "buy" ? "Bought" : "Sold"} ${token.symbol ?? "token"}`, {
         id: "trade",
-        // Clickable tx hash -> the ansemchain explorer.
+        // Clickable tx hash -> the Floatdesk explorer.
         description: (
           <a
             href={explorerUrl("tx", hash)}
@@ -340,7 +340,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
       )}
 
       <p className="text-[11px] leading-relaxed text-[var(--color-text-subtle)]">
-        Trades settle on the ANSEM {graduated ? "AMM" : "bonding curve"}. Slippage tolerance {pctLabel(slippage)}.
+        Trades settle on the Floatdesk {graduated ? "AMM" : "bonding curve"}. Slippage tolerance {pctLabel(slippage)}.
       </p>
     </div>
   );

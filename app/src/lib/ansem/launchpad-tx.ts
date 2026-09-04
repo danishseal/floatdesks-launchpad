@@ -40,14 +40,14 @@ export interface CreateTokenArgs {
   image: string;
   description: string;
   socialLinks?: string[];
-  /** "uchanse" (CHANSE) | "uansem" (ANSEM). */
+  /** "uchanse" (CHANSE) | "uansem" (Floatdesk). */
   baseDenom: string;
-  /** Required (utoken) when baseDenom === "uansem": the ANSEM graduation raise. */
+  /** Required (utoken) when baseDenom === "uansem": the Floatdesk graduation raise. */
   baseGradThreshold?: string;
   /**
    * Optional Horns config applied when the coin graduates to the AMM.
    * `skimBps` = fraction of each swap fee (bps, 0..1000) diverted to Horn Vault
-   * stakers; `ansemBps` = share of that skim routed to the ANSEM sink (rest to
+   * stakers; `ansemBps` = share of that skim routed to the Floatdesk sink (rest to
    * CHANSE). Only sent when a Horn is attached; the field is ignored by a
    * launchpad that predates Horns, so existing launches are unaffected.
    *

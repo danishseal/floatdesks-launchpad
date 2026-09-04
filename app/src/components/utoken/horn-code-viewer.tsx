@@ -47,7 +47,7 @@ export function HornCodeViewer({ slug }: { slug: string }) {
   async function copyForAi() {
     if (!code || !horn) return;
     const md =
-      `# ansemchain Horn: ${horn.name} (${horn.category})\n\n` +
+      `# Floatdesk Horn: ${horn.name} (${horn.category})\n\n` +
       `> ${horn.tagline}\n\n` +
       `${horn.blurb}\n\n` +
       `Hooks: ${horn.hooks.join(", ")}\n\n` +

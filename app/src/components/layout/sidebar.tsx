@@ -51,28 +51,28 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         {!isCollapsed ? (
           <Link
             href="/"
-            aria-label="ANSEM home"
+            aria-label="Floatdesk home"
             className="flex min-w-0 flex-1 items-center gap-2"
           >
             <Image
-              src="/logo.png"
-              alt="ANSEM"
-              width={22}
-              height={22}
-              className="h-[22px] w-[22px] shrink-0 rounded-[5px] object-cover"
+              src="/sailboat.png"
+              alt="Floatdesk"
+              width={30}
+              height={30}
+              className="h-[30px] w-[30px] shrink-0 rounded-[5px] object-cover"
               priority
             />
             <span className="truncate font-display text-[15px] font-semibold tracking-tight text-[var(--color-text-primary)]">
-              ansem<span className="text-[var(--color-text-muted)]">.fun</span>
+              Floatdesk
             </span>
           </Link>
         ) : (
           <Image
-            src="/logo.png"
-            alt="ANSEM"
-            width={22}
-            height={22}
-            className="h-[22px] w-[22px] rounded-[5px] object-cover"
+            src="/sailboat.png"
+            alt="Floatdesk"
+            width={30}
+            height={30}
+            className="h-[30px] w-[30px] rounded-[5px] object-cover"
             priority
           />
         )}
@@ -141,7 +141,7 @@ function ChainTicker() {
       <div className="flex items-center gap-1.5 pt-0.5">
         <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent-solid)]" />
         <span className="uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">
-          ansemchain
+          Floatdesk
         </span>
       </div>
     </div>

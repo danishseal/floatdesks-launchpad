@@ -55,7 +55,7 @@ export interface HornConfig {
   feeshare: string;
   /** Default skim to the Vault, basis points (e.g. 2000 = 20%). */
   skimBps: number;
-  /** ANSEM sink share of the skim, basis points. */
+  /** Floatdesk sink share of the skim, basis points. */
   ansemBps: number;
   /** CHANSE sink share, basis points (10000 - ansemBps). */
   chanseBps: number;
@@ -105,7 +105,7 @@ export interface AttachedHorn {
   flags: number | null;
   /** Skim to the Vault for this pool, basis points, or null. */
   skimBps: number | null;
-  /** ANSEM sink share, basis points, or null. */
+  /** Floatdesk sink share, basis points, or null. */
   ansemBps: number | null;
   /** CHANSE sink share, basis points, or null. */
   chanseBps: number | null;
@@ -301,9 +301,9 @@ export function decayFeeBpsAt(cfg: DecayConfig, nowSec: number): number {
 export interface DynfeeConfig {
   /** Standard swap fee, basis points. */
   baseFeeBps: number;
-  /** Discounted fee for qualifying ANSEM stakers, basis points. */
+  /** Discounted fee for qualifying Floatdesk stakers, basis points. */
   discountFeeBps: number;
-  /** Minimum ANSEM stake (micro-units) that unlocks the discount. */
+  /** Minimum Floatdesk stake (micro-units) that unlocks the discount. */
   minAnsemStake: string;
 }
 
