@@ -56,6 +56,21 @@ async function withTimes(rows: TradeRow[]): Promise<TradeRow[]> {
   return rows.map((r) => ({ ...r, ts: times.get(r.block) ?? null }));
 }
 
+/**
+ * A viem revert message puts the useful part on the SECOND line: the first is
+ * "The contract function X reverted with the following signature:" and the
+ * decoded error name or selector follows. Taking line one alone threw the
+ * reason away while looking like it had kept it.
+ */
+function revertReason(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  const lines = e.message.split("\n").map((l) => l.trim()).filter(Boolean);
+  const named = lines.find((l) => /^(Error: )?[A-Z][A-Za-z0-9_]*\(/.test(l));
+  if (named) return named.replace(/^Error: /, "").slice(0, 140);
+  const sig = lines.find((l) => /^0x[0-9a-fA-F]{8}$/.test(l));
+  return [lines[0], sig].filter(Boolean).join(" ").slice(0, 140);
+}
+
 export async function GET() {
   const net = activeNetwork();
   if (cached && cached.key === net.registry && Date.now() - cached.at < CACHE_MS) {
@@ -123,11 +138,21 @@ export async function GET() {
         fees7d: sumFees(mine(windowed(7 * DAY))),
         trades: mine(trades).length,
       };
-      } catch {
-        return null;
+      } catch (e) {
+        // Dropping the row is right; dropping the REASON is not. A transient
+        // RPC failure and a genuinely delisted asset both leave the board a row
+        // short, and without this they look identical to anyone reading it.
+        return { __dropped: assetId, reason: revertReason(e) };
       }
     }));
-    const markets = marketRows.filter((m): m is NonNullable<typeof m> => m !== null);
+
+    type Dropped = { __dropped: string; reason: string };
+    const isDropped = (r: unknown): r is Dropped =>
+      typeof r === "object" && r !== null && "__dropped" in r;
+    const markets = marketRows.filter((m) => m !== null && !isDropped(m)) as Exclude<
+      (typeof marketRows)[number], Dropped | null
+    >[];
+    const unreadable = marketRows.filter(isDropped).map((d) => ({ assetId: d.__dropped, reason: d.reason }));
 
     // Launched tokens, only where this deployment runs the fSHARE curve.
     let tokens: unknown[] = [];
@@ -198,6 +223,8 @@ export async function GET() {
       },
       launchpad,
       markets,
+      /** Markets the chain refused to read, with why. Empty is the normal case. */
+      unreadable,
       tokens,
       totals: {
         volume24h: sumQuote(windowed(DAY)),

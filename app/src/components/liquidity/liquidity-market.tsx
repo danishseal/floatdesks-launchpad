@@ -274,6 +274,14 @@ function MarketTable({ data, query, filter }: { data: PoolsResponse; query: stri
             No market matches “{query}”.
           </div>
         ) : null}
+        {data.unreadable?.length ? (
+          <div className="border-t border-[var(--color-border-soft)] px-5 py-3 text-[12px] text-[var(--color-text-muted)]">
+            {data.unreadable.length} market
+            {data.unreadable.length === 1 ? "" : "s"} could not be read and{" "}
+            {data.unreadable.length === 1 ? "is" : "are"} not listed above:{" "}
+            {data.unreadable.map((u) => `${u.assetId.slice(0, 10)}… (${u.reason})`).join("; ")}
+          </div>
+        ) : null}
       </div>
     </section>
   );
