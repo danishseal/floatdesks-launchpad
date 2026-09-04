@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight } from "@phosphor-icons/react";
 import { useTokens } from "@/hooks/use-tokens";
 import { Sparkline } from "@/components/utoken/sparkline";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
@@ -11,6 +10,7 @@ import { fetchGraduationThreshold, type TokenListItem } from "@/lib/api";
 
 export function UtokenHome() {
   const { data: tokens, isLoading } = useTokens();
+  const [previewAddress, setPreviewAddress] = useState<string | null>(null);
   const { data: threshold = 0 } = useQuery({
     queryKey: ["graduation-threshold"],
     queryFn: fetchGraduationThreshold,
@@ -23,13 +23,15 @@ export function UtokenHome() {
       ),
     [tokens],
   );
-  const featured = ranked.slice(0, 18);
+  const featured = ranked;
+  const previewToken = previewAddress
+    ? ranked.find((token) => token.address === previewAddress) ?? null
+    : null;
 
   return (
-    <div className="space-y-12 font-sans">
-      <Hero />
+    <div className="space-y-8 font-sans">
+      <TokenPreviewBanner token={previewToken} thresholdMicro={threshold} />
 
-      {/* Continuous alternating live-token lanes */}
       <section className="w-full max-w-none">
         <div className="mb-4">
           <div>
@@ -37,18 +39,18 @@ export function UtokenHome() {
               Live coins
             </h2>
             <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">
-              Launches moving across the curve and into the Floatdesk AMM.
+              Live across the bonding curve and the Floatdesk AMM.
             </p>
           </div>
         </div>
         {isLoading ? (
-          <div className="live-token-lanes">
+          <div className="grid grid-cols-1 overflow-hidden border border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 18 }).map((_, i) => (
-              <div key={i} className="h-[220px] animate-pulse rounded-[6px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]" />
+              <div key={i} className="aspect-video border-b border-r border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]" />
             ))}
           </div>
         ) : (
-          <FeaturedCarousel items={featured} thresholdMicro={threshold} />
+          <FeaturedGrid items={featured} thresholdMicro={threshold} onPreview={setPreviewAddress} />
         )}
       </section>
 
@@ -58,210 +60,141 @@ export function UtokenHome() {
   );
 }
 
-/* ---------------- Hero ---------------- */
+/* ---------------- Live detail preview ---------------- */
 
-type HeroSlide = {
-  badge: string;
-  l1: string;
-  l2: string;
-  accent: "l1" | "l2" | "none";
-  body: React.ReactNode;
-  ctas: Array<{ href: string; label: string; primary?: boolean }>;
-};
+function TokenPreviewBanner({
+  token,
+  thresholdMicro,
+}: {
+  token: TokenListItem | null;
+  thresholdMicro: number;
+}) {
+  if (!token) return <StarterBanner />;
 
-const HERO_SLIDES: HeroSlide[] = [
-  {
-    badge: "Horns · live on every pool",
-    l1: "COINS THAT PAY",
-    l2: "THEIR HOLDERS.",
-    accent: "l2",
-    body: (
-      <>
-        Every coin launches on a bonding curve and graduates to the Floatdesk AMM. A{" "}
-        <span className="text-[var(--color-on-accent)]">Horn</span> skims a slice of every swap fee to CHANSE and Floatdesk
-        stakers, so real trading becomes real yield.
-      </>
-    ),
-    ctas: [
-      { href: "/create", label: "Launch a coin", primary: true },
-      { href: "/explore", label: "Explore coins" },
-    ],
-  },
-  {
-    badge: "The launch",
-    l1: "LAUNCH ON A CURVE.",
-    l2: "GRADUATE TO THE AMM.",
-    accent: "none",
-    body: (
-      <>
-        No presale, no team allocation. Your coin opens on a fair bonding curve, and once it fills it
-        graduates straight into a live Floatdesk AMM pool with <span className="text-[var(--color-on-accent)]">Horns</span>{" "}
-        attached from block one.
-      </>
-    ),
-    ctas: [
-      { href: "/create", label: "Launch a coin", primary: true },
-      { href: "/horns", label: "How it works" },
-    ],
-  },
-  {
-    badge: "Stake · earn the skim",
-    l1: "STAKE Floatdesk OR CHANSE.",
-    l2: "EARN EVERY POOL'S FEES.",
-    accent: "l2",
-    body: (
-      <>
-        Stake into the <span className="text-[var(--color-on-accent)]">Horn Vault</span> and collect a per-block cut of
-        the fees skimmed from every graduated pool, in both CHANSE and Floatdesk. One vault, two sinks.
-      </>
-    ),
-    ctas: [
-      { href: "/vault", label: "Open the Vault", primary: true },
-      { href: "/horns", label: "Explore Horns" },
-    ],
-  },
-];
-
-const HERO_DURATION = 7000;
-
-// Banner art behind the hero. Drop the files at these paths in /public/hero/;
-// a missing file simply shows the base background (no broken-image icon).
-const HERO_IMAGES = ["/hero/bull-ride.png", "/hero/bull-eyes.png", "/hero/bull-rest.png"];
-
-function Hero() {
-  const [active, setActive] = useState(0);
-  const [paused, setPaused] = useState(false);
-
-  useEffect(() => {
-    if (paused) return;
-    const id = window.setTimeout(() => setActive((a) => (a + 1) % HERO_SLIDES.length), HERO_DURATION);
-    return () => window.clearTimeout(id);
-  }, [active, paused]);
-
-  const slide = HERO_SLIDES[active];
+  const change = token.price_change_24h;
+  const priceUsd = (Number(token.current_price) / 1e6) * token.market.solUsd;
+  const volumeUsd = (Number(token.volume_24h) / 1e6) * token.market.solUsd;
+  const liquidityUsd = (Number(token.hodl_reserves) / 1e6) * token.market.solUsd;
+  const raised = Number(token.hodl_reserves) || 0;
+  const progress = token.graduated
+    ? 100
+    : thresholdMicro > 0
+      ? Math.min(100, Math.max(2, (raised / thresholdMicro) * 100))
+      : 4;
 
   return (
-    <section
-      className="relative h-[clamp(300px,32vw,460px)] overflow-hidden rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-bg-page)]"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-    >
-      {/* Banner art: the bull images, cross-fading with the slides. Both layers
-          stay mounted so the opacity swap is a smooth cross-fade. */}
-      <div className="pointer-events-none absolute inset-0">
-        {HERO_IMAGES.map((src, i) => (
-          <div
-            key={src}
-            className="absolute inset-0 bg-cover bg-center transition-opacity duration-[900ms] ease-out"
-            style={{
-              backgroundImage: `url(${src})`,
-              opacity: i === active % HERO_IMAGES.length ? 1 : 0,
-            }}
-          />
-        ))}
-      </div>
-      {/* Legibility masks: solid only under the left copy, then clearing early so
-          the art stays visible on the right. Kept light on purpose. */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0c0c0e] from-[0%] via-[#0c0c0e]/50 via-[40%] to-transparent to-[70%]" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0c0c0e]/60 via-transparent to-transparent" />
-
-      {/* Content overlay, vertically centered so the section height is driven by
-          the banner aspect (full image visible), not the copy. Text carries its
-          own shadow so it stays legible over the bright frames of the art. */}
-      <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-8">
-        <div key={active} className="ansem-hero-slide max-w-2xl">
-          <h1
-            className="font-display text-[32px] font-bold leading-[0.98] tracking-[-0.02em] text-[var(--color-on-accent)] sm:text-[50px]"
-            style={{ textShadow: "0 2px 22px rgba(4,4,6,0.92), 0 1px 4px rgba(4,4,6,0.95)" }}
-          >
-            <span className={slide.accent === "l1" ? "text-[#a9c7ff]" : undefined}>{slide.l1}</span>
-            <br />
-            <span className={slide.accent === "l2" ? "text-[#a9c7ff]" : undefined}>{slide.l2}</span>
-          </h1>
-
-          <p
-            className="mt-4 max-w-xl font-sans text-[14px] leading-6 text-[var(--color-on-accent)] sm:text-[15px]"
-            style={{ textShadow: "0 1px 12px rgba(4,4,6,0.95), 0 1px 3px rgba(4,4,6,0.98)" }}
-          >
-            {slide.body}
-          </p>
-
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            {slide.ctas.map((c) =>
-              c.primary ? (
-                <Link
-                  key={c.href}
-                  href={c.href}
-                  className="inline-flex h-11 items-center gap-1.5 rounded-[4px] bg-[var(--color-accent-solid)] px-5 font-display text-[14px] font-semibold text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-accent-strong)]"
-                >
-                  {c.label} <ArrowRight size={15} weight="bold" />
-                </Link>
-              ) : (
-                <Link
-                  key={c.href}
-                  href={c.href}
-                  className="inline-flex h-11 items-center rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-5 font-display text-[14px] font-semibold text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-border)]"
-                >
-                  {c.label}
-                </Link>
-              ),
-            )}
+    <section key={token.address} className="ansem-fade-in grid overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:h-[420px] lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.7fr)]" aria-label={`${token.name} live market preview`}>
+      <div className="flex min-h-[250px] min-w-0 flex-col border-b border-[var(--color-border-soft)] p-5 lg:min-h-0 lg:border-b-0 lg:border-r">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--color-text-muted)]">Live market preview</p>
+            <div className="mt-2 flex items-baseline gap-3">
+              <h1 className="font-display text-[24px] font-semibold uppercase leading-none tracking-[-0.02em] text-[var(--color-text-primary)] sm:text-[30px]">
+                {token.name}
+              </h1>
+              <span className="font-mono text-[12px] font-semibold text-[var(--color-accent-strong)]">${token.symbol}</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="font-mono text-[20px] font-semibold tabular-nums text-[var(--color-text-primary)]">{formatPrice(priceUsd)}</p>
+            <p className={`mt-1 font-mono text-[11px] font-semibold ${change == null ? "text-[var(--color-text-muted)]" : change >= 0 ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"}`}>
+              {change == null ? "No 24h change" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}% · 24h`}
+            </p>
           </div>
         </div>
 
-        {/* Time-decay pager, anchored to the bottom of the banner */}
-        <div className="absolute bottom-4 left-6 flex items-center gap-2 sm:left-8">
-          {HERO_SLIDES.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              aria-label={`Slide ${i + 1}`}
-              onClick={() => setActive(i)}
-              className="group flex h-4 items-center"
-            >
-              {i === active ? (
-                <span className="relative h-1.5 w-8 overflow-hidden rounded-full bg-[#2f2f36]">
-                  <span
-                    key={active}
-                    className="ansem-hero-fill absolute inset-y-0 left-0 rounded-full bg-[var(--color-bg-surface)]"
-                    style={{ animationDuration: `${HERO_DURATION}ms`, animationPlayState: paused ? "paused" : "running" }}
-                  />
-                </span>
-              ) : (
-                <span className="h-1.5 w-1.5 rounded-full bg-[#3f3f46] transition-colors group-hover:bg-white" />
-              )}
-            </button>
-          ))}
+        <div className="mt-4 flex min-h-[120px] flex-1 items-end overflow-hidden border-b border-l border-[var(--color-border-soft)] px-2 pb-2 [&>svg]:h-full [&>svg]:w-full">
+          <Sparkline address={token.address} up={change == null ? true : change >= 0} width={760} height={170} />
+        </div>
+
+        <div className="mt-2 flex shrink-0 items-center justify-between gap-4 font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
+          <span>Recent price · 1h candles</span>
+          <span>Hover a coin below to inspect</span>
         </div>
       </div>
 
+      <aside className="flex min-h-0 min-w-0 flex-col p-5">
+        <div className="flex shrink-0 items-start gap-3 border-b border-[var(--color-border-soft)] pb-3">
+          <div className="h-11 w-11 shrink-0 overflow-hidden bg-[var(--color-bg-raised)]">
+            {token.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={token.image} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex h-full items-center justify-center font-display text-lg text-[var(--color-text-subtle)]">{token.symbol?.slice(0, 1) || "?"}</span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-display text-[15px] font-semibold uppercase text-[var(--color-text-primary)]">{token.name}</p>
+                <p className="mt-0.5 font-mono text-[10px] text-[var(--color-accent-strong)]">${token.symbol}</p>
+              </div>
+              <VenueBadge token={token} />
+            </div>
+          </div>
+        </div>
+
+        <dl className="grid shrink-0 grid-cols-2 gap-x-5 gap-y-3 py-4 font-mono text-[10px]">
+          <PreviewStat label="Market cap" value={usd(capUsd(token))} />
+          <PreviewStat label="Volume · 24h" value={usd(volumeUsd)} />
+          <PreviewStat label="Liquidity" value={usd(liquidityUsd)} />
+          <PreviewStat label="Trades · 24h" value={String(token.trade_count_24h ?? 0)} />
+          <PreviewStat label="Pair" value={`${token.symbol}/${token.base_label}`} />
+          <PreviewStat label="Contract" value={short(token.address)} />
+        </dl>
+
+        <div className="mt-auto shrink-0 border-t border-[var(--color-border-soft)] pt-3">
+          <div className="flex items-center justify-between font-mono text-[10px] text-[var(--color-text-muted)]">
+            <span>{token.graduated ? "AMM live" : "Bonding progress"}</span>
+            <span className="font-semibold text-[var(--color-text-primary)]">{progress.toFixed(0)}%</span>
+          </div>
+          <div className="mt-2 h-1.5 bg-[var(--color-bg-raised)]">
+            <div className="h-full bg-[var(--color-accent-solid)]" style={{ width: `${progress}%` }} />
+          </div>
+          <Link href={`/token/${token.address}`} className="group/market mt-3 flex h-9 items-center justify-between bg-[var(--color-text-primary)] px-3 font-mono text-[11px] font-semibold text-[var(--color-bg-surface)] transition-[transform,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-accent-solid)] hover:shadow-[3px_3px_0_var(--color-border)]">
+            <span>Open full market</span>
+            <span className="transition-transform duration-200 group-hover/market:translate-x-0.5 group-hover/market:-translate-y-0.5" aria-hidden="true">↗</span>
+          </Link>
+        </div>
+      </aside>
     </section>
   );
 }
 
-/* ---------------- Featured card ---------------- */
+function StarterBanner() {
+  return (
+    <section key="launchpad" className="ansem-fade-in flex min-h-[380px] items-center justify-center overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-5 py-8 lg:h-[420px]" aria-label="Floatdesk launchpad">
+      <div className="w-full max-w-[520px] text-center">
+        <p className="font-mono text-[13px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
+          Floatdesk launchpad
+        </p>
+        <p className="mx-auto mt-8 max-w-md text-[13px] leading-5 text-[var(--color-text-secondary)]">
+          Give the coin a name, an image, and a ticker. Floatdesk opens the market on a fair bonding curve.
+        </p>
 
-/* ---------------- Continuous vertical carousel ---------------- */
-
-function subscribeToCarouselColumns(onChange: () => void) {
-  const queries = [640, 900].map((width) => window.matchMedia(`(min-width: ${width}px)`));
-  queries.forEach((query) => query.addEventListener("change", onChange));
-  return () => queries.forEach((query) => query.removeEventListener("change", onChange));
-}
-
-function carouselColumnSnapshot() {
-  if (window.matchMedia("(min-width: 900px)").matches) return 4;
-  if (window.matchMedia("(min-width: 640px)").matches) return 2;
-  return 1;
-}
-
-function FeaturedCarousel({ items, thresholdMicro }: { items: TokenListItem[]; thresholdMicro: number }) {
-  const columnCount = useSyncExternalStore(
-    subscribeToCarouselColumns,
-    carouselColumnSnapshot,
-    () => 1,
+        <Link href="/create" className="group/launch mx-auto mt-6 flex h-11 max-w-[360px] items-center justify-between bg-[var(--color-accent-solid)] px-4 font-mono text-[11px] font-semibold text-[var(--color-on-accent)] transition-[transform,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-accent-strong)] hover:shadow-[4px_4px_0_var(--color-border)]">
+          <span>Launch your coin</span>
+          <span className="transition-transform duration-200 group-hover/launch:translate-x-1" aria-hidden="true">→</span>
+        </Link>
+        <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
+          Hover a live coin below to preview its market
+        </p>
+      </div>
+    </section>
   );
+}
 
+/* ---------------- Static featured grid ---------------- */
+
+function FeaturedGrid({
+  items,
+  thresholdMicro,
+  onPreview,
+}: {
+  items: TokenListItem[];
+  thresholdMicro: number;
+  onPreview: (address: string | null) => void;
+}) {
   if (items.length === 0) {
     return (
       <div className="flex h-[320px] items-center justify-center border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] text-sm text-[var(--color-text-muted)]">
@@ -270,41 +203,17 @@ function FeaturedCarousel({ items, thresholdMicro }: { items: TokenListItem[]; t
     );
   }
 
-  const lanes = Array.from({ length: columnCount }, (_, column) => {
-    const assigned = items.filter((_, index) => index % columnCount === column);
-    const seed = assigned.length > 0 ? assigned : items;
-    return Array.from({ length: Math.max(1, Math.ceil(4 / seed.length)) }, () => seed).flat();
-  });
-
   return (
-    <div className="live-token-lanes" aria-label="Live token carousel">
-      {lanes.map((lane, column) => (
-        <div className="live-token-lane" key={column}>
-          <div
-            className={`live-token-lane-track ${column % 2 === 0 ? "live-token-lane-track--up" : "live-token-lane-track--down"}`}
-            style={{ animationDuration: `${Math.max(28, (lane.length * 300) / 29)}s` }}
-          >
-            <div className="live-token-lane-set">
-              {lane.map((token, index) => (
-                <FeaturedCard
-                  key={`${token.address}-primary-${index}`}
-                  token={token}
-                  thresholdMicro={thresholdMicro}
-                />
-              ))}
-            </div>
-            <div className="live-token-lane-set" aria-hidden="true">
-              {lane.map((token, index) => (
-                <FeaturedCard
-                  key={`${token.address}-duplicate-${index}`}
-                  token={token}
-                  thresholdMicro={thresholdMicro}
-                  duplicate
-                />
-              ))}
-            </div>
-          </div>
-        </div>
+    <div
+      className="grid grid-cols-1 overflow-hidden border border-[var(--color-border)] bg-[var(--color-border-soft)] sm:grid-cols-2 lg:grid-cols-4"
+      aria-label="Live coins"
+      onMouseLeave={() => onPreview(null)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) onPreview(null);
+      }}
+    >
+      {items.map((token) => (
+        <FeaturedCard key={token.address} token={token} thresholdMicro={thresholdMicro} onPreview={onPreview} />
       ))}
     </div>
   );
@@ -313,35 +222,37 @@ function FeaturedCarousel({ items, thresholdMicro }: { items: TokenListItem[]; t
 function FeaturedCard({
   token,
   thresholdMicro,
-  duplicate = false,
+  onPreview,
 }: {
   token: TokenListItem;
   thresholdMicro: number;
-  duplicate?: boolean;
+  onPreview: (address: string | null) => void;
 }) {
   const change = token.price_change_24h;
   const graduated = token.graduated;
   const raised = Number(token.hodl_reserves) || 0;
   const pct = graduated ? 100 : thresholdMicro > 0 ? Math.min(100, Math.max(2, (raised / thresholdMicro) * 100)) : 4;
+
   return (
     <Link
       href={`/token/${token.address}`}
-      tabIndex={duplicate ? -1 : undefined}
-      className="group block shrink-0 bg-[var(--color-bg-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent-solid)]"
+      onMouseEnter={() => onPreview(token.address)}
+      onFocus={() => onPreview(token.address)}
+      className="group relative block min-w-0 border-b border-r border-[var(--color-border-soft)] bg-[var(--color-bg-page)] transition-[background-color,box-shadow] duration-200 ease-out hover:z-10 hover:bg-[var(--color-bg-surface)] hover:shadow-[inset_0_-3px_0_var(--color-accent-solid)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent-solid)]"
     >
-      <div className="w-full overflow-hidden bg-[var(--color-bg-raised)]">
+      <div className="relative aspect-video w-full overflow-hidden bg-[var(--color-bg-raised)]">
         {token.image ? (
-          // Keep the source aspect ratio so the entire token image is visible.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={token.image} alt={`${token.name} token artwork`} className="block h-auto w-full" />
+          <img src={token.image} alt={`${token.name} token artwork`} className="block h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.035]" />
         ) : (
-          <div className="flex aspect-square w-full items-center justify-center font-display text-[clamp(2rem,5vw,4rem)] font-semibold text-[var(--color-text-subtle)]">
+          <div className="flex h-full w-full items-center justify-center font-display text-[clamp(2rem,5vw,4rem)] font-semibold text-[var(--color-text-subtle)]">
             {token.symbol?.slice(0, 1) || "?"}
           </div>
         )}
+
       </div>
 
-      <div className="px-0.5 pb-2 pt-2">
+      <div className="px-3 pb-2.5 pt-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="font-display text-[13px] font-semibold uppercase leading-[1.15] tracking-[0.03em] text-[var(--color-text-primary)]">
@@ -354,11 +265,11 @@ function FeaturedCard({
           {graduated && <VenueBadge token={token} />}
         </div>
 
-        <p className="mt-2 text-[11px] leading-[1.28] text-[var(--color-text-secondary)]">
+        <p className="mt-1.5 line-clamp-1 min-h-[14px] text-[10px] leading-[1.3] text-[var(--color-text-secondary)] transition-colors duration-200 group-hover:text-[var(--color-text-primary)]">
           {token.description?.trim() || `${token.name} is trading live on the Floatdesk market.`}
         </p>
 
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px]">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[9px]">
           <span className="text-[var(--color-text-muted)]">Mkt cap</span>
           <span className="font-semibold text-[var(--color-text-primary)]">{usd(capUsd(token))}</span>
           {change != null && (
@@ -372,16 +283,31 @@ function FeaturedCard({
 
       {!graduated && (
         <div className="h-0.5 w-full bg-[var(--color-border-soft)]">
-          <div className="h-full bg-[var(--color-accent-solid)] transition-[width] duration-500" style={{ width: `${pct}%` }} />
+          <div className="h-full bg-[var(--color-accent-solid)]" style={{ width: `${pct}%` }} />
         </div>
       )}
     </Link>
   );
 }
 
+function PreviewStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="truncate uppercase tracking-[0.08em] text-[var(--color-text-muted)]">{label}</dt>
+      <dd className="mt-0.5 truncate font-semibold text-[var(--color-text-primary)]">{value}</dd>
+    </div>
+  );
+}
+
 /* ---------------- Registry ---------------- */
 
 type Filter = "all" | "curve" | "amm";
+
+const REGISTRY_FILTERS: ReadonlyArray<{ value: Filter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "curve", label: "On curve" },
+  { value: "amm", label: "Graduated" },
+];
 
 function Registry({ tokens, loading }: { tokens: TokenListItem[]; loading: boolean }) {
   const [filter, setFilter] = useState<Filter>("all");
@@ -397,7 +323,7 @@ function Registry({ tokens, loading }: { tokens: TokenListItem[]; loading: boole
       ),
     [tokens, filter],
   );
-  const filters: Filter[] = ["all", "curve", "amm"];
+  const activeFilterIndex = REGISTRY_FILTERS.findIndex(({ value }) => value === filter);
 
   return (
     <section>
@@ -405,22 +331,28 @@ function Registry({ tokens, loading }: { tokens: TokenListItem[]; loading: boole
         <h2 className="font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">
           The Bullpen <span className="font-sans text-[13px] font-normal text-[var(--color-text-muted)]">{tokens.length} tokens</span>
         </h2>
-        {/* Segmented control with a sliding thumb (spec §7) */}
-        <div className="relative grid grid-cols-3 rounded-lg bg-[var(--color-bg-raised)] p-0.5 ring-1 ring-[var(--hairline)]">
+        {/* Segmented control */}
+        <div
+          className="relative grid grid-cols-3 rounded-lg bg-[var(--color-bg-raised)] p-0.5 ring-1 ring-[var(--hairline)]"
+          role="group"
+          aria-label="Filter tokens"
+        >
           <span
-            className="pointer-events-none absolute inset-y-0.5 left-0.5 rounded-md bg-[var(--color-accent-solid)] transition-transform duration-200"
-            style={{ width: "calc((100% - 4px) / 3)", transform: `translateX(${filters.indexOf(filter) * 100}%)` }}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0.5 left-0.5 rounded-md bg-[var(--color-accent-solid)] shadow-[0_1px_2px_rgba(0,0,0,0.12)] transition-transform duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform motion-reduce:transition-none"
+            style={{ width: "calc((100% - 4px) / 3)", transform: `translate3d(${activeFilterIndex * 100}%, 0, 0)` }}
           />
-          {filters.map((f) => (
+          {REGISTRY_FILTERS.map(({ value, label }) => (
             <button
-              key={f}
+              key={value}
               type="button"
-              onClick={() => setFilter(f)}
-              className={`relative z-10 h-7 rounded-md px-3 font-sans text-[12px] font-medium transition-colors ${
-                filter === f ? "text-[var(--color-on-accent)]" : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+              className={`relative z-10 h-7 rounded-md px-3 font-sans text-[12px] font-medium transition-[color,transform] duration-200 ease-out active:scale-[0.97] motion-reduce:transition-none ${
+                filter === value ? "text-[var(--color-on-accent)]" : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
               }`}
             >
-              {f === "amm" ? "Graduated" : f === "curve" ? "On curve" : "All"}
+              {label}
             </button>
           ))}
         </div>
@@ -441,7 +373,7 @@ function Registry({ tokens, loading }: { tokens: TokenListItem[]; loading: boole
               <th className="px-4 py-3 font-medium">Contract</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody key={filter} className="ansem-fade-in" aria-live="polite">
             {loading ? (
               <tr><td colSpan={9} className="px-4 py-10 text-center font-sans text-[13px] text-[var(--color-text-muted)]">Loading registry…</td></tr>
             ) : rows.length === 0 ? (
@@ -460,7 +392,7 @@ function RegistryRow({ token, rank, thresholdMicro }: { token: TokenListItem; ra
   const change = token.price_change_24h;
   const priceUsd = (Number(token.current_price) / 1e6) * token.market.solUsd;
   return (
-    <tr className="group border-b border-[var(--hairline)] transition-colors last:border-0 hover:bg-[var(--color-bg-raised)]">
+    <tr className="group border-b border-[var(--hairline)] transition-colors duration-200 last:border-0 hover:bg-[var(--color-bg-raised)]">
       <td className="px-4 py-3 tabular-nums text-[13px] text-[var(--color-text-subtle)]">{rank}</td>
       <td className="px-4 py-3">
         <Link href={`/token/${token.address}`} className="flex items-center gap-2.5">
@@ -533,6 +465,10 @@ function capUsd(t: TokenListItem): number {
 }
 function usd(v: number): string {
   return Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 }).format(v || 0);
+}
+function formatPrice(v: number): string {
+  if (!Number.isFinite(v) || v <= 0) return "$0";
+  return v >= 0.01 ? usd(v) : `$${Number(v.toPrecision(3))}`;
 }
 function short(a: string): string {
   return a.length > 16 ? `${a.slice(0, 8)}…${a.slice(-4)}` : a;

@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { label: "Scanner", href: "/explore", badge: "S", badgeClass: "bg-[#c49a32]" },
   { label: "Feed", href: "/feed", badge: "F", badgeClass: "bg-[#91a9d6]" },
   { label: "Analytics", href: "/analytics", badge: "A", badgeClass: "bg-[#0d4b2d] text-white" },
+  { label: "Liquidity", href: "/liquidity", badge: "Q", badgeClass: "bg-[#a6b4a3]" },
   { label: "Leaderboard", href: "/leaderboard", badge: "L", badgeClass: "bg-[#ddb8cc]" },
 ] as const;
 
@@ -15,35 +16,35 @@ const NAV_ITEMS = [
 export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
   return (
     <header
-      className="app-shell-header sticky top-0 z-30 bg-[var(--color-bg-page)]/95 backdrop-blur-md"
+      className="app-shell-header sticky top-0 z-30 h-12 bg-[var(--color-bg-surface)]"
       style={squareCorners ? { borderRadius: 0 } : undefined}
     >
-      {/* Main header */}
-      <div className="flex h-16 w-full items-stretch bg-[var(--color-bg-surface)]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-50 border border-[var(--color-border)]" />
+      <div className="flex h-full w-full items-stretch bg-[var(--color-bg-surface)] pr-4 xl:pr-5">
         <Link href="/" aria-label="Floatdesk home" className="flex shrink-0 items-stretch">
-          <span className="app-shell-logo-tile flex w-16 items-center justify-center">
+          <span className="app-shell-logo-tile flex w-12 items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/sailboat-white.png"
               alt=""
-              className="h-12 w-12 object-contain"
+              className="h-10 w-10 object-contain"
             />
           </span>
-          <span className="hidden items-center px-4 font-mono text-[20px] font-semibold tracking-[-0.03em] text-[var(--color-text-primary)] sm:flex">
+          <span className="hidden items-center px-4 font-mono text-[18px] font-semibold tracking-[-0.03em] text-[var(--color-text-primary)] sm:flex">
             Floatdesk
           </span>
         </Link>
 
-        <nav aria-label="Primary navigation" className="hidden min-w-0 flex-1 items-center justify-center gap-7 px-6 font-mono text-sm text-[var(--color-text-primary)] lg:flex xl:gap-11">
+        <nav aria-label="Primary navigation" className="hidden min-w-0 flex-1 items-center justify-center gap-5 px-5 font-mono text-[12px] text-[var(--color-text-primary)] lg:flex xl:gap-7">
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="flex shrink-0 items-center gap-3 whitespace-nowrap transition-opacity hover:opacity-65"
+              className="group flex shrink-0 items-center gap-3 whitespace-nowrap transition-[transform,opacity] duration-200 ease-out hover:-translate-y-px hover:opacity-70"
             >
               <span
                 aria-hidden="true"
-                className={`flex h-7 w-7 items-center justify-center text-[13px] font-medium ${item.badgeClass}`}
+                className={`flex h-5 w-5 items-center justify-center text-[11px] font-medium transition-transform duration-200 ease-out group-hover:-rotate-3 group-hover:scale-105 ${item.badgeClass}`}
               >
                 {item.badge}
               </span>
@@ -52,14 +53,14 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
           ))}
         </nav>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2 px-3">
+        <div className="ml-auto flex shrink-0 items-center gap-2 pl-3">
           <a
             href="https://docs.ansemchain.fun"
             target="_blank"
             rel="noreferrer"
             aria-label="Floatdesk docs"
             title="Docs"
-            className="hidden h-9 w-9 shrink-0 items-center justify-center text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-accent-strong)] md:flex"
+            className="hidden h-8 w-8 shrink-0 items-center justify-center text-[var(--color-text-secondary)] transition-[transform,color] duration-200 hover:-translate-y-px hover:text-[var(--color-accent-strong)] md:flex"
           >
             <BookOpen size={17} weight="bold" />
           </a>
@@ -70,14 +71,14 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
             rel="noreferrer"
             aria-label="Floatdesk on X"
             title="Floatdesk on X"
-            className="hidden h-9 w-9 shrink-0 items-center justify-center text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-accent-strong)] md:flex"
+            className="hidden h-8 w-8 shrink-0 items-center justify-center text-[var(--color-text-secondary)] transition-[transform,color] duration-200 hover:-translate-y-px hover:text-[var(--color-accent-strong)] md:flex"
           >
             <XLogo size={17} weight="bold" />
           </a>
 
           <Link
             href="/create"
-            className="hidden h-9 shrink-0 items-center gap-1.5 px-2 font-mono text-[13px] font-medium text-[var(--color-text-primary)] transition-opacity hover:opacity-65 sm:flex"
+            className="hidden h-8 shrink-0 items-center gap-1.5 px-2 font-mono text-[12px] font-medium text-[var(--color-text-primary)] transition-[transform,opacity] duration-200 hover:-translate-y-px hover:opacity-70 sm:flex"
           >
             <Plus size={15} weight="bold" /> Launch
           </Link>
@@ -85,8 +86,8 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
           <ConnectButton
             label="Connect"
             balanceOnly
-            className="h-9 shrink-0 bg-[#ddb8cc] px-3.5 font-mono text-[13px] font-medium text-[var(--color-text-primary)] transition-opacity hover:opacity-80"
-            connectedClassName="h-9 w-auto px-3 font-mono"
+            className="h-8 shrink-0 bg-[#ddb8cc] px-3.5 font-mono text-[12px] font-medium text-[var(--color-text-primary)] transition-[transform,box-shadow,opacity] duration-200 hover:-translate-y-px hover:shadow-[2px_2px_0_var(--color-border)] hover:opacity-90"
+            connectedClassName="h-8 w-auto px-3 font-mono"
           />
         </div>
       </div>

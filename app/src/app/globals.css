@@ -159,35 +159,6 @@
     scrollbar-width: none;
   }
 
-  /* Hero carousel: time-decay pager fill + slide fade-in. */
-  @keyframes ansem-hero-fill {
-    from {
-      width: 0%;
-    }
-    to {
-      width: 100%;
-    }
-  }
-  .ansem-hero-fill {
-    width: 0%;
-    animation-name: ansem-hero-fill;
-    animation-timing-function: linear;
-    animation-fill-mode: forwards;
-  }
-  @keyframes ansem-hero-in {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  .ansem-hero-slide {
-    animation: ansem-hero-in 0.45s ease-out both;
-  }
-
   /* Reusable content transition for toggles/tabs (key the element to replay). */
   @keyframes ansem-fade-in {
     from {
@@ -221,82 +192,20 @@
     animation: horn-swap 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   @media (prefers-reduced-motion: reduce) {
+    .ansem-fade-in,
     .horn-swap {
       animation: none;
     }
   }
 
-  @keyframes live-token-lane-up {
-    from { transform: translateY(0); }
-    to { transform: translateY(-50%); }
+  a,
+  button {
+    transition-timing-function: ease-out;
   }
 
-  @keyframes live-token-lane-down {
-    from { transform: translateY(-50%); }
-    to { transform: translateY(0); }
-  }
-
-  .live-token-lanes {
-    display: grid;
-    width: 100%;
-    max-width: none;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-    height: min(62vh, 640px);
-    min-height: 420px;
-    overflow: hidden;
-  }
-
-  @media (min-width: 640px) {
-    .live-token-lanes {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (min-width: 900px) {
-    .live-token-lanes {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-  }
-
-  .live-token-lane {
-    width: 100%;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .live-token-lane-track {
-    width: 100%;
-    will-change: transform;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-  }
-
-  .live-token-lane-track--up {
-    animation-name: live-token-lane-up;
-  }
-
-  .live-token-lane-track--down {
-    animation-name: live-token-lane-down;
-  }
-
-  .live-token-lane-set {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding-bottom: 14px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .live-token-lanes {
-      height: auto;
-      min-height: 0;
-      overflow: visible;
-    }
-    .live-token-lane-track {
-      animation: none;
-    }
-    .live-token-lane-set[aria-hidden="true"] { display: none; }
+  :is(a, button):focus-visible {
+    outline: 2px solid var(--color-accent-solid);
+    outline-offset: 2px;
   }
 
   body {
