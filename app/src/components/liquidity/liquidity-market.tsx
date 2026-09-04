@@ -28,7 +28,7 @@ import { DeskHookSection, type HookPoolRow } from "./desk-hook-section";
 type Filter = "all" | "live" | "queue";
 
 export function LiquidityMarket() {
-  const { data, isLoading, error } = usePools();
+  const { data, error } = usePools();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -49,11 +49,20 @@ export function LiquidityMarket() {
     return () => { live = false; };
   }, []);
 
-  if (error) return <BoardError message={(error as Error).message} />;
-  if (isLoading || !data) return <BoardSkeleton />;
+  // Order matters. Showing the error state whenever `error` is set threw away a
+  // perfectly good board on one transient RPC blip, since react-query keeps the
+  // last successful data through a failed refetch. Only surrender the page when
+  // there is nothing to show.
+  if (!data) return error ? <BoardError message={(error as Error).message} /> : <BoardSkeleton />;
 
   return (
     <div className={styles.page}>
+      {error ? (
+        <div className="mx-1 mb-3 rounded border border-[var(--color-border-soft)] px-4 py-2.5 text-[12px] text-[var(--color-text-muted)]">
+          Showing the last good read; the latest refresh failed and these figures
+          may be stale.
+        </div>
+      ) : null}
       <Summary data={data} />
       <DeskVaultCard data={data} />
       {hook.quote && hook.pools.length > 0 ? (
@@ -62,6 +71,15 @@ export function LiquidityMarket() {
           quoteSymbol={hook.quote.symbol}
           quoteDecimals={hook.quote.decimals}
         />
+      ) : null}
+
+      {data.indexer?.reachable === false ? (
+        <div className="mx-1 mb-3 rounded border border-[var(--color-border-soft)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]">
+          Trade history is unavailable, so every volume and fee figure below is
+          unmeasured rather than zero. Vault and market state are read from chain
+          and are unaffected.{" "}
+          {data.indexer.error ? <span>({data.indexer.error})</span> : null}
+        </div>
       ) : null}
 
       <div className={styles.toolbar}>
@@ -109,7 +127,9 @@ function Summary({ data }: { data: PoolsResponse }) {
     ["Desk vault", usd(tvl), `${data.quote.symbol} available to quote`],
     ["Vault equity", usd(equity), `${shares.toLocaleString()} shares outstanding`],
     ["Share price", equity && shares ? (equity / shares).toFixed(5) : "-", `${pct(growth)} since inception`],
-    ["7d volume", usd(fromUnits(String(Math.round(data.totals.volume7d)), dp)), `${data.totals.tradeCount} trades indexed`],
+    data.indexer?.reachable === false
+      ? ["7d volume", "unmeasured", "the indexer is unreachable"]
+      : ["7d volume", usd(fromUnits(String(Math.round(data.totals.volume7d)), dp)), `${data.totals.tradeCount} trades indexed`],
   ];
 
   return (
@@ -170,7 +190,9 @@ function DeskVaultCard({ data }: { data: PoolsResponse }) {
         </div>
         <div>
           <span className={styles.mobileLabel}>7d fees</span>
-          <span className={styles.cellValue}>{usd(fees7d, { max: 2 })}</span>
+          <span className={styles.cellValue}>
+            {data.indexer?.reachable === false ? "unmeasured" : usd(fees7d, { max: 2 })}
+          </span>
         </div>
         <div>
           <span className={styles.mobileLabel}>Backs</span>
@@ -267,7 +289,7 @@ function MarketTable({ data, query, filter }: { data: PoolsResponse; query: stri
 
       <div>
         {rows.map((m) => (
-          <MarketRow key={m.assetId} m={m} dp={dp} symbol={data.quote.symbol} />
+          <MarketRow key={m.assetId} m={m} dp={dp} symbol={data.quote.symbol} feedOk={data.indexer?.reachable !== false} />
         ))}
         {rows.length === 0 ? (
           <div className="px-5 py-14 text-center text-sm text-[var(--color-text-muted)]">
@@ -287,7 +309,7 @@ function MarketTable({ data, query, filter }: { data: PoolsResponse; query: stri
   );
 }
 
-function MarketRow({ m, dp, symbol }: { m: PoolsMarket; dp: number; symbol: string }) {
+function MarketRow({ m, dp, symbol, feedOk }: { m: PoolsMarket; dp: number; symbol: string; feedOk: boolean }) {
   const mark = px8(m.markPx);
   const cap = fromUnits(m.oiCapQuote, dp);
   // netOI is in base (fSHARE) units at 18dp, valued at the mark for comparison
@@ -329,13 +351,13 @@ function MarketRow({ m, dp, symbol }: { m: PoolsMarket; dp: number; symbol: stri
       <div>
         <span className={styles.mobileLabel}>7d fees</span>
         <span className={styles.cellValue}>
-          {m.trades > 0 ? usd(fromUnits(String(Math.round(m.fees7d)), dp), { max: 2 }) : "no trades yet"}
+          {!feedOk ? "unmeasured" : m.trades > 0 ? usd(fromUnits(String(Math.round(m.fees7d)), dp), { max: 2 }) : "no trades yet"}
         </span>
       </div>
       <div>
         <span className={styles.mobileLabel}>24h volume</span>
         <span className={styles.cellValue}>
-          {m.volume24h > 0 ? usd(fromUnits(String(Math.round(m.volume24h)), dp)) : "-"}
+          {!feedOk ? "unmeasured" : m.volume24h > 0 ? usd(fromUnits(String(Math.round(m.volume24h)), dp)) : "-"}
         </span>
       </div>
       <div>

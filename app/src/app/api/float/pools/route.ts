@@ -31,14 +31,22 @@ let cached: { at: number; key: string; body: unknown } | null = null;
 
 interface TradeRow { block: number; asset_id: string; side: string; quote: string; base: string; fee_bps: number; ts?: number | null }
 
-async function indexerTrades(): Promise<TradeRow[]> {
+/**
+ * Trades, plus whether we could actually ask.
+ *
+ * Returning a bare [] on failure made a dead indexer identical to a quiet
+ * chain: every market read "no trades yet" at $0 volume, which is exactly what
+ * a market with no trades reads. The caller needs to be able to say "we could
+ * not ask" instead of publishing a zero it did not measure.
+ */
+async function indexerTrades(): Promise<{ rows: TradeRow[]; ok: boolean; error?: string }> {
   const origin = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
   try {
     const r = await fetch(`${origin}/trades?limit=500`, { cache: "no-store" });
-    if (!r.ok) return [];
-    return (await r.json()) as TradeRow[];
-  } catch {
-    return [];
+    if (!r.ok) return { rows: [], ok: false, error: `indexer HTTP ${r.status}` };
+    return { rows: (await r.json()) as TradeRow[], ok: true };
+  } catch (e) {
+    return { rows: [], ok: false, error: e instanceof Error ? e.message.slice(0, 120) : "unreachable" };
   }
 }
 
@@ -94,7 +102,8 @@ export async function GET() {
     const usdg = await erc20(usdgAddr);
 
     const now = Math.floor(Date.now() / 1000);
-    const trades = await withTimes(await indexerTrades());
+    const feed = await indexerTrades();
+    const trades = await withTimes(feed.rows);
     const windowed = (secs: number) => trades.filter((t) => t.ts && now - t.ts <= secs);
 
     const sumQuote = (rows: TradeRow[]) =>
@@ -223,6 +232,11 @@ export async function GET() {
       },
       launchpad,
       markets,
+      /**
+       * Whether the trade history could be read at all. When false, every
+       * volume and fee figure below is unmeasured rather than zero.
+       */
+      indexer: { reachable: feed.ok, error: feed.error ?? null },
       /** Markets the chain refused to read, with why. Empty is the normal case. */
       unreadable,
       tokens,
