@@ -1,0 +1,62 @@
+---
+title: "Circuit Breaker"
+description: "Automatic and manual freezes that stop a bad price from becoming a bad outcome."
+---
+
+The oracle index is the single input every risk decision depends on: collateral checks, funding, liquidations. The circuit breaker exists so that one bad print, whether from manipulation, a source outage, or a fat-fingered push from the price feed service (the relayer), halts the market instead of flowing into those decisions.
+
+<Frame caption="The index defense stack, layered by time scale.">
+  <img className="hidden dark:block" src="/images/protocol/12-defense-stack.png" alt="The index defense stack, layered by time scale." noZoom />
+  <img className="block dark:hidden" src="/images/protocol/12-defense-stack-light.png" alt="The index defense stack, layered by time scale." noZoom />
+</Frame>
+
+## Automatic: deviation freeze
+
+Every oracle push is checked against the current index TWAP before it is accepted:
+
+```
+deviation_bps = |observed - index_twap| * 10_000 / index_twap
+
+if deviation_bps > breaker_bps:
+    market.frozen = true
+    // the observation is recorded as index_last_raw
+    // but is NOT absorbed into the TWAP
+```
+
+The outlier never contaminates the index. The market emits a `BreakerTripped` event carrying the observed price and the TWAP it deviated from, and everything risk-bearing stops until a human looks.
+
+With an illustrative `breaker_bps = 2000`, any push more than 20% away from the TWAP freezes the market. Real collectible prices rarely move that fast between pushes; a print that does is treated as suspect by default.
+
+## Manual: admin freeze
+
+The admin can freeze or unfreeze any market at any time with `set_frozen`. This covers everything the automatic breaker cannot see: a compromised data source that drifts plausibly, an exploit elsewhere in the stack, or a pending parameter fix.
+
+Unfreezing is always manual and admin-only. There is no automatic recovery timer; a tripped breaker means the index needs human review before the market resumes.
+
+## What frozen blocks
+
+| Blocked | Allowed |
+| --- | --- |
+| Curve buys and sells | `add_collateral` |
+| AMM buys and sells | Admin operations (`set_frozen`, params) |
+| `open_short`, `withdraw_collateral`, `repay_burn` | Reading all state |
+| `accrue_funding` | |
+| `liquidate` | |
+| `graduate` | |
+| Oracle pushes (`push_index`, `push_mark`) | |
+
+Three of these deserve explanation:
+
+**Liquidations pause too.** If the freeze was caused by a bad print, liquidating against that print would convert the bad data into permanent, irreversible harm to position owners. No liquidation is urgent enough to run on an index that just failed its own sanity check.
+
+**Adding collateral stays open.** A shorter who sees trouble coming must always be able to make their position safer, regardless of market state. Freezes never trap a position on the path to health.
+
+**Oracle pushes are refused while frozen.** If pushes kept landing, a compromised oracle could walk the TWAP breaker-step by breaker-step during the freeze and hand the admin a poisoned price at unfreeze. Instead the index is immobile while frozen; the safe resume sequence is admin unfreeze, then a fresh push, and the [staleness guard](/concepts/price-index#staleness-guard) keeps index-priced operations blocked until that push lands.
+
+<Note>
+Funding also stops while frozen, so a stale mark cannot silently drain either side during an outage. When the market unfreezes, funding resumes from the unfreeze time; the frozen interval is not retroactively charged.
+</Note>
+
+## Interaction with the oracle relayer
+
+The breaker is the on-chain half of a two-layer defense. The off-chain relayer applies its own outlier rejection and cross-source agreement checks before pushing at all (see [Oracle Architecture](/oracle/architecture)); the breaker catches whatever slips through, including a compromised relayer key. A stolen oracle key can move the index by at most `breaker_bps` per accepted push before freezing the market, cannot move it at all once the market is frozen, and the [funding clamp](/concepts/funding) bounds the damage even the accepted pushes can do.

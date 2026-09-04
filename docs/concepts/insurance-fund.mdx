@@ -1,0 +1,51 @@
+---
+title: "Insurance Fund"
+description: "The per-market backstop that absorbs liquidation shortfalls."
+---
+
+Each market carries its own insurance fund. It is not a shared protocol pool: a blowup in one market cannot drain the backstop of another.
+
+## How it is funded
+
+The fund is seeded at [graduation](/concepts/graduation). A slice of everything raised on the launch curve is carved off before the AMM is seeded:
+
+```
+insurance = curve_sol_raised * insurance_share_bps / 10_000
+amm_sol   = curve_sol_raised - insurance
+```
+
+With the illustrative `insurance_share_bps = 1000`, a market that raised 500 SOL graduates with a 50 SOL insurance fund.
+
+The lamports live in the market's program-controlled SOL vault alongside AMM reserves, short collateral, and accrued fees; the program tracks each bucket in dedicated `Market` fields (`insurance_lamports`, `fee_lamports`, and so on), so insurance can never be spent as anything else.
+
+## What it pays for
+
+**Liquidation shortfalls.** When a position is so far underwater that its collateral cannot cover the liquidator's target payout (debt value plus bonus), the fund tops up the difference:
+
+```
+shortfall = target_payout - collateral
+topup     = min(shortfall, insurance_lamports)
+```
+
+This keeps liquidation profitable even for badly late liquidations, which keeps liquidators showing up. See [Liquidations](/concepts/liquidations).
+
+**Funding backstop (v1).** [Funding](/concepts/funding) in v1 is applied as a debt adjustment on shorts rather than a direct transfer between longs and shorts. The insurance fund is the system-level backstop for that accounting: value that funding grants to one side is ultimately made whole at liquidation time, with the fund absorbing rounding and shortfall. A staked long pool that settles funding directly is planned for v2.
+
+## When it runs dry
+
+The fund is a buffer, not a guarantee:
+
+- Liquidator payouts are capped at `collateral + available insurance`. If both are exhausted, the liquidator gets less than the target and the incentive weakens.
+- Nothing else breaks: the market keeps trading, positions keep accruing funding, and the fund can be relevant again if it is replenished.
+
+<Warning>
+An empty insurance fund is the signal that a market's parameters were too aggressive for its underlying (collateral ratios too low, a hedge reserve too large, or breaker too loose). Listing policy exists to prevent reaching this state; see [Listing a Market](/guides/listing-a-market).
+</Warning>
+
+## Replenishment
+
+In v1 the fund only decreases after graduation; there is no inflow. Routing a share of ongoing AMM and curve fees into `insurance_lamports` is a planned change (see [Roadmap](/roadmap)). Until then, sizing the fund correctly at graduation and keeping hedge reserves conservative are the operative protections.
+
+## Reading it
+
+`Market.insurance_lamports` is the live balance. The `Graduated` event records the initial seed, and each `Liquidated` event lets you reconstruct drawdowns from payout versus collateral.

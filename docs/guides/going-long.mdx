@@ -1,0 +1,107 @@
+---
+title: "Going Long"
+description: "Buy synth on the launch curve or the AMM to get liquid exposure to a collectible market."
+---
+
+Going long on ***commas*** means holding a market's synth token. The token is a
+funding-pegged synthetic: its price is pulled toward the oracle index by
+arbitrage and funding, not locked to it. You are buying exposure to the
+underlying's price in SOL terms, with a soft peg.
+
+<Note>
+Expect a basis of a few percent between the token price and the index. The
+[funding mechanism](/concepts/funding) narrows persistent gaps over time; it
+does not eliminate them block by block.
+</Note>
+
+## Where you trade depends on market phase
+
+Each market goes through two phases:
+
+1. **Bootstrap**: the token trades on a [bonding curve](/concepts/launch-curve).
+   Buys draw tokens from the preminted curve allocation; sells return them to it.
+2. **Live**: after [graduation](/concepts/graduation), trading moves to the
+   market's internal [AMM](/concepts/amm), a constant-product pool seeded from
+   the curve raise.
+
+Both phases charge a per-trade fee set in the market's
+[parameters](/concepts/parameters) (`curve_fee_bps` and `amm_fee_bps`).
+
+## Buying on the curve
+
+<Steps>
+  <Step title="Check the market status">
+    Fetch the `Market` account. `status` must be `Bootstrap` and `frozen` must
+    be false.
+  </Step>
+  <Step title="Quote and set slippage">
+    Compute the expected output from the curve's virtual reserves, then pass a
+    `min_tokens_out` you are willing to accept.
+  </Step>
+  <Step title="Send curve_buy">
+    Your SOL goes to the market vault and the synth is transferred from the
+    curve allocation to your associated token account (created automatically
+    if needed).
+  </Step>
+</Steps>
+
+```typescript
+await program.methods
+  .curveBuy(new BN(2 * LAMPORTS_PER_SOL), minTokensOut)
+  .accountsPartial({
+    market: marketPda,
+    synthMint: mintPda,
+    solVault: vaultPda,
+    user: wallet.publicKey,
+    userAta: getAssociatedTokenAddressSync(mintPda, wallet.publicKey),
+  })
+  .rpc();
+```
+
+You can exit during bootstrap with `curveSell(tokensIn, minSolOut)`, which
+returns your tokens to the curve allocation and pays out SOL, minus the curve
+fee.
+
+## Trading on the AMM
+
+After graduation, use `ammBuy` and `ammSell` with the same slippage pattern.
+The AMM adds one extra account, the market's pool token account:
+
+```typescript
+await program.methods
+  .ammBuy(new BN(1 * LAMPORTS_PER_SOL), minTokensOut)
+  .accountsPartial({
+    market: marketPda,
+    synthMint: mintPda,
+    poolToken: poolPda,
+    solVault: vaultPda,
+    user: wallet.publicKey,
+    userAta: getAssociatedTokenAddressSync(mintPda, wallet.publicKey),
+  })
+  .rpc();
+```
+
+## Reading premium and basis
+
+Two fields on the `Market` account tell you where the token trades relative to
+the underlying:
+
+| Field | Meaning |
+| --- | --- |
+| `index_twap` | Oracle index, lamports per whole underlying unit |
+| `mark_ema` | Smoothed AMM price, lamports per whole underlying unit |
+
+The premium is `(mark_ema - index_twap) / index_twap`. A positive premium
+means the token trades rich to the index; [funding](/concepts/funding) is then
+paying shorts to draw and sell, which pushes the price back down. A negative
+premium means the token trades cheap; shorts are being charged, which pushes
+them to buy back and repay.
+
+Remember the scale: 1,000,000 tokens represent one whole underlying unit (one
+floor NFT or one graded card), and the token has 6 decimals.
+
+<Warning>
+A frozen market (circuit breaker or admin action) rejects all trades until it
+is unfrozen. See [circuit breaker](/concepts/circuit-breaker). Positions and
+balances are untouched while frozen; only activity is paused.
+</Warning>

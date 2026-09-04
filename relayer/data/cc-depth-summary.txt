@@ -1,0 +1,70 @@
+Collector Crypt marketplace depth scout: 1210/1210 pages, 4783 distinct card+grade groups
+
+TOP 40 BY LISTING DEPTH (all categories)
+  29 listings | floor $    10.00 | median $    88.00 | 2026 Birb Vibes TCG Promo #1
+  15 listings | floor $    83.00 | median $   105.00 | 2021 #001 Full Art/Pikachu PSA 10 Japanese 25th Anniversary Collection
+  12 listings | floor $    30.00 | median $    44.50 | 2026 #30 Mega Charizard Y EX CGC 10 Pokemon Mega Evolution Black Star 
+  11 listings | floor $    85.00 | median $    95.00 | 2021 #144 Greninja-Gold Star PSA 9 Swsh Black Star Promo Pokemon
+  11 listings | floor $    55.00 | median $    75.00 | 2023 #ST01-002 Usopp CGC 10 Pristine Premium Collection FILM RED (Foil
+  10 listings | floor $   190.00 | median $   275.00 | 2024 #043 Monkey D. Luffy PSA 10 One Piece Promos
+  10 listings | floor $   150.00 | median $   177.50 | BLACK ILLUSION RITUAL MRL-051 MAGIC RULER | 1ST EDITION 2002 PSA 10
+   9 listings | floor $   389.00 | median $   415.00 | 2019 #SM210 Full Art/Moltres & Zapdos & Articuno GX PSA 10 SM Black St
+   9 listings | floor $    80.00 | median $   100.00 | 2026 #P-075 Monkey D. Luffy CGC 10 Pristine Tin Pack Vol.2 (Coins In B
+   9 listings | floor $   116.00 | median $  3000.00 | 2025 #118 Monkey D. Luffy PSA 10 OP11-A Fist of Divine Speed One Piece
+   9 listings | floor $   260.00 | median $   260.00 | 2025 #P-072 Ryuma CGC 10 Pristine Premium Collection Best Selection Vo
+   8 listings | floor $   255.00 | median $   260.00 | 2025 #120 Sabo PSA 10 One Piece Japanese OP13-Carrying on His Will
+   8 listings | floor $    36.00 | median $    60.00 | 2026 Pokemon Mega Evolution Promo Tin Mega Charizard X ex #29 CGC 10 G
+   8 listings | floor $    36.99 | median $    74.50 | 2025 #013 Mega Charizard X ex CGC 10 Pristine Inferno X - M2 - Japanes
+   8 listings | floor $   361.00 | median $   450.00 | 2025 #173 Ditto PSA 10 Korean SV-P Promo Pokemon
+   8 listings | floor $    55.00 | median $    86.50 | 2025 #013 Mega Charizard X EX PSA 10 Japanese M2-Inferno X Pokemon
+   8 listings | floor $    40.00 | median $    68.00 | 2025 #020 Pikachu PSA 9 Japanese M-P Promo
+   8 listings | floor $   110.00 | median $   150.00 | 2024 #ST03-013 Boa Hancock CGC 10 Pristine Premium Collection Best Sel
+   8 listings | floor $    40.00 | median $    58.50 | 2025 #105 JAPANESE SV BATTLE PARTNERS AR LILLIE'S RIBOMBEE CGC 10 POKE
+   8 listings | floor $   185.00 | median $   230.00 | 2023 #291 Full Art/Lucario Vstar CGC 10 Pristine Swsh Black Star Promo
+   7 listings | floor $   100.00 | median $   130.00 | 2024 #ST10-006 Monkey D. Luffy SR Treasure Booster CGC 10 Pristine Pro
+   7 listings | floor $    14.00 | median $    25.00 | 2019 Pokemon Japanese Playing Cards Old Maid Meowth CGC 10 PRISTINE
+   7 listings | floor $    37.00 | median $    45.00 | 2026 Pokemon Mega Promo Ascended Heroes Premium Poster Full Art Mega L
+   7 listings | floor $    46.00 | median $    50.00 | 2026 Pokemon Scarlet & Violet Temporal Forces Day Collection Pikachu #
+   7 listings | floor $    33.33 | median $    60.00 | 2025 #OP10-003 Sugar CGC 10 Pristine Promotional Cards - Japanese
+   7 listings | floor $   135.00 | median $   300.00 | 2025 #119 Portgas D. Ace PSA 10 One Piece OP13-Carrying on His Will
+   7 listings | floor $    90.00 | median $    96.00 | 2025 #022 Haunter PSA 10 Japanese Mbg-Mega Starter Set Mega Gengar EX 
+   7 listings | floor $    65.00 | median $    75.00 | 2024 #OP10-118 SEC Monkey D. Luffy CGC 10 PRISTINE Royal Blood One Pie
+   6 listings | floor $    64.00 | median $    76.50 | 2024 #203 Ceruledge EX PSA 10 Japanese Sv8a-Terastal Fest EX Pokemon
+   6 listings | floor $   175.00 | median $   250.00 | 2024 #006 Monkey D. Luffy PSA 10 One Piece Promos
+   6 listings | floor $   405.00 | median $   450.00 | 2023 #199 Charizard EX PSA 9 Mew EN-151 Pokemon
+   6 listings | floor $    40.00 | median $    62.50 | 2025 #018 Fuecoco PSA 10 Japanese M-P Promo Pokemon
+   6 listings | floor $   145.00 | median $   260.00 | 2024 #159 Magneton PSA 10 Svp EN-SV Black Star Promo Pokemon
+   6 listings | floor $    45.00 | median $    90.00 | 2025 #173 Eevee CGC 10 Svp EN-SV Black Star Promo Pokemon
+   6 listings | floor $    65.00 | median $   105.50 | 2024 #197 Pikachu CGC 10 Pristine Japanese SV-P Promo Pokemon
+   6 listings | floor $    90.00 | median $    97.00 | 2025 #020/M-P Pikachu CGC 10 Pristine Mega Evolution Promos - Japanese
+   6 listings | floor $   150.00 | median $   215.00 | 2023 #053 Mew EX PSA 9 Svp EN-SV Black Star Promo Pokemon
+   6 listings | floor $    53.00 | median $    67.50 | 2025 #103 Team Rocket's Wobbuffet PSA 10 Japanese SV10-Glory of Team R
+   6 listings | floor $    54.00 | median $    57.50 | 2021 #189 Full Art/Vaporeon CGC 10 Pristine Japanese Sword & Shield Vm
+   6 listings | floor $   108.00 | median $   150.00 | 2023 #007 Squirtle PSA 10 Japanese Sv2a- 151 Pokemon
+
+TOP 25 POKEMON, PSA 10 ONLY, floor >= $100
+   9 listings | floor $   389.00 | median $   415.00 | 2019 #SM210 Full Art/Moltres & Zapdos & Articuno GX PSA 10 SM Black St
+   8 listings | floor $   361.00 | median $   450.00 | 2025 #173 Ditto PSA 10 Korean SV-P Promo Pokemon
+   6 listings | floor $   145.00 | median $   260.00 | 2024 #159 Magneton PSA 10 Svp EN-SV Black Star Promo Pokemon
+   6 listings | floor $   108.00 | median $   150.00 | 2023 #007 Squirtle PSA 10 Japanese Sv2a- 151 Pokemon
+   5 listings | floor $   104.40 | median $   104.40 | 2024 Pokemon Chinese Sword & Shield Shadow Of Glory Holo Radiant Blast
+   5 listings | floor $   280.00 | median $   350.00 | 2021 #SV107 Full Art/Charizard Vmax PSA 10 Sword & Shield Shining Fate
+   4 listings | floor $   280.00 | median $   350.00 | 2025 #190 Ethan's Typhlosion PSA 10 Dri EN-Destined Rivals
+   4 listings | floor $   141.97 | median $   171.29 | 2025 #173 Eevee PSA 10 Svp EN-SV Black Star Promo Pokemon
+   4 listings | floor $   200.00 | median $   317.50 | 2019 #68 Full Art/Jessie & James PSA 10 Sun & Moon Hidden Fates
+   4 listings | floor $   349.00 | median $   400.00 | 2023 #201 Alakazam EX PSA 10 Mew EN-151 Pokemon
+   4 listings | floor $   408.00 | median $   414.50 | 2021 #184 Full Art/Sylveon V PSA 10 Sword & Shield Evolving Skies
+   4 listings | floor $   143.00 | median $   179.50 | 2024 #211 Espeon EX PSA 10 Japanese Sv8a-Terastal Fest EX
+   4 listings | floor $   110.00 | median $   120.00 | 2021 #203 Full Art/Ice Rider Calyrex Vmax PSA 10 Sword & Shield Chilli
+   4 listings | floor $   199.00 | median $   240.00 | 2023 #GG45 Full Art/Deoxys Vmax PSA 10 Sword and Shield Crown Zenith P
+   4 listings | floor $   470.00 | median $   550.00 | 2023 #198 Venusaur EX PSA 10 Mew EN-151 Pokemon
+   4 listings | floor $   105.00 | median $   120.50 | 2023 #331 Charizard EX PSA 10 Japanese Sv4a-Shiny Treasure EX Pokemon
+   4 listings | floor $   340.00 | median $   379.50 | 2022 #167 Full Art/Origin Forme Palkia V PSA 10 Sword & Shield Astral 
+   4 listings | floor $   399.00 | median $   399.50 | 2024 #131 Kingdra EX PSA 10 Svp EN-SV Black Star Promo Pokemon
+   4 listings | floor $   179.00 | median $   220.00 | 2024 #206 Glaceon EX PSA 10 Japanese Sv8a-Terastal Fest EX Pokemon
+   3 listings | floor $   280.00 | median $   285.50 | 2025 #161 Articuno PSA 10 Jtg EN-Journey Together
+   3 listings | floor $   175.00 | median $   180.00 | 2025 #185 N's Zoroark EX PSA 10 Jtg EN-Journey Together
+   3 listings | floor $   255.00 | median $   269.00 | 2024 #088 Pikachu PSA 10 Svp EN-SV Black Star Promo Pokemon
+   3 listings | floor $  1520.00 | median $  1550.00 | 2021 #194 Full Art/Rayquaza V PSA 10 Sword & Shield Evolving Skies
+   3 listings | floor $  1590.00 | median $  1650.00 | 2025 #172 Zekrom EX PSA 10 Blk EN-Black Bolt Pokemon
+   3 listings | floor $  1500.00 | median $  1550.00 | 2023 #199 Charizard EX PSA 10 Mew EN-151

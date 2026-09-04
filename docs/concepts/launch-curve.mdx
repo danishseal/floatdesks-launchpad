@@ -1,0 +1,81 @@
+---
+title: "Launch Curve"
+description: "The bootstrap phase: a constant-product bonding curve with virtual reserves that raises the SOL which later becomes the AMM's real liquidity"
+---
+
+Every market begins life in **Bootstrap** status on a bonding curve. This is the launchpad phase: anyone can buy the synth with SOL, price rises deterministically along the curve, and the SOL raised becomes the market's AMM liquidity at [Graduation](/concepts/graduation).
+
+## Virtual reserves
+
+The curve is a constant product over **virtual reserves**, the same shape popularized by pump.fun. At market creation, the reserves are seeded from parameters, not from real deposits:
+
+- `curve_virtual_sol`: virtual SOL reserve, in lamports
+- `curve_virtual_tokens`: virtual token reserve, in base units
+
+Their ratio sets the opening price:
+
+```text
+opening price per base unit = curve_virtual_sol / curve_virtual_tokens
+```
+
+<Frame caption="Market cap is quadratic in the raise; half the float sells in the first 25 SOL.">
+  <img className="hidden dark:block" src="/images/economics/01-curve-phase.png" alt="Market cap is quadratic in the raise; half the float sells in the first 25 SOL." noZoom />
+  <img className="block dark:hidden" src="/images/economics/01-curve-phase-light.png" alt="Market cap is quadratic in the raise; half the float sells in the first 25 SOL." noZoom />
+</Frame>
+
+Every launch prices identically, like any launchpad: the underlying collectible's price never touches the curve. The convention puts the **full 1B token supply** on the curve (`curve_virtual_tokens = 1e15` base units) against **25 SOL** of virtual SOL (`curve_virtual_sol`), so every token opens at 0.025 SOL per unit (1M tokens), a **25 SOL market cap**. With the 100 SOL graduation target, constant-product algebra sells 800M tokens over the raise and multiplies the price by exactly `((v_sol + raise) / v_sol)^2 = 25`: the curve closes at **0.625 SOL per unit**, about a 625 SOL market cap. The collectible enters only through the launch-scaled [Price Index](/concepts/price-index): at launch one unit is *defined* as worth 0.625 SOL, the curve's closing price, so the AMM seeds at exactly zero premium to the index (see [The Synth Token](/concepts/synth-token) for the unit math).
+
+## Buying
+
+`curve_buy(sol_in, min_tokens_out)` deducts the fee from the SOL side, then swaps against the invariant:
+
+```text
+fee        = sol_in * curve_fee_bps / 10_000
+net_in     = sol_in - fee
+
+k          = v_sol * v_tok
+tokens_out = v_tok - ceil(k / (v_sol + net_in))
+```
+
+State updates on a buy:
+
+- `v_sol += net_in`, `v_tok -= tokens_out` (price moves up the curve)
+- `curve_sol_raised += net_in`, `curve_tokens_sold += tokens_out`
+- `fee_lamports += fee`
+
+The full `sol_in` lands in the market's SOL vault. Tokens are **transferred from the preminted curve allocation** (the pool account funded at `create_market`, before the mint authority was revoked) to the buyer's associated token account. The curve never mints; it sells down a fixed allocation.
+
+`min_tokens_out` is the slippage guard: the transaction fails with `Slippage` if the curve has moved against you.
+
+## Selling
+
+Sells are allowed during Bootstrap; the curve runs in both directions. `curve_sell(tokens_in, min_sol_out)` is the mirror image:
+
+```text
+sol_gross = v_sol - ceil(k / (v_tok + tokens_in))
+fee       = sol_gross * curve_fee_bps / 10_000
+sol_out   = sol_gross - fee
+```
+
+Sold tokens **return to the curve allocation** in the pool account, and `curve_sol_raised` and `curve_tokens_sold` step back down. Two guards apply: you cannot sell more than `curve_tokens_sold` (the curve never goes short of its own history), and the payout can never exceed the SOL actually raised.
+
+## What backs curve tokens
+
+<Note>
+Tokens bought on the curve are backed by the SOL sitting in the vault, exactly like any launchpad token. They are not collateralized by shorts. Short-collateralized supply only exists after graduation, when [CDP shorts](/concepts/shorts) open. The tranches are fungible in your wallet but their backing differs.
+</Note>
+
+During Bootstrap the token is honestly a launch-phase asset: its price is wherever the curve puts it, and the index tether (funding, mint/burn arbitrage) is not yet active. The tether switches on at [Graduation](/concepts/graduation).
+
+## Ending the phase
+
+The curve runs until `curve_sol_raised` reaches `graduation_target_sol`, at which point the market migrates to Live. `graduate` is permissionless, and in practice nobody needs to call it manually: the indexer keeper sweeps bootstrap markets on a short interval (and immediately after every `CurveTraded` event) and cranks the transition as soon as the target is met. Curve instructions refuse to run afterward (`NotBootstrap`), and AMM instructions refuse to run before (`NotLive`).
+
+- Instructions: `curve_buy`, `curve_sell`, see [Instructions](/reference/instructions)
+- Event: `CurveTraded { market, user, is_buy, sol_amount, token_amount }`
+- Parameters: `curve_virtual_sol`, `curve_virtual_tokens`, `curve_fee_bps`, `graduation_target_sol`, see [Parameters](/concepts/parameters)
+
+<Frame caption="The same 1 SOL buy at every point on the curve: early SOL buys about 20x the tokens and moves price about 5x harder.">
+  <img className="hidden dark:block" src="/images/economics/02-front-loading.png" alt="The same 1 SOL buy at every point on the curve: early SOL buys about 20x the tokens and moves price about 5x harder." noZoom />
+  <img className="block dark:hidden" src="/images/economics/02-front-loading-light.png" alt="The same 1 SOL buy at every point on the curve: early SOL buys about 20x the tokens and moves price about 5x harder." noZoom />
+</Frame>

@@ -1,0 +1,63 @@
+---
+title: "Funding"
+description: "The clamped funding rate that tethers the synth's market price to the oracle index."
+---
+
+***commas*** has no redemption of synth for the underlying asset. The link between the token's market price and the [price index](/concepts/price-index) is economic: a funding rate continuously transfers value between the two sides of the market until arbitrage pulls the prices back together. This is the same mechanism that pegs perpetual futures, applied to a token.
+
+<Frame caption="Funding rate versus premium, clamped at 100 percent per day.">
+  <img className="hidden dark:block" src="/images/protocol/16-funding-curve.png" alt="Funding rate versus premium, clamped at 100 percent per day." noZoom />
+  <img className="block dark:hidden" src="/images/protocol/16-funding-curve-light.png" alt="Funding rate versus premium, clamped at 100 percent per day." noZoom />
+</Frame>
+
+## The rate
+
+Funding compares the mark price (an EMA, never spot: fed by the internal AMM on internal-venue markets and by the oracle-pushed [`push_mark`](/reference/instructions#push_mark) on external-venue markets; see [AMM](/concepts/amm)) to the index TWAP:
+
+```
+premium_bps      = (mark_ema - index_twap) * 10_000 / index_twap
+rate_bps_per_day = clamp(premium_bps * funding_k_bps / 10_000,
+                         -max_funding_bps_per_day,
+                         +max_funding_bps_per_day)
+```
+
+`funding_k_bps` is the sensitivity: at `10000` the daily rate equals the premium one for one (before the clamp). The clamp is the hard bound; no matter how large the premium prints, funding cannot move faster than `max_funding_bps_per_day`.
+
+## How it is applied
+
+Anyone can call `accrue_funding` (a permissionless crank), rate-limited by `min_crank_interval_secs` and gated on index freshness (a market past `max_index_age_secs` without a push returns `IndexStale`; funding must never accrue against a price the oracle stopped standing behind, see the [staleness guard](/concepts/price-index#staleness-guard)). The crank:
+
+1. Refreshes the mark: from the current AMM reserves on internal markets; on external markets it instead requires a pushed mark to exist (`NoMark`) and to be fresh within `max_index_age_secs` (`IndexStale`).
+2. Computes the clamped rate above.
+3. Applies it, pro-rated by elapsed time, to the market's global `funding_index` (a fixed-point multiplier, `FUNDING_ONE = 1e12`).
+
+The elapsed time in step 3 is capped at **one day per crank**. A crank that arrives late forfeits the excess interval instead of applying the current premium retroactively to an unbounded gap, and the cap also guarantees the linear step can never zero the funding index (an uncapped day-plus gap at the full clamp could have, permanently bricking funding; fixed in the 2026-07-24 adversarial review).
+
+Every short position stores its debt divided by the funding index at touch time, so a single update to `funding_index` reprices all debt at once. See [Shorts](/concepts/shorts) for the exact scaling.
+
+## Direction
+
+| Market state | Funding flow | Intended effect |
+| --- | --- | --- |
+| Mark above index | Short debt shrinks (`funding_index` falls) | Shorts are paid to draw from the reserve and sell; new circulating supply pushes the mark down |
+| Mark below index | Short debt grows (`funding_index` rises) | Shorts buy back cheap synth and repay it to the reserve; buy pressure lifts the mark |
+
+Together with reserve draw/repay arbitrage (drawing at the index is profitable when the mark is rich; repaying at the index is profitable when the mark is cheap), this pulls the mark toward the index from both sides.
+
+<Note>
+The tether is soft. Funding drifts the price toward the index; it does not pin it there. Expect a persistent basis of a few percent in normal conditions, wider in stressed ones.
+</Note>
+
+## Where funding settles in v1
+
+v1 applies funding purely as a debt adjustment on shorts, with the [insurance fund](/concepts/insurance-fund) as the system backstop at liquidation time. Token holders are not directly charged or paid; their side of the flow is implicit in the arbitrage pressure on the mark. A staked long pool that explicitly receives and pays funding is planned for v2 (see [Roadmap](/roadmap)).
+
+## Why the clamp matters for security
+
+Because there is no oracle-priced redemption, a manipulated index print cannot drain a pool. The worst it can do is tilt the funding flow, and the clamp bounds that tilt:
+
+```
+max damage per day <= total_open_interest * max_funding_bps_per_day / 10_000
+```
+
+A manipulator must also keep the bad print alive across the index TWAP window while the [circuit breaker](/concepts/circuit-breaker) watches for deviation, and total short debt is bounded by the finite [hedge reserve](/concepts/parameters). The result is that oracle manipulation is a bounded, slow leak rather than an event. This property is the reason ***commas*** can reference thin external markets at all.

@@ -1,0 +1,70 @@
+---
+title: "Liquidations"
+description: "How undercollateralized shorts are closed, and what liquidators earn."
+---
+
+Shorts owe synth debt valued at the [price index](/concepts/price-index). If the index rises far enough against a position, its collateral no longer safely covers the debt and anyone may liquidate it.
+
+<Frame caption="The liquidation waterfall: collateral first, insurance for shortfall.">
+  <img className="hidden dark:block" src="/images/protocol/17-liquidation-waterfall.png" alt="The liquidation waterfall: collateral first, insurance for shortfall." noZoom />
+  <img className="block dark:hidden" src="/images/protocol/17-liquidation-waterfall-light.png" alt="The liquidation waterfall: collateral first, insurance for shortfall." noZoom />
+</Frame>
+
+## The collateral ratio
+
+```
+debt_value = current_debt * index_twap / 1_000_000_000_000
+CR         = collateral / debt_value
+```
+
+`current_debt` is the funding-adjusted debt (see [Shorts](/concepts/shorts)). A position becomes liquidatable when:
+
+```
+collateral * 10_000 < debt_value * maintenance_cr_bps
+```
+
+With the default `maintenance_cr_bps = 12000`, that is CR below 120%. Positions are opened at or above `initial_cr_bps` (150% by default), so there is a buffer zone between the tightest permitted open and the liquidation threshold.
+
+<Note>
+Liquidation checks use the index TWAP, never the AMM spot price. Pushing the AMM around does not liquidate anyone; only the oracle index, which is itself EMA-smoothed and breaker-guarded, moves CR. See [Circuit Breaker](/concepts/circuit-breaker).
+</Note>
+
+## What happens in a liquidation
+
+`liquidate()` is permissionless. In v1 it closes the full position in one call; there are no partial liquidations.
+
+1. The liquidator must hold the position's full current debt in synth. The program transfers it from their wallet back into the market's treasury reserve.
+2. The liquidator is paid from the position's collateral:
+
+```
+target_payout = debt_value * (1 + liq_bonus_bps / 10_000)
+payout        = min(target_payout, collateral)
+```
+
+3. If collateral does not cover the target payout, the [insurance fund](/concepts/insurance-fund) tops up the difference, up to its available balance.
+4. Any collateral left after the payout is refunded to the position owner.
+5. The position's debt and collateral are zeroed. The owner can later call `close_position` to reclaim rent.
+
+With the default `liq_bonus_bps = 500`, the liquidator earns a 5% premium over the debt value they repaid.
+
+## Sourcing the synth to repay
+
+Liquidators need the debt amount in synth at execution time. The usual loop:
+
+1. Detect an underwater position (watch `ShortChanged`, `IndexPushed`, and `FundingAccrued` events, or poll positions).
+2. Buy the required synth on the market's [AMM](/concepts/amm).
+3. Call `liquidate()` in the same transaction bundle.
+4. Profit = payout minus synth cost minus fees.
+
+Note that step 2 pushes the AMM price up, which is the correct direction: liquidations create buy pressure on the synth, not cascading sell pressure. See [Running a Liquidator](/guides/running-a-liquidator) for a practical setup.
+
+## Edge cases
+
+- **Frozen market.** Liquidations are blocked while a market is frozen. A bad oracle print should never liquidate anyone, so the breaker pauses liquidations along with everything else.
+- **Stale index.** Liquidations also require a fresh index: past `max_index_age_secs` without a push, `liquidate` returns `IndexStale`. Nobody should be liquidated against a price the oracle stopped standing behind. See the [staleness guard](/concepts/price-index#staleness-guard).
+- **Insurance exhausted.** If collateral plus available insurance cannot reach the target payout, the liquidator receives whatever is available. Deeply underwater positions may briefly be unprofitable to liquidate; the bonus and the buffer between 150% and 120% exist to make that rare.
+- **Debt rounding.** Funding scaling can leave the current debt a few base units off the originally drawn amount. Always compute the repay amount from on-chain state, not from your records.
+
+<Warning>
+For position owners: withdrawals are held to the initial CR precisely so you cannot exit into the liquidation zone yourself, but a rising index or negative funding drift can still take you there. Watch your CR and top up with `add_collateral`, which works even while a market is frozen.
+</Warning>

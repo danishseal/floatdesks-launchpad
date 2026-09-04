@@ -1,0 +1,49 @@
+---
+title: "Buy a token"
+description: "Pay with SOL, or deposit a real copy of the collectible."
+---
+
+There are two ways in: SOL, like any token, or the collectible itself.
+
+## Pay with SOL
+
+<Steps>
+  <Step title="Open the market and pick an amount">
+    The trade panel quotes exactly what you will receive, the 0.70% fee,
+    and the price impact before you sign.
+  </Step>
+  <Step title="Confirm">
+    On the curve your buy moves the price along the launch curve; after
+    migration it trades against the AMM pool. Either way the fill lands in
+    one transaction.
+  </Step>
+</Steps>
+
+## Pay with the collectible
+
+If you hold a registered on-chain copy of the underlying (a vaulted card NFT or a collection NFT), you can deposit it instead of paying SOL.
+
+<Steps>
+  <Step title="Switch to 'Pay with the collectible'">
+    The panel detects registered copies in your wallet and shows the item's
+    live value.
+  </Step>
+  <Step title="Deposit">
+    You receive tokens **equal in value to the copy at the current price**:
+    not a fixed amount. If the token trades cheap, one copy buys more
+    tokens; if it trades rich, fewer. The copy goes into the market's
+    escrow, where anyone exiting can later claim it.
+  </Step>
+</Steps>
+
+<Note>
+  Item deposits work in both phases: on the curve from the very first
+  block, and on the AMM after migration. Pricing uses a smoothed mark, so
+  the rate cannot be manipulated inside a single transaction.
+</Note>
+
+<Tip>
+  **Paying with the collectible is feeless.** SOL trades pay the 0.70%
+  fee; depositing a real copy pays nothing, by design: bringing the real
+  thing into the pool is the behavior the protocol most wants to reward.
+</Tip>

@@ -1,0 +1,51 @@
+# floorlaunch relayer configuration
+rpcUrl: http://127.0.0.1:8899
+programId: QsixfrupxfVEDDYuQsR4vJcE58bbNfctD9WjijM9BjM
+oracleKeypair: keys/oracle.json
+idlPath: ../target/idl/floorlaunch.json
+intervalSecs: 3600
+
+markets:
+  # Existing NFT collection, priced from Magic Eden sales + floor.
+  - kind: nft
+    market: REPLACE_WITH_MARKET_PDA
+    symbol: mad_lads
+    lookbackDays: 3
+    minSales: 5
+    maxDisagreementBps: 2500
+
+  # Raw card, live keyless source: TCGplayer market price via
+  # pokemontcg.io (set POKEMONTCG_API_KEY to raise rate limits).
+  - kind: card
+    market: REPLACE_WITH_MARKET_PDA
+    name: "Umbreon VMAX Alt Art"
+    grade: "RAW"
+    source: pokemontcg
+    cardId: swsh7-215
+    variant: holofoil
+    lookbackDays: 14
+    minSales: 5
+    maxDisagreementBps: 1500
+
+  # Graded card: needs TCG_GRADED_API_KEY (subscription), until then use
+  # source: manual with an operator-attested usdPrice.
+  - kind: card
+    market: REPLACE_WITH_MARKET_PDA
+    name: "Umbreon VMAX Alt Art"
+    grade: "PSA 10"
+    source: manual
+    usdPrice: 4500
+    lookbackDays: 14
+    minSales: 5
+    maxDisagreementBps: 1500
+
+  # External-venue market (Meteora DBC launched): add the DAMM pool and
+  # mint so the relayer also pushes the mark price.
+  # - kind: nft
+  #   market: REPLACE_WITH_MARKET_PDA
+  #   symbol: some_collection
+  #   externalPool: REPLACE_WITH_DAMM_POOL
+  #   synthMint: REPLACE_WITH_TOKEN_MINT
+  #   lookbackDays: 3
+  #   minSales: 5
+  #   maxDisagreementBps: 2500

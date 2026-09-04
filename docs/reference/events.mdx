@@ -1,0 +1,118 @@
+---
+title: "Events"
+description: "All Anchor events emitted by the commas program"
+---
+
+Events are emitted via Anchor's `emit!` (program logs). Indexers and bots should subscribe to these rather than diffing account state.
+
+## IndexPushed
+
+Fires on every **accepted** oracle observation, after the TWAP has absorbed it. See [Price index](/concepts/price-index).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | Market the push applied to |
+| `raw` | `u64` | The pushed observation, lamports per unit |
+| `twap` | `u64` | The index TWAP after absorbing it |
+
+## BreakerTripped
+
+Fires instead of `IndexPushed` when an observation deviates from the TWAP by more than `breaker_bps`. The market is now frozen and the TWAP was **not** updated. See [Circuit breaker](/concepts/circuit-breaker).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | Frozen market |
+| `observed` | `u64` | The rejected observation |
+| `twap` | `u64` | The TWAP it deviated from |
+
+## CurveTraded
+
+Fires on `curve_buy` and `curve_sell` during the [launch phase](/concepts/launch-curve).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | |
+| `user` | `Pubkey` | Trader |
+| `is_buy` | `bool` | `true` for buys |
+| `sol_amount` | `u64` | Buys: gross lamports in. Sells: net lamports out (after fee) |
+| `token_amount` | `u64` | Base units drawn from the curve allocation (buy) or returned to it (sell) |
+
+## Graduated
+
+Fires once per market on [graduation](/concepts/graduation).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | |
+| `amm_sol` | `u64` | Lamports seeded as the AMM SOL reserve |
+| `amm_tokens` | `u64` | Base units minted into the pool token account |
+| `insurance` | `u64` | Lamports seeding the insurance fund |
+
+## AmmTraded
+
+Fires on `amm_buy` and `amm_sell` after graduation. Same field semantics as `CurveTraded` (buys report gross SOL in, sells report net SOL out).
+
+| Field | Type |
+| --- | --- |
+| `market` | `Pubkey` |
+| `user` | `Pubkey` |
+| `is_buy` | `bool` |
+| `sol_amount` | `u64` |
+| `token_amount` | `u64` |
+
+## ShortChanged
+
+Fires on `open_short` and `repay_burn`. Not emitted by `add_collateral` or `withdraw_collateral`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | |
+| `owner` | `Pubkey` | Position owner |
+| `collateral` | `u64` | Position collateral after the change, lamports |
+| `debt` | `u64` | Position debt after the change, base units |
+
+## FundingAccrued
+
+Fires on every successful `accrue_funding` crank. See [Funding](/concepts/funding).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | |
+| `rate_bps_per_day` | `i64` | The clamped funding rate applied over the elapsed interval; positive when mark is above index |
+| `funding_index_lo` | `u64` | Low 64 bits of the `u128` funding index after the update. Fetch the `Market` account for the full value |
+| `mark` | `u64` | Mark EMA used, lamports per unit |
+| `index` | `u64` | Index TWAP used, lamports per unit |
+
+## ItemSwapped
+
+Fires on `deposit_item` and `withdraw_item`. See [Item swaps](/concepts/synth-token#item-swaps).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | |
+| `user` | `Pubkey` | Depositor or withdrawer |
+| `item_mint` | `Pubkey` | The registered copy that moved |
+| `deposited` | `bool` | `true` when a copy entered escrow (tokens paid out), `false` when one left (tokens paid in) |
+| `tokens` | `u64` | Base units exchanged, priced at `index_twap * 1e12 / mark_ema` at execution |
+
+## EscrowReleased
+
+Fires on every successful `release_escrow` sweep of an [identity escrow](/reference/pdas#identity-escrows).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id_hash` | `[u8; 32]` | `sha256("platform:handle")`, the escrow's seed |
+| `recipient` | `Pubkey` | The verified wallet paid |
+| `amount` | `u64` | Lamports released |
+
+## Liquidated
+
+Fires on every successful `liquidate`. See [Liquidations](/concepts/liquidations).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | |
+| `owner` | `Pubkey` | Owner of the liquidated position |
+| `liquidator` | `Pubkey` | Keeper who executed |
+| `debt_burned` | `u64` | Base units taken from the liquidator's ATA and returned to the treasury reserve (both venues; the field name predates the fixed-supply model) |
+| `payout` | `u64` | Lamports paid to the liquidator (collateral plus any insurance top-up) |

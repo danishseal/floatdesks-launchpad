@@ -1,0 +1,110 @@
+---
+title: "API Reference"
+description: "REST and WebSocket API for markets, prices, trades, and holdings."
+---
+
+The hosted indexer is live. All endpoints are relative to:
+
+```
+https://commas-indexer.fly.dev
+```
+
+Everything the app renders comes from these same endpoints. No key is required
+for the read endpoints.
+
+## Markets
+
+### `GET /markets`
+
+Every mainnet market with its live state. Returns an array; `[]` before the
+first launch.
+
+```json
+[
+  {
+    "market": "FKBB8yEbsBW6BmWq1cJoDocKxySwJGVrrCZeKemAY1Y7",
+    "collection": "5w8DrH8oMze2eavdeee4R34C6jgwiyNvTdHY9i8M8sN9",
+    "synthMint": "HHV2k55E9mjtdoL8Qcn7QHGGRp1kTZ3EfZuuhHGAMmEA",
+    "status": "bootstrap",
+    "venue": "internal",
+    "frozen": false,
+    "solUsd": 72.9,
+    "cardIndexSol": 0.4195,
+    "indexPerToken": 5.95e-7,
+    "markPerToken": 2.5e-8,
+    "curveSolRaised": 0.248,
+    "graduationTargetSol": 100,
+    "ammSolReserve": 0,
+    "totalCollateralSol": 0,
+    "insuranceSol": 0,
+    "fundingIndex": "1000000000000",
+    "itemsDeposited": 0
+  }
+]
+```
+
+### `GET /listings`
+
+Listing metadata (ticker, name, image, links, fee receiver, underlying) keyed by
+market, as submitted at launch.
+
+### `GET /aggregator`
+
+Every catalog collectible with all of its price sources and the resolved floor
+index. Used by the discovery/listing UI.
+
+## Price & activity (per market)
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /candles/:market` | OHLC candles for the synth |
+| `GET /trades/:market` | recent trades |
+| `GET /index/:market` | index (underlying floor) history |
+| `GET /funding/:market` | funding-rate history |
+
+`:market` is the market address from `/markets`.
+
+## Holdings
+
+### `GET /holdings/:owner`
+
+Which catalog underlyings a wallet holds the backing collectible for. Cards
+resolve against Collector Crypt's on-chain collection; NFT underlyings against
+their verified collection.
+
+```json
+{
+  "owner": "EofCkTaFXUjdwpQdbTnjMsZD1nqjGTenUGFsfEdkraYN",
+  "ccCardsHeld": 123,
+  "held": [
+    {
+      "identifier": "card:2026|...|#042|CGC|PRISTINE 10",
+      "kind": "card",
+      "name": "2026 ... Piplup #42 CGC 10 PRISTINE",
+      "market": "GR1pyphi1m3EK6bN2ryiyrUsP5bKJR7ELUWauxGCAjnR",
+      "copies": 2
+    }
+  ]
+}
+```
+
+## WebSocket
+
+```
+wss://commas-indexer.fly.dev/ws
+```
+
+A live stream of market, price, and trade updates in the same shapes as the
+REST endpoints above.
+
+## Launching a market
+
+### `POST /dev/launch`
+
+The legacy route name remains for compatibility, but it launches against the
+configured mainnet program. The body is
+`{ identifier, meta: { ticker, name, launchedBy, ... }, feePaymentSig }`, where
+`feePaymentSig` is a transaction sending the `0.1 SOL` launch fee from
+`launchedBy` to the protocol treasury. The indexer verifies the fee, signs
+[`create_market`](/reference/instructions#create_market) and the initial oracle
+push, then returns the new market. See [Listing a market](/guides/listing-a-market).

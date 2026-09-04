@@ -1,0 +1,460 @@
+---
+title: "Instructions"
+description: "Complete reference for all 25 commas instructions: arguments, accounts, guards, errors, and events"
+---
+
+Method names are shown in Rust snake_case; the Anchor TypeScript client exposes them in camelCase (`curve_buy` becomes `curveBuy`).
+
+Common guard shorthand used below:
+
+- **Bootstrap / Live**: `Market.status` must match, else `NotBootstrap` / `NotLive`.
+- **Not frozen**: `Market.frozen` must be false, else `Frozen`.
+- **Index required**: `Market.index_twap > 0`, else `NoIndex`.
+- **Index fresh**: index required, and when `max_index_age_secs > 0` the last push must be no older than that, else `IndexStale`. See the [staleness guard](/concepts/price-index#staleness-guard).
+- **Internal venue**: `Market.venue == Internal`, else `WrongVenue`. See [venues](/concepts/amm#venues).
+
+## Admin
+
+### init_global
+
+Creates the singleton [`Global`](/reference/accounts#global) config. The transaction signer becomes the admin.
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `oracle_authority` | `Pubkey` | Key allowed to push index prices |
+| `default_params` | `MarketParams` | Defaults for new markets |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | init, `["global"]`, payer = admin |
+| `admin` | signer, mut |
+| `system_program` | |
+
+Guards: none. Events: none.
+
+### set_oracle_authority
+
+Rotates the oracle key.
+
+| Arg | Type |
+| --- | --- |
+| `new_authority` | `Pubkey` |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | mut, `["global"]`, `has_one = admin` |
+| `admin` | signer |
+
+Guards: admin only (Anchor `has_one`). Events: none.
+
+### create_market
+
+Lists a new underlying on the **internal venue**. Admin-gated in v1 (listing policy is enforced off chain; see [Listing a market](/guides/listing-a-market)). Initializes the market, its synth mint, the pool token account, the treasury token account, and (when `params.item_reserve > 0`) the item reserve token account, then premints the entire fixed supply and revokes the mint authority, all in one transaction: `curve_virtual_tokens` base units go to the pool account (the curve allocation), `max_open_interest` base units to the treasury (the hedging reserve), and `item_reserve` base units to the item reserve (backing [item swaps](/concepts/synth-token#item-swaps)), after which `SetAuthority(MintTokens, None)` makes the supply permanently fixed.
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `collection` | `Pubkey` | Opaque underlying identifier; becomes the market PDA seed |
+| `params` | `Option<MarketParams>` | Per-market override; `null` uses `Global.default_params` |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]`, `has_one = admin` |
+| `admin` | signer, mut (payer) |
+| `market` | init, `["market", collection]` |
+| `synth_mint` | init, `["mint", market]`, decimals 6; mint authority revoked before the transaction ends |
+| `pool_token` | init, `["pool", market]`, token authority = market; receives the preminted curve allocation |
+| `treasury` | init, `["treasury", market]`, token authority = market; receives the preminted hedging reserve |
+| `item_reserve` | init, `["items", market]`, token authority = market; receives the preminted item-swap allocation (may be zero) |
+| `sol_vault` | mut, `["vault", market]` |
+| `token_program`, `system_program` | |
+
+Guards: `curve_virtual_sol > 0`, `curve_virtual_tokens > 0`, and `units_per_item_micro > 0` whenever `item_reserve > 0`, else `ZeroAmount`. The market starts in `Bootstrap` with `venue = Internal` and `funding_index = FUNDING_ONE`. The admin also seeds the SOL vault with an untracked [rent-exemption buffer](/reference/pdas#the-sol-vault) so later outflows can never strand it below the rent-exempt minimum. Events: none.
+
+### create_external_market
+
+Attaches a market to a token that launched on an **external venue** ([Meteora](https://www.meteora.ag) DBC into a DAMM pool). The mint already exists and its supply is fixed, so there is no curve phase: the market is created directly `Live` with `venue = External`, and CDP supply moves through the treasury reserve, exactly as on the internal venue. The treasury must be funded with reserve tokens (a plain SPL transfer to the treasury PDA) before shorts can open; its balance is the market's physical open-interest ceiling. The mark price is oracle-pushed via [`push_mark`](#push_mark).
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `collection` | `Pubkey` | Opaque underlying identifier; becomes the market PDA seed |
+| `params` | `Option<MarketParams>` | Per-market override; `null` uses `Global.default_params` |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]`, `has_one = admin` |
+| `admin` | signer, mut (payer) |
+| `market` | init, `["market", collection]` |
+| `synth_mint` | the externally launched mint (not a PDA; recorded as `market.synth_mint`) |
+| `treasury` | init, `["treasury", market]`, token authority = market |
+| `sol_vault` | mut, `["vault", market]` |
+| `token_program`, `system_program` | |
+
+Guards: admin only. No pool token account exists for external markets; [`curve_buy`](#curve_buy)/[`curve_sell`](#curve_sell) are unreachable (never `Bootstrap`) and [`amm_buy`](#amm_buy)/[`amm_sell`](#amm_sell) reject with `WrongVenue`. The SOL vault gets the same rent buffer as `create_market`. Events: none.
+
+### set_frozen
+
+Sets or clears the [circuit breaker](/concepts/circuit-breaker) flag. Used by the admin to unfreeze after a breaker trip (or to freeze preemptively).
+
+| Arg | Type |
+| --- | --- |
+| `frozen` | `bool` |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]`, `has_one = admin` |
+| `admin` | signer |
+| `market` | mut |
+
+Guards: admin only. Events: none.
+
+### update_market_params
+
+Updates a live market's risk parameters (funding, collateral ratios, caps, fees, oracle windows). The curve virtual reserves are immutable after creation; the running curve state is never touched.
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `params` | `MarketParams` | Full replacement parameter set |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]`, `has_one = admin` |
+| `admin` | signer |
+| `market` | mut |
+
+Guards: admin only; `params.curve_virtual_sol` and `params.curve_virtual_tokens` must equal the market's existing values, else `ImmutableParam`. Note that lowering `max_open_interest` tightens the effective CDP cap, but raising it above the preminted treasury reserve has no effect: supply is fixed, so the physical reserve set at creation is the ceiling. Events: none.
+
+### withdraw_fees
+
+Withdraws accrued protocol fees from the market vault.
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `amount` | `u64` | Lamports, at most `Market.fee_lamports` |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]`, `has_one = admin` |
+| `admin` | signer |
+| `market` | mut, `["market", collection]` |
+| `sol_vault` | mut, `["vault", market]` |
+| `recipient` | mut, any account chosen by admin |
+| `system_program` | |
+
+Guards: `amount > 0 && amount <= fee_lamports`, else `InsufficientVaultFunds`. Events: none.
+
+### release_escrow
+
+Pays out an [identity fee escrow](/reference/pdas#identity-escrows): a keyless system-account PDA that accumulates a creator's fee share while their social identity (X, YouTube, [Elite Fourum](https://elitefourum.com)) is unverified. After the off-chain nonce-in-bio proof, the admin signs this instruction to sweep the balance to the verified wallet. The escrow PDA itself never has a private key.
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `id_hash` | `[u8; 32]` | `sha256("platform:handle")`, the escrow's seed |
+| `amount` | `Option<u64>` | Lamports to release; `null` releases the full balance (capped at the balance either way) |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]`, `has_one = admin` |
+| `admin` | signer |
+| `escrow` | mut, system account, `["escrow", id_hash]` |
+| `recipient` | mut, the verified wallet chosen after the identity proof |
+| `system_program` | |
+
+Guards: admin only; resolved `amount > 0`, else `ZeroAmount`. Emits `EscrowReleased`.
+
+## Oracle
+
+### push_index
+
+Submits a floor/card price observation, in lamports per whole underlying unit. Only the configured oracle authority may sign. See [Price index](/concepts/price-index).
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `price_lamports` | `u64` | Observed price per unit |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]` |
+| `oracle_authority` | signer, must equal `global.oracle_authority` else `Unauthorized` |
+| `market` | mut |
+
+Behavior:
+
+1. Not frozen, else `Frozen`: while a market is frozen the index cannot move, so a compromised oracle cannot walk the TWAP breaker-step by breaker-step during the freeze. The safe resume sequence is admin unfreeze, then a fresh push; the [staleness guard](/concepts/price-index#staleness-guard) keeps index-priced operations blocked until that push lands.
+2. `price_lamports > 0`, else `BadIndexValue`.
+3. Rate limit: at least `min_push_interval_secs` since the last push (skipped for the first push), else `PushTooSoon`.
+4. Breaker check: if the observation deviates from `index_twap` by more than `breaker_bps`, the market is frozen, `index_last_raw`/`index_last_ts` are recorded, the TWAP is **not** updated, and `BreakerTripped` is emitted. The instruction still succeeds.
+5. Otherwise the TWAP absorbs the observation via the time-weighted EMA (`min(dt, window)/window` pull). The first push sets the TWAP directly. Emits `IndexPushed`.
+
+### push_mark
+
+External-venue markets only: submits the mark price, in lamports per whole underlying unit. The on-chain program never parses external pool bytes; the relayer computes the price from Meteora's public pool API and pushes it here. On chain the value is EMA-smoothed over `mark_window_secs` and rate-limited by `min_push_interval_secs`. There is no breaker on the mark: a bad push can only tilt the [funding](/concepts/funding) flow, which the daily clamp bounds, so its blast radius matches the trust already placed in the oracle key.
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `price_lamports` | `u64` | Mark price per unit from the external pool |
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]` |
+| `oracle_authority` | signer, must equal `global.oracle_authority` else `Unauthorized` |
+| `market` | mut |
+
+Guards: `venue == External` (`WrongVenue`), not frozen (`Frozen`), `price_lamports > 0` (`BadIndexValue`), rate limit (`PushTooSoon`). Events: none.
+
+## Launch phase
+
+### curve_buy
+
+Buys synth on the bonding curve with SOL. Transfers tokens from the preminted curve allocation in the pool account to the buyer's associated token account (created on demand). See [Launch curve](/concepts/launch-curve).
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `sol_in` | `u64` | Gross lamports in (fee is deducted from this) |
+| `min_tokens_out` | `u64` | Slippage floor, base units |
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+| `synth_mint` | mut, `["mint", market]` |
+| `pool_token` | mut, `["pool", market]`; holds the curve allocation |
+| `sol_vault` | mut, `["vault", market]` |
+| `user` | signer, mut |
+| `user_ata` | init_if_needed, ATA(user, synth_mint) |
+| `token_program`, `associated_token_program`, `system_program` | |
+
+Guards: Bootstrap, not frozen, `sol_in > 0` (`ZeroAmount`), `tokens_out >= min_tokens_out` (`Slippage`), `tokens_out > 0` (`ZeroAmount`). Fee: `sol_in * curve_fee_bps / 10000` accrues to `fee_lamports`. Emits `CurveTraded { is_buy: true, sol_amount: gross in }`.
+
+### curve_sell
+
+Sells synth back into the curve. Returns the tokens to the curve allocation in the pool account and pays SOL from the vault; the fee is taken from the SOL output.
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `tokens_in` | `u64` | Base units to sell |
+| `min_sol_out` | `u64` | Slippage floor, lamports |
+
+Accounts: same as `curve_buy`.
+
+Guards: Bootstrap, not frozen, `tokens_in > 0` (`ZeroAmount`), `tokens_in <= curve_tokens_sold` (`CurveSellTooLarge`), gross SOL out `<= curve_sol_raised` (`InsufficientVaultFunds`), net out `>= min_sol_out` (`Slippage`). Emits `CurveTraded { is_buy: false, sol_amount: net out }`.
+
+### graduate
+
+Permissionless transition from Bootstrap to Live once the raise target is met. Splits the raise into the [insurance fund](/concepts/insurance-fund) and the [AMM](/concepts/amm) reserves (under the launch convention `insurance_share_bps = 0`, so the full raise seeds the AMM), keeps a price-matched AMM seed from the unsold curve allocation in the pool account, **burns the unsold excess** (supply only shrinks after creation), and initializes the mark EMA and funding clock. See [Graduation](/concepts/graduation).
+
+Args: none.
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+| `synth_mint` | mut, `["mint", market]` |
+| `pool_token` | mut, `["pool", market]` |
+| `token_program` | |
+
+Guards: Bootstrap (`NotBootstrap`), not frozen, `curve_sol_raised >= graduation_target_sol` (`TargetNotReached`), index required (`NoIndex`), computed AMM tokens `> 0` (`ZeroAmount`). Emits `Graduated`.
+
+## AMM
+
+### amm_buy
+
+Buys synth from the internal constant-product AMM. Fee is taken from the SOL input. Updates the mark EMA.
+
+| Arg | Type |
+| --- | --- |
+| `sol_in` | `u64` |
+| `min_tokens_out` | `u64` |
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+| `synth_mint` | mut, `["mint", market]` |
+| `pool_token` | mut, `["pool", market]` |
+| `sol_vault` | mut, `["vault", market]` |
+| `user` | signer, mut |
+| `user_ata` | init_if_needed, ATA(user, synth_mint) |
+| `token_program`, `associated_token_program`, `system_program` | |
+
+Guards: Internal venue (`WrongVenue`), Live, not frozen, `sol_in > 0` (`ZeroAmount`), `tokens_out >= min_tokens_out` (`Slippage`), `0 < tokens_out < amm_token_reserve` (`ZeroAmount`). Emits `AmmTraded { is_buy: true }`.
+
+### amm_sell
+
+Sells synth into the AMM. The user transfers tokens to the pool account; SOL is paid from the vault with the fee taken from the output. Updates the mark EMA.
+
+| Arg | Type |
+| --- | --- |
+| `tokens_in` | `u64` |
+| `min_sol_out` | `u64` |
+
+Accounts: same as `amm_buy`.
+
+Guards: Internal venue (`WrongVenue`), Live, not frozen, `tokens_in > 0` (`ZeroAmount`), gross SOL out `< amm_sol_reserve` (`InsufficientVaultFunds`), net out `>= min_sol_out` (`Slippage`). Emits `AmmTraded { is_buy: false, sol_amount: net out }`.
+
+## CDP (shorts)
+
+### open_short
+
+Posts SOL collateral and draws synth from the treasury reserve at the index, creating or growing a short position. This is the hedging side; see [Shorts](/concepts/shorts). Both venues use the same path: tokens are transferred out of the preminted reserve (nothing mints), and the treasury balance is the hard open-interest ceiling.
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `collateral` | `u64` | Lamports to add |
+| `mint_amount` | `u64` | Base units issued to the owner's ATA |
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+| `synth_mint` | mut, `address = market.synth_mint` |
+| `treasury` | mut, `["treasury", market]` |
+| `sol_vault` | mut, `["vault", market]` |
+| `position` | init_if_needed, `["short", market, owner]`, payer = owner |
+| `owner` | signer, mut |
+| `owner_ata` | init_if_needed, ATA(owner, synth_mint) |
+| `token_program`, `associated_token_program`, `system_program` | |
+
+Guards: Live, not frozen, both args `> 0` (`ZeroAmount`), index fresh (`NoIndex` / `IndexStale`), post-trade collateral ratio `>= initial_cr_bps` measured at the index (`InsufficientCollateral`), market-wide debt `<= max_open_interest` (`OpenInterestCapReached`), and `treasury.amount >= mint_amount` (`TreasuryDepleted`, both venues). Debt is recorded funding-scaled (rounded up). Emits `ShortChanged`.
+
+### add_collateral
+
+Adds SOL collateral to an existing position.
+
+| Arg | Type |
+| --- | --- |
+| `amount` | `u64` |
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+| `sol_vault` | mut, `["vault", market]` |
+| `position` | mut, `["short", market, owner]`, `has_one = owner` |
+| `owner` | signer, mut |
+| `system_program` | |
+
+Guards: `amount > 0` (`ZeroAmount`). Deliberately **works while frozen** so shorts can defend their positions during a halt. Events: none.
+
+### withdraw_collateral
+
+Withdraws collateral. If the position still has debt, the remaining collateral must satisfy the **initial** (not maintenance) ratio at the current index.
+
+| Arg | Type |
+| --- | --- |
+| `amount` | `u64` |
+
+Accounts: same as `add_collateral`.
+
+Guards: `amount > 0` (`ZeroAmount`), not frozen (`Frozen`), `amount <= position.collateral` (`InsufficientVaultFunds`); when debt `> 0`: index fresh (`NoIndex` / `IndexStale`) and post-withdraw CR `>= initial_cr_bps` (`InsufficientCollateral`). Events: none.
+
+### repay_burn
+
+Retires debt from the owner's ATA: the tokens are returned to the treasury reserve (both venues; nothing burns). Repaying the exact current debt clears the position's debt entirely (no dust).
+
+| Arg | Type | Description |
+| --- | --- | --- |
+| `amount` | `u64` | Base units, at most the current debt |
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+| `synth_mint` | mut, `address = market.synth_mint` |
+| `treasury` | mut, `["treasury", market]` |
+| `position` | mut, `["short", market, owner]`, `has_one = owner` |
+| `owner` | signer, mut |
+| `owner_ata` | mut, ATA(owner, synth_mint) |
+| `token_program` | |
+
+Guards: not frozen (`Frozen`), `amount > 0` (`ZeroAmount`), `amount <= debt` (`RepayTooLarge`). Emits `ShortChanged`.
+
+### close_position
+
+Closes an emptied position account and refunds its rent to the owner.
+
+Args: none.
+
+| Account | Constraints |
+| --- | --- |
+| `position` | mut, close = owner, `["short", position.market, owner]`, `has_one = owner` |
+| `owner` | signer, mut |
+
+Guards: `debt_scaled == 0` (`DebtOutstanding`), `collateral == 0` (`InsufficientCollateral`).
+
+## Item swaps
+
+Value-based exchange between the synth and registered on-chain copies of the underlying (vaulted-card NFTs, collection NFTs). Both directions price one item at `index_twap * BASE_UNITS_PER_NFT * units_per_item_micro / mark_ema / 1e6` base units: tokens equal in value to one item at current prices, with `units_per_item_micro` restoring the item's real size against the launch-scaled index, and the smoothed mark rather than spot so a sandwich cannot move the rate inside one block. See [Item swaps](/concepts/synth-token#item-swaps).
+
+### register_item
+
+Registers an item mint as depositable into a market's item pool. Admin-gated in v1 (the relayer verifies off chain that the mint is a genuine vaulted copy of the market's underlying); on-chain collection verification is the planned replacement.
+
+Args: none.
+
+| Account | Constraints |
+| --- | --- |
+| `global` | `["global"]`, `has_one = admin` |
+| `admin` | signer, mut (payer) |
+| `market` | |
+| `item_mint` | the SPL mint of the copy (0 decimals, supply 1) |
+| `registration` | init, `["item", market, item_mint]` |
+| `system_program` | |
+
+Guards: admin only. Events: none.
+
+### deposit_item
+
+Deposits one registered item into the market's escrow and receives tokens worth the item from the preminted item reserve: `tokens_out = index_twap * BASE_UNITS_PER_NFT * units_per_item_micro / mark_ema / 1e6`. Supply stays fixed; the tokens were preminted at creation.
+
+Args: none.
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+| `item_mint` | the registered item's mint |
+| `registration` | `["item", market, item_mint]`; a missing or mismatched account fails the seeds constraint (`ItemNotRegistered`) |
+| `item_reserve` | mut, `["items", market]` |
+| `escrow_item` | init_if_needed, ATA(market, item_mint); the market's escrow for this item |
+| `user` | signer, mut |
+| `user_item` | init_if_needed, ATA(user, item_mint) |
+| `synth_mint` | mut, `address = market.synth_mint` |
+| `user_token` | init_if_needed, ATA(user, synth_mint) |
+| `token_program`, `associated_token_program`, `system_program` | |
+
+Guards: not frozen, index fresh (`NoIndex` / `IndexStale`), `mark_ema > 0` (`NoMark`), `item_reserve.amount >= tokens_out` (`ItemReserveDepleted`). Works in **both phases**: during Bootstrap the mark EMA is seeded at the curve's opening spot and stepped by every curve trade. Increments `items_deposited`. Emits `ItemSwapped { deposited: true }`.
+
+### withdraw_item
+
+The mirror image: returns tokens worth one item (same formula, evaluated at withdrawal time) to the item reserve and takes a copy out of the market's escrow.
+
+Args: none. Accounts: same as `deposit_item`.
+
+Guards: not frozen (both phases), index fresh (`NoIndex` / `IndexStale`), `mark_ema > 0` (`NoMark`), `escrow_item.amount >= 1` (`ItemNotInEscrow`); the user must hold `tokens_in` in their ATA (SPL transfer fails otherwise). Decrements `items_deposited`. Emits `ItemSwapped { deposited: false }`.
+
+## Keeper
+
+### accrue_funding
+
+Permissionless funding crank. On the internal venue it refreshes the mark EMA from the AMM spot; on the external venue it uses the [oracle-pushed mark](#push_mark) instead, requiring `mark_ema > 0` (`NoMark`) and, with `max_index_age_secs > 0`, a mark no older than that (`IndexStale`). It then computes the clamped funding rate from the mark/index premium and advances the global funding index. The effective elapsed time is capped at one day per crank: a late crank forfeits the excess rather than applying the current premium retroactively to an unbounded gap. See [Funding](/concepts/funding) for the math.
+
+Args: none.
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+
+Guards: Live, not frozen, index fresh (`NoIndex` / `IndexStale`), external venue mark present and fresh (`NoMark` / `IndexStale`), at least `min_crank_interval_secs` since the last crank (`CrankTooSoon`), resulting funding index must stay positive (`MathOverflow`). Emits `FundingAccrued`.
+
+### liquidate
+
+Permissionless liquidation of an undercollateralized short. The liquidator supplies the position's **full current debt** from their own token account (returned to the treasury reserve, both venues) and receives collateral worth the debt plus the liquidation bonus; shortfalls draw on the insurance fund; any remainder is refunded to the position owner. See [Liquidations](/concepts/liquidations).
+
+Args: none.
+
+| Account | Constraints |
+| --- | --- |
+| `market` | mut, `["market", collection]` |
+| `synth_mint` | mut, `address = market.synth_mint` |
+| `treasury` | mut, `["treasury", market]` |
+| `sol_vault` | mut, `["vault", market]` |
+| `position` | mut, `["short", market, position_owner]`, `position.owner == position_owner` else `Unauthorized` |
+| `position_owner` | mut, unchecked; receives any collateral remainder |
+| `liquidator` | signer, mut; receives the payout |
+| `liquidator_ata` | mut, ATA(liquidator, synth_mint); debt is taken from here |
+| `token_program`, `system_program` | |
+
+Guards: Live, not frozen, index fresh (`NoIndex` / `IndexStale`), `debt > 0` and CR `< maintenance_cr_bps` at the index, else `NotLiquidatable`. Emits `Liquidated`.

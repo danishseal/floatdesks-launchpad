@@ -1,0 +1,70 @@
+---
+title: "Shorts (CDP Positions)"
+description: "Draw reserve synth against SOL collateral: the short side of every commas market."
+---
+
+Every synth token in circulation beyond the launch supply and the [item-swap](/concepts/synth-token#item-swaps) inventory was drawn from the treasury reserve by a short. A short posts SOL collateral and draws synth from the reserve at the current [price index](/concepts/price-index), taking on debt denominated in synth. They profit when the underlying falls (buy back cheaper, repay, keep the difference) and lose when it rises. Supply itself never changes: the reserve was preminted at creation (internal venue) or funded at listing (external venue), and the mint authority is gone.
+
+<Frame caption="The CDP short lifecycle with its collateral-ratio bands.">
+  <img className="hidden dark:block" src="/images/protocol/15-cdp.png" alt="The CDP short lifecycle with its collateral-ratio bands." noZoom />
+  <img className="block dark:hidden" src="/images/protocol/15-cdp-light.png" alt="The CDP short lifecycle with its collateral-ratio bands." noZoom />
+</Frame>
+
+## Who shorts, and why
+
+- **Holders of the underlying hedging downside.** A collector holding the physical card or the NFT can draw synth against SOL collateral and sell it, locking in exposure to the current price without selling the asset itself. No sale means no tax event, no loss of the collectible, no exit from the community. This is the structural short supply the market is designed around.
+- **Basis traders.** When the mark trades below the index, [funding](/concepts/funding) pays whoever is willing to be short the gap. Traders open shorts to collect that flow and close when the basis normalizes.
+
+## Opening a position
+
+`open_short(collateral, mint_amount)` transfers `collateral` lamports into the market vault and transfers `mint_amount` synth (base units) from the treasury reserve to your wallet. The position must satisfy the initial collateral ratio:
+
+```
+debt_value  = mint_amount * index_twap / 1_000_000_000_000
+required    = debt_value * initial_cr_bps / 10_000
+collateral >= required
+```
+
+With the default `initial_cr_bps = 15000`, drawing synth worth 10 SOL at the index requires at least 15 SOL of collateral.
+
+Each wallet has exactly one position per market, stored at a program-derived address with seeds `["short", market, owner]`. Calling `open_short` again adds to the existing position; the combined position must still meet the initial CR.
+
+<Note>
+Opens are bounded twice: by the configured hedge-reserve size (`max_open_interest`, failing with `OpenInterestCapReached`) and by the reserve's actual balance in the treasury (failing with `TreasuryDepleted`). On the internal venue the reserve is preminted to exactly `max_open_interest`, so the two coincide at creation; the physical reserve is the binding ceiling. When the reserve is empty, the hedging facility is simply full. See [Parameters](/concepts/parameters).
+</Note>
+
+## Managing a position
+
+| Action | Instruction | Constraint |
+| --- | --- | --- |
+| Add collateral | `add_collateral(amount)` | Always allowed, even while frozen or stale |
+| Withdraw collateral | `withdraw_collateral(amount)` | Post-withdraw CR must still meet `initial_cr_bps`; needs a fresh index while debt remains |
+| Repay debt | `repay_burn(amount)` | Returns synth from your wallet to the treasury reserve, up to current debt |
+| Close the account | `close_position()` | Debt and collateral must both be zero; rent is refunded |
+
+Withdrawals are held to the initial CR, not the maintenance CR, so you cannot withdraw yourself to the edge of [liquidation](/concepts/liquidations).
+
+## Debt is funding-scaled
+
+Positions do not store a raw debt number. They store a scaled value so that [funding](/concepts/funding) applies to every position continuously without per-position writes:
+
+```
+// at open or repay (FUNDING_ONE = 1e12)
+debt_scaled  = debt * FUNDING_ONE / funding_index
+
+// at any later time
+current_debt = debt_scaled * funding_index / FUNDING_ONE
+```
+
+When the market's `funding_index` falls (mark above index, shorts being paid), every position's current debt shrinks. When it rises, every position's debt grows. Your wallet's synth balance does not change; what changes is how much you must return to the reserve to fully repay.
+
+<Warning>
+Because debt drifts with funding, the amount needed to fully close a position is not necessarily the amount you drew. Fetch the position, compute `debt_scaled * funding_index / FUNDING_ONE`, and repay that.
+</Warning>
+
+## Risk summary
+
+- If the index rises, your debt value rises and your CR falls. Below `maintenance_cr_bps` your position can be liquidated by anyone. See [Liquidations](/concepts/liquidations).
+- Funding can work for or against you depending on where the mark sits relative to the index.
+- A [circuit breaker](/concepts/circuit-breaker) freeze pauses withdrawals and liquidations, but you can always add collateral while frozen.
+- Opening, withdrawing against debt, and being liquidated all require a fresh index: if the oracle has not pushed within `max_index_age_secs`, these return `IndexStale` until the feed resumes. See the [staleness guard](/concepts/price-index#staleness-guard). Repaying and adding collateral still work while stale.

@@ -1,0 +1,14 @@
+import { DynamicBondingCurveClient } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { Connection, PublicKey } from "@solana/web3.js";
+const c = new DynamicBondingCurveClient(new Connection("https://api.devnet.solana.com"), "confirmed");
+const pool = new PublicKey("ACYWxGURNR7ZBD95C3ifirxDwZinY5YyJTR1gka9Cgev");
+const m = await c.state.getPoolFeeMetrics(pool);
+const show = (o) => Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [k, v?.toString?.() ?? String(v)]));
+console.log("current:", show(m.current));
+console.log("total:", show(m.total));
+const p = await c.state.getPool(pool);
+const acc = p.account ?? p;
+console.log("pool creator:", acc.creator?.toBase58?.() ?? "?");
+console.log("creator quote fee (unclaimed):", acc.creatorQuoteFee?.toString?.());
+console.log("partner quote fee (unclaimed):", acc.partnerQuoteFee?.toString?.() ?? acc.protocolQuoteFee?.toString?.());
+console.log("metrics keys:", Object.keys(m));

@@ -1,0 +1,33 @@
+---
+title: "Take out the card"
+description: "Redeem tokens for a real copy of the collectible."
+---
+
+A ***commas*** market is not only SOL liquidity: its escrow holds real copies of the collectible that holders have deposited. Any of them can be taken out by anyone willing to pay what a copy is worth.
+
+## How redemption works
+
+<Steps>
+  <Step title="Check the pool">
+    The trade panel's sell side shows how many copies the escrow currently
+    holds. If it holds none, there is nothing to redeem yet; copies appear
+    whenever someone pays with the collectible.
+  </Step>
+  <Step title="Redeem">
+    You pay tokens **equal in value to one copy at the current price**, and
+    the copy transfers to your wallet. The tokens you pay go back into the
+    market's item reserve, so total supply never changes.
+  </Step>
+</Steps>
+
+## The math, concretely
+
+Say the collectible's live index is 0.44 SOL and the token trades at its fair value. Taking out a copy costs exactly 0.44 SOL worth of tokens. If the token trades **below** fair value, a copy costs more tokens (each token is worth less); if it trades **above**, fewer. You always exchange equal value at execution.
+
+<Note>
+  Redemptions are first-come. The escrow is a shared pool of copies, not
+  per-depositor lockers: depositing a copy sells it to the market, and any
+  holder can be the one who takes it out.
+</Note>
+
+This two-way door: collectible in, tokens out; tokens in, collectible out: is what tethers the token to the real market. When the token is rich, depositing copies is the profitable move; when it is cheap, taking them out is. Either way the arbitrage pulls the price back toward the collectible. The full loop is walked through in [Economics](/guides/economics).

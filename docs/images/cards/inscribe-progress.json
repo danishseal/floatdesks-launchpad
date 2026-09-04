@@ -1,0 +1,35 @@
+{
+  "birds": {
+    "chunksDone": 79,
+    "account": "2PbML56TS9o7yCRmYS58mLcLAJNsCTx9DSobFrN6vKUZ",
+    "metadata": "B1pJBxjn2kvqaNmWcxEXneED4aiuB3TmyLwuG6FNDyMM",
+    "sha256": "cf15054913470acb0243e1da894517b453e61803f9110306f226a1b0297b26a6",
+    "bytes": 62756,
+    "name": "Moltres & Zapdos & Articuno GX (SM210)",
+    "grade": "PSA 10",
+    "identifier": "card:2019|SM Black Star Promo Pokemon|#SM210|PSA|GEM-MT 10",
+    "complete": true
+  },
+  "charizard": {
+    "chunksDone": 56,
+    "account": "4chUVvKJ5FRyX5Rrfw17nmxq3AaEWApipGxDFEEAXzAa",
+    "metadata": "14Rb9YHjFGr6zWDxVBZmwtwKydWd2MQRzdSe64hVQoYX",
+    "sha256": "ec84da004a2f305324eb355936e257d2e603da0bb35cdbf64b0c33765c541108",
+    "bytes": 44197,
+    "name": "Charizard VMAX (Shining Fates SV107)",
+    "grade": "PSA 10",
+    "identifier": "card:2021|Sword & Shield Shining Fates|#SV107|PSA|GEM-MT 10",
+    "complete": true
+  },
+  "sylveon": {
+    "chunksDone": 61,
+    "account": "FR57R4eokbFSqnfwzdkuKfgL46hRQ7knN17fzyEmNC47",
+    "metadata": "iZQrwcq7Mc7sS6QsqHyjxsid9E42yvEGdAEs6KiLUm2",
+    "sha256": "476f04794869881d802cb3cc175013aeae1ff79a3e34fb30753a59b16f2ccac9",
+    "bytes": 48243,
+    "name": "Sylveon V Full Art (Evolving Skies 184)",
+    "grade": "PSA 10",
+    "identifier": "card:2021|Sword & Shield Evolving Skies|#184|PSA|GEM-MT 10",
+    "complete": true
+  }
+}

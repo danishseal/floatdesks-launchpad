@@ -1,0 +1,75 @@
+---
+title: "NFT Floor Pipeline"
+description: "How the relayer builds a floor index for an NFT collection market from the listing ladder, and how it will strengthen with a bid-side leg."
+---
+
+<Note>
+The v1 pipeline described here is **built** (at `relayer/src/sources/magiceden.ts`,
+using [Magic Eden](https://magiceden.io)'s public API). It was exercised end to end against live Mad Lads
+data. The bid-side leg is planned and needs a [Tensor](https://www.tensor.trade) API key. NFT collection floors
+are the secondary asset class; see [Asset Classes](/asset-classes).
+</Note>
+
+## The single lowest listing is not the floor
+
+The naive "floor price" is the lowest ask, and a **single** ask is manipulable:
+list your own NFT below everyone else and the number moves for free. But that logic
+cuts differently for a lone listing than for the ladder as a whole:
+
+- A fake **low** listing is a fillable offer. Anyone can buy it, so pricing your NFT
+  meaningfully below market is a donation to arbitrageurs, and the ladder self-heals
+  within blocks.
+- A lone **high** listing never matters: it sits above the rest of the ladder and no
+  depth-aware estimator reads it.
+
+So the manipulation-resistant observable is not the lowest ask; it is the **depth of
+the ladder**.
+
+## Ladder estimation (implemented v1)
+
+The estimator per cycle, per collection:
+
+1. Fetch the cheapest current listings (the ask ladder) from Magic Eden.
+2. Take the **median of the cheapest 3 listings**, i.e. the 2nd-cheapest ask. This
+   hugs the true floor but cannot be moved by any single fake listing: an underpriced
+   listing gets bought, an overpriced one never becomes the median.
+3. **Cross-check** the estimate against the venue's own reported floor. Disagreement
+   beyond `maxDisagreementBps` holds the push and alerts instead.
+4. Collect recent `buyNow` sale prints in the lookback window as **logged
+   confirmation**. On blue-chip collections the public activity feed is dominated by
+   bid and pool-update churn, so sale prints are too sparse to be the primary signal;
+   they corroborate, they do not set the number.
+
+## Planned: the bid-side leg
+
+Collection-wide bids on Tensor are posted capital. Faking a high bid means genuinely
+offering to buy at that price, because any holder can fill it. Adding the top
+collection bid as an independent estimator leg (median of ladder estimate, top bid,
+and sale TWAP) is the planned hardening once a Tensor API key is provisioned, and it
+turns the cross-check from one venue's self-reported floor into true cross-venue
+disagreement detection.
+
+## Gates
+
+- **Ladder depth**: fewer than 3 live listings means no push at all.
+- **Disagreement**: ladder estimate vs reported floor beyond the configured bound
+  (default 25 percent) holds the last value and alerts.
+- **Staleness on hold**: every held push leaves `index_last_ts` unchanged, so repeated
+  holds walk the market toward its on-chain
+  [staleness guard](/concepts/price-index#staleness-guard) rather than tracking bad
+  data.
+
+## Conversion
+
+NFT floors are already SOL-denominated, so no [Pyth](https://pyth.network) SOL/USD leg is needed. The estimate
+converts directly to lamports per whole NFT and is pushed via
+[`push_index`](/reference/instructions#push_index).
+
+## Listing policy
+
+The estimator can only be as good as the underlying market. NFT markets are
+admin-listed in v1 and held to depth criteria (sustained volume, listing depth,
+holder count), with per-market [hedge reserves](/concepts/parameters) sized
+against real collection depth so the synthetic market cannot outgrow its reference.
+See [Listing a Market](/guides/listing-a-market) and
+the funding clamps and the circuit breaker.

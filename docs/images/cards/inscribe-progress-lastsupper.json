@@ -1,0 +1,35 @@
+{
+  "ls-left": {
+    "chunksDone": 118,
+    "account": "HkKGeBSDhAQGFnkrxSuqDKWRzEzLG3T2rrwGb6g3WTRt",
+    "metadata": "6ycz4HwUK1UtLUTGnvJTbc2fLAxJbnxuuQhyhRY5zS3m",
+    "sha256": "855a8b93e7b87795228ecfe31638d3bb3ff7c65c5c3d8085bcf8d40be22203d1",
+    "bytes": 93949,
+    "name": "The Last Supper, Panel I",
+    "grade": "floorlaunch original",
+    "identifier": "art:lastsupper|panel-1",
+    "complete": true
+  },
+  "ls-center": {
+    "chunksDone": 115,
+    "account": "8R6pUZzhMYM9hD7ovbquaB7u6v391eQCwZvseMvcFgTz",
+    "metadata": "4VyzFN1rzXM9QVJUHShTeeVCk1mEa7BGf3PrJHB6JP2R",
+    "sha256": "8207bdf34d5851e1710239a743da008c0622b9c83e4d9b6c02134d217bfaae4d",
+    "bytes": 91887,
+    "name": "The Last Supper, Panel II",
+    "grade": "floorlaunch original",
+    "identifier": "art:lastsupper|panel-2",
+    "complete": true
+  },
+  "ls-right": {
+    "chunksDone": 112,
+    "account": "AbtEJn1MSDd9CufuaXfDtvswaE97HfD9scYa2omdwBv6",
+    "metadata": "FA4sGdB289qoyWXh5v4TwwGSvuxLL6WVVTgb9sAbsZDa",
+    "sha256": "4b6ebd5b85cd329c3a63a3ce61235bbb356cf3d7627d0651289356192ff760be",
+    "bytes": 88866,
+    "name": "The Last Supper, Panel III",
+    "grade": "floorlaunch original",
+    "identifier": "art:lastsupper|panel-3",
+    "complete": true
+  }
+}

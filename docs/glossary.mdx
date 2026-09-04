@@ -1,0 +1,66 @@
+---
+title: "Glossary"
+description: "Definitions of every term used across the commas protocol and documentation."
+---
+
+**Synth token.** The SPL token issued by a market. Its price is tethered to the index by arbitrage and funding. One market has exactly one synth mint with 6 decimals and fixed supply: on internal-venue markets the full allocation is preminted at creation and the mint authority revoked in the same transaction, while external-venue markets attach to an externally launched fixed-supply mint and run their CDP off a treasury reserve (see [Venues](/concepts/amm#venues)).
+
+**Underlying.** The collectible a market is launched against: a specific graded card (a [PSA](https://www.psacard.com) 10 Umbreon VMAX), a weighted basket of cards, or an NFT collection's floor (Mad Lads). Never SOL, never a stablecoin: SOL is only the currency traded with and the collateral hedgers post.
+
+**Unit of underlying.** What one million tokens represent: one graded card at a specific grade, one basket share, or one floor NFT of a collection.
+
+**TOKENS_PER_NFT.** Protocol constant: 1,000,000 whole synth tokens represent one unit of the underlying. The name reflects the NFT origin of the design; it applies to every asset class.
+
+**Base units.** The smallest on-chain increment of the synth. With 6 decimals, one unit of underlying equals 1,000,000 tokens times 10^6, so 1e12 base units per unit of underlying. All program math uses base units.
+
+**Index.** The oracle-reported price of one unit of the underlying, in lamports. Pushed by the oracle authority.
+
+**Index TWAP.** The time-weighted EMA of accepted index observations, computed on chain over `index_window_secs`. Every tether calculation (collateral ratios, funding, liquidations) reads the TWAP, never a raw push.
+
+**Mark price.** The price implied by the internal AMM's reserves, expressed in lamports per unit of underlying.
+
+**Mark EMA.** The time-weighted EMA of the mark price, updated on every swap and every funding crank over `mark_window_secs`. Funding compares the mark EMA to the index TWAP, so single-transaction AMM manipulation cannot move funding.
+
+**Premium.** The signed gap between mark EMA and index TWAP, in basis points of the index. Positive when the synth trades rich.
+
+**Funding rate.** The per-day rate derived from the premium (`premium * funding_k_bps`), clamped to `max_funding_bps_per_day` in either direction. When the mark is above the index, short debt shrinks (shorts are paid); below, short debt grows (shorts are charged).
+
+**Funding index.** A global fixed-point accumulator (scale 1e12) that applies funding to all short positions at once. Positions store debt divided by the funding index at last touch, so no per-position writes are needed when funding accrues.
+
+**CDP short.** A collateralized debt position: SOL collateral posted against synth drawn from the treasury reserve at index value. The shorter sells the drawn synth to gain short exposure and later buys it back and returns it to the reserve to close.
+
+**Collateral ratio (CR).** Collateral value divided by debt value at the index. Opening or withdrawing requires the initial CR (default 15000 bps, 150%). Falling below the maintenance CR (default 12000 bps, 120%) makes the position liquidatable.
+
+**Hedge reserve.** The preminted allocation of the fixed supply that hedgers draw against SOL collateral; when the reserve is empty, the hedging facility is full. Its size is the `max_open_interest` parameter (in derivatives language, an open interest cap on total short debt), set against the depth of the collectible's real market so the synth can never become the price setter for its own underlying.
+
+**Program-derived address (PDA).** A Solana account whose address is derived from a program and fixed seeds rather than from a private key. No key for it exists, so only the owning program can sign for it: ***commas***'s vaults, treasuries, and market accounts are all PDAs, meaning no human holds a key to any of them.
+
+**Relayer (price feed).** The signed off-chain service ***commas*** runs that reads a collectible's real prices from marketplaces ([eBay](https://www.ebay.com) and [TCGplayer](https://www.tcgplayer.com) aggregates, [Collector Crypt](https://collectorcrypt.com), [Magic Eden](https://magiceden.io)), filters manipulation, and writes the result on chain with the oracle authority's signature. See [Oracle & Relayer](/oracle/architecture).
+
+**Bonding curve.** The launch-phase pricing mechanism: a constant-product curve over virtual SOL and virtual token reserves. Buys draw from the preminted curve allocation, sells return to it; supply itself never changes.
+
+**Graduation.** The permissionless transition from Bootstrap to Live once the curve raises `graduation_target_sol` (100 SOL under the launch convention, all of which seeds the AMM's real reserve). Starts the funding clock. Cranked automatically by the indexer keeper, so markets auto-migrate within seconds of hitting the target.
+
+**Item swap.** The value-based exchange between a market's token and registered on-chain copies of its underlying: `deposit_item` places a copy in program escrow for `index_twap * 1e12 / mark_ema` base units of tokens, and `withdraw_item` returns the same formula's worth of tokens for a copy. Always equal value at execution, never a fixed tokens-per-item rate.
+
+**Item pool.** A market's escrowed inventory of deposited copies plus the item reserve that pays for them. Its size in copies is `Market.items_deposited`.
+
+**Item reserve.** The third preminted allocation of the fixed supply (parameter `item_reserve`, PDA seeds `["items", market]`), which funds item-swap payouts and receives item-swap repayments. Zero at creation disables item swaps for the market.
+
+**Item registration.** The admin-created PDA (`["item", market, item_mint]`) marking a specific copy (a vaulted-card NFT or collection NFT) as depositable into a market's item pool. Registration is admin-gated in v1 while vault provenance is verified off chain.
+
+**Identity escrow.** A keyless system-account PDA (`["escrow", sha256("platform:handle")]`) that accumulates a creator's fee share when a launch names a fee receiver by social handle instead of a wallet. Released to the creator's chosen wallet by the admin-signed `release_escrow` after an off-chain nonce-in-bio identity proof.
+
+**Insurance fund.** Per-market SOL reserve optionally seeded at graduation (`insurance_share_bps` of the raise; zero under the launch convention, so the full raise seeds the pool). Covers liquidation shortfalls when collateral is insufficient for the target payout.
+
+**Circuit breaker.** If an index push deviates from the TWAP by more than `breaker_bps`, the observation is recorded but not absorbed, and the market freezes. Frozen markets block trading, reserve draws and repayments, funding, withdrawals, and liquidations; adding collateral stays open. Only the admin unfreezes.
+
+**Oracle authority.** The keypair permitted to push index observations, set in the global config and rotatable by the admin. Held by the price feed service (see **Relayer** above).
+
+**Liquidation bonus.** The premium a liquidator earns over the debt value repaid, default 500 bps (5%), paid from the position's collateral and, if needed, the insurance fund.
+
+**Crank.** A permissionless instruction anyone can call to advance protocol state, such as `accrue_funding`. Rate-limited by `min_crank_interval_secs`.
+
+**Unit.** 1,000,000 tokens (1e12 base units), the quote size for the on-chain index and mark. Launch-scaled: defined as worth 0.625 SOL (the migration price) at launch and moving with the collectible from there. `units_per_item_micro` records how many units one physical item was worth at launch.
+
+**Bootstrap / Live / Frozen.** Bootstrap is the curve phase; Live is the graduated phase; frozen is a flag (not a status) that pauses a market in either phase.

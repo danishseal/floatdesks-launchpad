@@ -1,0 +1,84 @@
+---
+title: "Listing a Market"
+description: "How markets get listed in v1: admin-gated creation, depth criteria, and open-interest sizing."
+---
+
+In v1, market creation is admin-gated: `create_market` can only be called by
+the admin key in the global config. This is deliberate. The entire safety
+model assumes the synthetic market stays small relative to the real market it
+references, and that assumption is enforced at listing time, off chain, by
+depth criteria. Permissionless listing with on-chain depth attestations is a
+[roadmap](/roadmap) item.
+
+## Depth criteria
+
+A listing has to demonstrate that the reference market is deep enough that
+the synth market cannot become its price setter.
+
+**Graded cards** (flagship asset class):
+
+- Graded population large enough that no single holder controls the float.
+  Mid-tier cards with hundreds or thousands of graded copies qualify; pop-10
+  grails do not.
+- Steady sale frequency: enough recent prints per lookback window for the
+  price feed's median estimator (the relayer, see
+  [card pipeline](/oracle/card-pipeline)) to be meaningful.
+- Multi-venue presence: prices observable on at least two independent venues
+  (eBay/TCG aggregators, tokenized marketplaces) so the cross-source
+  agreement check has something to compare.
+
+**NFT collections** (secondary asset class):
+
+- Sustained trading volume, not a one-week spike.
+- Listing depth near the floor: manipulating the floor must require moving
+  many listings, not one.
+- Holder count and distribution consistent with a real market.
+
+## Sizing the hedge reserve (`max_open_interest`)
+
+`max_open_interest` sets the size of the hedge reserve: the preminted
+allocation hedgers can draw against collateral, denominated in token base
+units. (In derivatives language this bounds open interest, total short debt.)
+It is the on-chain expression of the depth criteria: the synthetic market is
+never allowed to grow beyond a fixed multiple of what the reference market
+actually trades. As a rule of thumb, size the reserve at a small multiple of
+the collectible's typical lookback-window sale volume, and revisit as the
+reference market grows or shrinks. The reserve binds only CDP draws; curve
+and AMM supply are bounded by the launch itself.
+
+## What a listing consists of
+
+<Steps>
+  <Step title="Underlying spec">
+    A precise definition of the unit: for cards, game + set + card + grade
+    (for example [PSA](https://www.psacard.com) 10 of one specific card); for NFT collections, the
+    verified collection mint. Baskets define members and fixed weights. This
+    becomes the relayer config entry.
+  </Step>
+  <Step title="Market parameters">
+    A full `MarketParams` set: oracle windows and breaker, funding constants,
+    collateral ratios, fees, curve shape, graduation target, insurance share,
+    and the open-interest cap. See [Parameters](/concepts/parameters) for
+    every field. Passing `null` uses the global defaults.
+  </Step>
+  <Step title="create_market">
+    The admin calls `create_market(collection, params)`, which initializes the
+    market account, the synth mint, the pool, treasury, and item reserve token
+    accounts, and the SOL vault, premints the fixed supply (curve allocation,
+    hedging reserve, and [item-swap reserve](/concepts/synth-token#item-swaps)),
+    and revokes the mint authority, all in one transaction. The
+    `collection` pubkey is an opaque identifier: for cards it identifies the
+    card+grade spec, for NFTs the collection mint.
+  </Step>
+  <Step title="Relayer activation">
+    The market is created in `Bootstrap` with no index. The relayer starts
+    pushing prices, and [graduation](/concepts/graduation) requires a nonzero
+    index, so a market cannot go live before its oracle feed does.
+  </Step>
+</Steps>
+
+<Note>
+The program itself is underlying-agnostic. Everything that distinguishes a
+card market from an NFT market lives in the relayer configuration and the
+listing policy described here, not in the on-chain code.
+</Note>

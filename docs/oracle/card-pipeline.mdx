@@ -1,0 +1,101 @@
+---
+title: "Card Price Pipeline"
+description: "How the relayer builds a manipulation-resistant index for a graded trading card market."
+---
+
+<Note>
+**Current implementation status** (`relayer/src/sources/card.ts`): three sources.
+`pokemontcg` is **live and keyless**: the [TCGplayer](https://www.tcgplayer.com) market price for a RAW (ungraded)
+card variant via pokemontcg.io, refreshed daily, with retry-and-backoff and a low/high
+sanity band (set `POKEMONTCG_API_KEY` to raise rate limits). A [PSA](https://www.psacard.com)-graded market must
+never use this source; raw and graded are different assets. `manual` is an
+operator-attested USD price for markets whose real source is pending. `gradedApi` is
+the shaped client for subscription graded-price APIs and refuses to run without
+`TCG_GRADED_API_KEY`. All three convert through a live [Pyth](https://pyth.network) SOL/USD read. The
+multi-source graded estimator described below is the production design those keys
+unlock. Verified live 2026-07-24: swsh7-215 RAW ($2,137.76) pushed on chain within 2
+bps of source. Graded cards are the flagship asset class; see
+[Asset Classes](/asset-classes) for why.
+</Note>
+
+## The underlying unit
+
+A card market's underlying is one card and grade pair, for example "PSA 10 of card X".
+Grade is part of the market identity: a PSA 10 market never blends PSA 9 or BGS 9.5
+prices. Those are different assets with different markets.
+
+## Sources
+
+The estimator pools four independent source types:
+
+| Source | Role |
+| --- | --- |
+| Aggregator card-price APIs (per card, per grade, computed from [eBay](https://www.ebay.com) and TCGplayer data) | Workhorse estimate, refreshed roughly daily |
+| eBay sold listings for the exact card and grade | Ground-truth sale prints the aggregators compress |
+| [Collector Crypt](https://collectorcrypt.com) sales of the tokenized card, plus their instant-buyback quote | On-chain sale prints, and a **capitalized bid-side anchor**: the buyback offer (roughly 85 to 93 percent of modeled value) is money the platform will actually pay, so the implied price is expensive to fake |
+| [Courtyard](https://courtyard.io) sales of the same card | Cross-chain sanity check |
+
+## Estimator
+
+Per market, per cycle:
+
+1. Pool all sale prints of the card and grade within the lookback window
+   (default 14 days; longer for slower cards).
+2. Reject outliers by median absolute deviation: prints more than about 3 MAD from
+   the rolling median are dropped. This kills single shill sales.
+3. Compute a recency-weighted median of the survivors.
+4. Apply the **sanity band**: the estimate is floored by the best capitalized bid
+   (the Collector Crypt buyback implied price, minus a tolerance) and capped by the
+   lowest ask across venues (plus a tolerance). Asks are free to fake, so they only
+   ever cap the estimate. They never set it.
+
+## Gates
+
+Two gates can block a push entirely:
+
+- **Cross-source disagreement**: if the aggregator estimate, the eBay estimator, and
+  the tokenized-venue estimator disagree by more than about 15 percent, the price
+  feed (the relayer) holds the last value and alerts. A gap that large is either a real dislocation or
+  someone gaming one venue; both deserve human eyes.
+- **Liquidity gate**: if fewer than `min_sales` prints exist in the window, no new
+  value is pushed. A card that stops trading goes visibly stale instead of tracking noise.
+
+## USD to lamports
+
+Card prices are dollar-denominated; the on-chain index is lamports per unit. Each
+cycle takes one Pyth SOL/USD read, then:
+
+```
+index_lamports = usd_estimate / sol_usd_price * 1e9
+```
+
+<Warning>
+Because collateral and settlement are in SOL, synth holders are long the card **in SOL
+terms**. If the card is flat in dollars and SOL rallies, the index falls. This is the
+correct product for a SOL-collateralized market, but interfaces should state it.
+</Warning>
+
+## Basket indexes
+
+A basket market (for example a vintage PSA 10 index) composes the same pipeline:
+run it per member card, then take a weighted sum with weights fixed at listing
+(equal-weight or population-weight). The basket pushes only if enough members pass
+their gates to meet a quorum. Baskets are the hardest markets to manipulate, since
+moving the index means moving many independent card markets at once.
+
+## Example market config
+
+```yaml
+markets:
+  - market: 7xK...   # market PDA
+    kind: card
+    game: pokemon
+    card: { set: "SWSH07", number: "215", name: "Umbreon VMAX Alt Art" }
+    grade: "PSA 10"
+    lookback_days: 14
+    min_sales: 5
+    sources: [tcg_api, ebay_sold, collector_crypt, courtyard]
+```
+
+Listing policy favors mid-tier cards with large graded populations and steady weekly
+sales over thin grails; see [Listing a Market](/guides/listing-a-market).

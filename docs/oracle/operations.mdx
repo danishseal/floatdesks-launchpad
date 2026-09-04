@@ -1,0 +1,78 @@
+---
+title: "Relayer Operations"
+description: "Running the price relayer: key handling, alerting, failure modes, and cost."
+---
+
+<Note>
+The v1 relayer is **built** (TypeScript, at `relayer/` in the repository). Run a single
+cycle with `npm run once` or the interval loop with `npm start`, passing
+`--config <path>` to select a config file. The alerting described below is currently
+console logging; the paging bot is still to be wired up.
+</Note>
+
+## Deployment
+
+The relayer, the price feed service that reads collectible prices from
+marketplaces and writes them on chain, is a small daemon (one process, one
+YAML config file, see [Architecture](/oracle/architecture) for the format)
+that runs on a **dedicated box**. It must never be co-located with other critical infrastructure:
+a resource-starved or compromised neighbor process is an oracle incident waiting to
+happen. A small VPS is sufficient.
+
+## Key handling
+
+The relayer holds the **oracle authority keypair**, the only key the program accepts
+for [`push_index`](/reference/instructions#push_index). Operational rules:
+
+- The key lives only on the relayer box, never in the repo or CI.
+- The key holds dust SOL for transaction fees and nothing else. It has no admin
+  powers: it cannot list markets, change parameters, unfreeze markets, or move funds.
+- **Rotation** is one admin transaction:
+  [`set_oracle_authority`](/reference/instructions#set_oracle_authority) swaps in a
+  new key immediately. Suspected compromise means rotate first, investigate second.
+
+A compromised oracle key is a bounded incident by construction; see
+the parameter clamps for the exact blast radius.
+
+## Reliability
+
+- **Per-source retry with backoff**: each data source (card APIs, marketplace APIs,
+  [Pyth](https://pyth.network)) is fetched independently with retries. One source failing degrades the
+  estimate to the remaining sources; if too few survive to pass the gates, the
+  relayer holds rather than pushes.
+- **Idempotent cycles**: a crashed cycle is safe to rerun. The program's
+  `min_push_interval_secs` rejects accidental double pushes.
+
+## Alerting
+
+Three conditions page a human (design assumes a Telegram alert bot):
+
+| Alert | Trigger | Meaning |
+| --- | --- | --- |
+| Disagreement | Cross-source estimates diverge beyond the gate (about 15 percent) | Real dislocation or venue manipulation; pushes are held |
+| Staleness | No successful push for a market in N hours | Source outage, key problem, or RPC failure |
+| Breaker | A `BreakerTripped` event observed on-chain | The program froze a market on a deviant push; needs review and an admin [`set_frozen(false)`](/reference/instructions#set_frozen) |
+
+## Failure behavior
+
+When the relayer dies entirely, the on-chain [staleness
+guard](/concepts/price-index#staleness-guard) takes over: once `index_last_ts` falls
+more than `max_index_age_secs` behind, `open_short`, `withdraw_collateral` against
+debt, `accrue_funding`, and `liquidate` are rejected with `IndexStale` until a fresh
+push lands. The last price is never trusted indefinitely. Trading, repaying, and
+adding collateral stay live throughout, so a relayer outage degrades the market to a
+safe mode instead of freezing everyone in place.
+
+UIs should still surface `index_last_ts` prominently: a market approaching its
+staleness limit is a market about to reject CDP operations, and users deserve the
+warning before the error.
+
+## Cost profile
+
+- Card and marketplace **API subscriptions**: the dominant cost.
+- One small **VPS**.
+- **Transaction fees**: dust-level SOL. One push per market per hour is trivial even
+  across dozens of markets.
+
+One relayer instance serves every market; marginal cost per additional market is one
+config entry and one API's worth of extra calls.

@@ -1,0 +1,140 @@
+---
+title: "FAQ"
+description: "Common questions about commas markets, the peg, the oracle, and risk."
+---
+
+<AccordionGroup>
+
+<Accordion title="What is my token actually tied to?">
+A real collectible's price. Every market is launched against one underlying:
+a specific graded card (for example, a [PSA](https://www.psacard.com) 10 Umbreon VMAX) or an NFT
+collection's floor (for example, Mad Lads). One million tokens represent one
+unit of that collectible, and the token's price is pulled toward the
+collectible's live market price by [funding](/concepts/funding) and hedger
+arbitrage. SOL is just what you pay with; it is never the thing being
+tracked. If the card doubles, your exposure doubles; if it drops, so does
+your token.
+</Accordion>
+
+<Accordion title="Is the token backed by real cards or NFTs?">
+Not in the vault sense. The token is a synthetic: CDP supply drawn from the
+reserve is backed by shorts' SOL collateral, and the price is tethered to the
+oracle index by arbitrage and [funding](/concepts/funding). The token's
+solvency never depends on custodied items, so there is no lemons problem and
+no oracle-priced redemption pot to drain. Markets can additionally hold an
+[item pool](/concepts/synth-token#item-swaps): registered vaulted copies of
+the underlying that holders have deposited for value-equal tokens. Those
+copies sit in a keyless program escrow and anyone can swap tokens back for
+one, but they are exchange inventory, not backing the supply depends on.
+</Accordion>
+
+<Accordion title="Is the supply fixed? Can the team mint more?">
+No one can mint more, ever. Every ***commas*** token is a fixed-supply SPL
+token: on the internal venue the entire allocation (curve supply, the hedging
+reserve, and the item-swap reserve) is preminted at market creation and the
+mint authority is revoked in the same transaction, which is what wallets and
+screeners show as "mint revoked". Externally launched tokens arrive with
+fixed supply already.
+The hedging facility is a preminted reserve allocation, not an inflation
+mechanism, and the unsold curve allocation burns at
+[graduation](/concepts/graduation), so supply can only ever shrink.
+</Accordion>
+
+<Accordion title="Why doesn't the token price exactly equal the index?">
+The peg is soft. Funding and reserve draw-and-repay arbitrage pull the price
+toward the index; they do not pin it there. A basis of a few percent is normal and can
+persist. If you need exact index exposure at every block, a funding-pegged
+synthetic is the wrong instrument.
+</Accordion>
+
+<Accordion title="What happens if the oracle is manipulated?">
+The damage is bounded by design. A bad print can only tilt the funding rate
+(clamped by `max_funding_bps_per_day`) and shift CDP draw/repay pricing until
+the TWAP recovers, and a print that deviates too far from the TWAP trips the
+[circuit breaker](/concepts/circuit-breaker) and freezes the market instead of
+entering the index. There is no redemption-against-pooled-money mechanism for
+a manipulated price to drain.
+</Accordion>
+
+<Accordion title="What happens if the price feed (the relayer) goes down?">
+The index stops updating and `index_last_ts` on the market account shows its
+age. Past `max_index_age_secs`, the on-chain [staleness
+guard](/concepts/price-index#staleness-guard) stops trusting the last value:
+new shorts, withdrawals against debt, funding, and liquidations are rejected
+with `IndexStale` until a fresh push lands. Trading, repaying debt, and adding
+collateral keep working, so the market degrades to a safe mode rather than
+trapping anyone.
+</Accordion>
+
+<Accordion title="Who is the counterparty to my long?">
+Shorts. Every CDP-drawn token is a short's debt, collateralized in SOL at a
+minimum ratio. The [insurance fund](/concepts/insurance-fund), seeded at
+graduation, backstops liquidation shortfalls. Curve-phase tokens are backed by
+the SOL raised into the pool, like any launchpad token.
+</Accordion>
+
+<Accordion title="Can I redeem the token for a card or an NFT?">
+Yes, when the market's item escrow holds one. [Item
+swaps](/concepts/synth-token#item-swaps) work in both directions and are
+value-based: deposit a registered vaulted copy and receive tokens worth
+exactly one copy at current prices (`index / mark EMA` units of tokens), or
+return that much token value and take a copy out of escrow. There is no fixed
+tokens-per-item rate and no redemption queue; withdrawals are first-come
+while escrowed copies last, and a market whose escrow is empty is back to
+pure synthetic exposure until someone deposits.
+</Accordion>
+
+<Accordion title="Why is collateral SOL only?">
+Simplicity and safety in v1: one collateral asset, no collateral price feed
+needed beyond the index itself (which is quoted in lamports), and no
+multi-asset liquidation math. Note the consequence: positions carry
+underlying-versus-SOL relative exposure.
+</Accordion>
+
+<Accordion title="What does it mean when a market is frozen?">
+Trading, shorts, funding, and liquidations are paused; adding collateral still
+works. Markets freeze when the circuit breaker trips on an outlier oracle
+print or when the admin freezes manually. The admin reviews and unfreezes.
+Balances and positions are untouched while frozen.
+</Accordion>
+
+<Accordion title="Is there a commas token?">
+Yes: a ***commas*** token will launch on [pump.fun](https://pump.fun). Follow
+[@commasdotart on X](https://x.com/commasdotart) for the announcement and the
+official contract address; anything not posted there is not ours. The protocol
+itself remains fully usable without it, and each market's synth token is the
+only token the program creates.
+</Accordion>
+
+<Accordion title="How are fees taken and who gets them?">
+Each trade pays a per-market fee (`curve_fee_bps` on the curve,
+`amm_fee_bps` on the AMM) that accrues inside the market vault and is
+withdrawable by the admin via `withdraw_fees`. At graduation,
+`insurance_share_bps` of the curve raise can seed the market's insurance
+fund; the launch convention sets it to zero so the full raise lands in
+the pool.
+There are no fees on opening or closing shorts beyond normal trading.
+</Accordion>
+
+<Accordion title="What chains does commas run on?">
+Solana only. The program is written in Anchor, and the design leans on
+Solana-native infrastructure (SPL tokens, [Pyth](https://pyth.network) for the SOL/USD leg,
+Solana-native marketplaces and launch infrastructure).
+</Accordion>
+
+<Accordion title="Is commas live?">
+Yes. ***commas*** runs on Solana mainnet: launching, trading, item swaps and
+hedging are all live, and the program ships with a 21-test integration suite
+plus an adversarial review pass. Independent audit work is on the
+[roadmap](/roadmap).
+</Accordion>
+
+<Accordion title="How is this different from fractionalized NFTs or a 404 token?">
+Fractionalization and 404-style hybrids custody the underlying and peg by
+two-way redemption, which makes them trackers with vault problems (adverse
+selection, custody risk, reflexive unwinding). ***commas*** references the
+underlying's price without holding it, and accepts a softer peg in exchange
+for eliminating custody entirely. See [How it works](/how-it-works).
+</Accordion>
+
+</AccordionGroup>

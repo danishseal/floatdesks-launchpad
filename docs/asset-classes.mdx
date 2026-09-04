@@ -1,0 +1,48 @@
+---
+title: "Asset classes"
+description: "Graded trading cards are the flagship underlying; NFT collection floors are secondary. The program is underlying-agnostic: differences live in the oracle pipeline and listing policy."
+---
+
+Every ***commas*** token is launched against a collectible: a graded trading card (flagship) or an NFT collection floor (secondary), never against SOL, a stablecoin, or pure attention. The on-chain program does not know which collectible a market tracks: `Market.collection` is an opaque identifier, and every difference between asset classes lives in the off-chain price pipeline and the listing policy. That is deliberate: the funding-peg mechanism works for any collectible with a defensible price estimate.
+
+<Frame caption="One program, two pipelines: everything that differs between asset classes sits off chain.">
+  <img className="hidden dark:block" src="/images/economics/09-asset-classes.png" alt="Asset classes comparison: graded trading cards versus NFT collection floors across unit, price inputs, currency, reference depth, listing policy, depth containment and item swap supply." noZoom />
+  <img className="block dark:hidden" src="/images/economics/09-asset-classes-light.png" alt="Asset classes comparison: graded trading cards versus NFT collection floors across unit, price inputs, currency, reference depth, listing policy, depth containment and item swap supply." noZoom />
+</Frame>
+
+## Graded trading cards (flagship)
+
+The underlying unit is one card at one grade: for example, [PSA](https://www.psacard.com) 10 of a specific card. Grades are never blended; a PSA 10 market and a PSA 9 market are different markets.
+
+**Why cards are the strongest underlying.** A synthetic needs a reference market bigger than anything that can happen in the synth's own venue. Graded card prices are set by [eBay](https://www.ebay.com) sold listings, [TCGplayer](https://www.tcgplayer.com), and physical auction houses, a multi-billion-dollar market that lives almost entirely off chain. An on-chain synth market can grow large without moving that reference, which is the property NFT floors lack. This is the same reason tokenized-stock products work: the price is imported from a market no crypto participant can push around.
+
+**Well-defined units.** "PSA 10 of card X" is population-counted and near-fungible. The index has a real definition, unlike an NFT floor that is one thin listing deep.
+
+**Price data exists as a product.** Per-card, per-grade prices aggregated from eBay and TCGplayer are available through commercial APIs, and tokenized venues ([Collector Crypt](https://collectorcrypt.com), [Courtyard](https://courtyard.io)) provide cross-checks, including capitalized instant-buyback bids. The [card pipeline](/oracle/card-pipeline) page covers the estimator in detail.
+
+**Currency conversion.** Card prices are dollar-denominated and the index is in lamports, so the relayer converts through [Pyth](https://pyth.network) SOL/USD. Holders should understand the consequence: the synth is long the card in SOL terms, so it carries card-versus-SOL relative exposure. The app displays prices, charts, and holder values in USD (converted through the same cached Pyth SOL/USD rate), but that is a display layer only: every pool is SOL-paired and settles in SOL on chain.
+
+**Basket indexes.** A market can track a weighted basket (for example, a vintage PSA 10 index) instead of a single card. Baskets are the most manipulation-resistant markets, since moving the index means moving many independent card markets at once.
+
+**Listing policy.** Mid-tier cards with large graded populations and steady weekly sale flow, not pop-10 grails where three sales are the whole market.
+
+<Note>
+Vaulted-card NFTs of the matching card+grade (for example, via Collector Crypt) plug directly into the market through [item swaps](/concepts/synth-token#item-swaps): deposit a registered copy for tokens of equal value, or swap tokens back for a copy from escrow. The card's own vaulted supply is the market's physical liquidity.
+</Note>
+
+## NFT collection floors (secondary)
+
+The underlying unit is one floor NFT of a collection.
+
+**The index resists single-listing games.** The implemented v1 estimator uses the ask ladder: the median of the cheapest three listings on [Magic Eden](https://magiceden.io), which no single fake listing can move (a lone underpriced listing is a fillable offer arbitrage removes; a lone overpriced one never becomes the median), cross-checked against the venue-reported floor. A bid-side leg from [Tensor](https://www.tensor.trade) collection bids (posted capital that can actually be filled) strengthens this once an API key is provisioned. See [NFT floor pipeline](/oracle/nft-pipeline).
+
+**The depth ceiling.** Solana NFT markets are thin enough that a successful synth could out-trade its own reference and flip price discovery. Two policies contain this:
+
+- **Depth-gated listing.** Only collections above hard liquidity thresholds (sustained volume, listing depth, holder count) qualify.
+- **Hedge reserves sized to depth.** Each market's hedge reserve (`max_open_interest`) is preminted as a multiple of the collection's real market depth, so short debt can never dwarf the underlying market. See [Parameters](/concepts/parameters).
+
+**Expectations.** Floor markets are structurally softer than card markets: fewer qualifying collections, thinner reference data, and tighter caps. They exist because demand for liquid floor exposure is real, but cards are the class the protocol is built around.
+
+## Adding a new asset class
+
+Anything with a defensible external price estimate can become a market: the program needs only an identifier, an oracle feed in lamports per unit, and honest parameter choices. The work is always in the relayer pipeline and listing policy, never in the program. Markets can also launch on the internal curve or attach to a token already trading on [Meteora](https://www.meteora.ag) ([venues](/concepts/amm#venues)); the asset class and the venue are independent choices. See [Listing a market](/guides/listing-a-market).

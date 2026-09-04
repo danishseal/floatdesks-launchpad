@@ -1,0 +1,16 @@
+import * as anchor from "@coral-xyz/anchor";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+const conn = new Connection("http://127.0.0.1:8899", "confirmed");
+const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(`${homedir()}/.config/solana/id.json`, "utf8"))));
+const idl = JSON.parse(readFileSync(new URL("../../target/idl/floorlaunch.json", import.meta.url).pathname, "utf8"));
+idl.address = "QsixfrupxfVEDDYuQsR4vJcE58bbNfctD9WjijM9BjM";
+const provider = new anchor.AnchorProvider(conn, new anchor.Wallet(admin), { commitment: "confirmed" });
+const program = new anchor.Program(idl, provider);
+const [globalPda] = PublicKey.findProgramAddressSync([Buffer.from("global")], new PublicKey(idl.address));
+const g: any = await (program.account as any).global.fetch(globalPda);
+const simOracle = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(new URL("../keys/oracle-sim.json", import.meta.url).pathname, "utf8"))));
+console.log("on-chain oracle:", g.oracleAuthority.toBase58());
+console.log("sim oracle key :", simOracle.publicKey.toBase58());
+console.log("admin          :", g.admin.toBase58(), "| local admin:", admin.publicKey.toBase58());

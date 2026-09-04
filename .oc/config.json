@@ -1,0 +1,19 @@
+{
+  "commit": {
+    "autoAccept": false,
+    "autoStageAll": false
+  },
+  "changelog": {
+    "autoSave": false,
+    "outputFile": "CHANGELOG.md"
+  },
+  "release": {
+    "autoTag": false,
+    "autoPush": false,
+    "tagPrefix": "v"
+  },
+  "general": {
+    "confirmPrompts": true,
+    "verbose": false
+  }
+}

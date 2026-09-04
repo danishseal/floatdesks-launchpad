@@ -1,0 +1,118 @@
+---
+title: "Program ID & PDAs"
+description: "The commas program address and every program-derived address it owns"
+---
+
+## Program ID & deployment
+
+The live mainnet deployment, verifiable on-chain:
+
+| Account | Address | Explorer |
+| --- | --- | --- |
+| Program | `QsixfrupxfVEDDYuQsR4vJcE58bbNfctD9WjijM9BjM` | [Solscan](https://solscan.io/account/QsixfrupxfVEDDYuQsR4vJcE58bbNfctD9WjijM9BjM) |
+| `Global` config | `3HmyakKbiYHBKjXUpmZWffBiLzQ2f3ZwR22HAHucTz2t` | [Solscan](https://solscan.io/account/3HmyakKbiYHBKjXUpmZWffBiLzQ2f3ZwR22HAHucTz2t) |
+
+Deployed to mainnet-beta in [this transaction](https://solscan.io/tx/5Jtaf4iHczVru4tApP7h8YiUn26Rjcwjv1cfjVMmQP97HcLfe5vBFq4M1v8XvC7hGEkdprSgsiyc8A6vyrYNoTUd).
+
+<Frame caption="Every account the program derives, and what owns what.">
+  <img className="hidden dark:block" src="/images/protocol/18-pda-map.png" alt="Every account the program derives, and what owns what." noZoom />
+  <img className="block dark:hidden" src="/images/protocol/18-pda-map-light.png" alt="Every account the program derives, and what owns what." noZoom />
+</Frame>
+
+## PDA map
+
+A PDA (program-derived address) is a Solana account whose address is computed from the program and fixed seeds instead of from a private key. No key for it exists anywhere, so only the program itself can sign for the account: no team member, admin, or server holds a key to any vault, treasury, or market account listed below.
+
+Every account the program owns is a PDA. There is exactly one `Global` per deployment, and one of each market-scoped account per listed collection.
+
+| Account | Seeds | Owner program | Notes |
+| --- | --- | --- | --- |
+| `Global` | `["global"]` | ***commas*** | Singleton config: admin, oracle authority, default params |
+| `Market` | `["market", collection]` | ***commas*** | One per underlying; `collection` is the 32-byte underlying identifier |
+| Synth mint | `["mint", market]` | SPL Token | Internal venue only; 6 decimals; the full supply is preminted at `create_market` and the **mint authority is revoked** in the same transaction. External markets use the externally launched (also fixed-supply) mint recorded in `Market.synth_mint` |
+| Pool token account | `["pool", market]` | SPL Token | Internal venue only; holds the preminted curve allocation during Bootstrap, then the AMM-side seed after [graduation](/concepts/graduation) (the unsold excess burns); authority is the `Market` PDA |
+| Treasury token account | `["treasury", market]` | SPL Token | Authority is the `Market` PDA. Holds the CDP hedging reserve on both venues ([`open_short`](/reference/instructions#open_short) draws from it, repay/liquidate return to it, and its balance is the physical open-interest ceiling). Preminted to `max_open_interest` on internal markets; funded by SPL transfer at listing on external markets |
+| Item reserve token account | `["items", market]` | SPL Token | Authority is the `Market` PDA. Holds the preminted allocation backing [item swaps](/concepts/synth-token#item-swaps): [`deposit_item`](/reference/instructions#deposit_item) pays out of it, [`withdraw_item`](/reference/instructions#withdraw_item) pays back into it. Sized by `params.item_reserve` at creation (zero disables the facility) |
+| SOL vault | `["vault", market]` | System | Plain system account; see below |
+| `ShortPosition` | `["short", market, owner]` | ***commas*** | One per (market, wallet) pair |
+| `ItemRegistration` | `["item", market, item_mint]` | ***commas*** | One per registered copy; created by [`register_item`](/reference/instructions#register_item) |
+| Item escrow | ATA(market, item_mint) | SPL Token | The market's associated token account for a registered item mint; holds deposited copies. Not a seeds PDA, but its authority is the `Market` PDA, so only the program can move copies out |
+| Identity escrow | `["escrow", id_hash]` | System | See below |
+
+<Note>
+The `collection` seed is an opaque 32-byte identifier chosen at listing time. For an NFT market it is the verified collection mint; for a card market it is a key the relayer config maps to a card+grade or basket spec. The program never interprets it. See [Asset classes](/asset-classes).
+</Note>
+
+## The SOL vault
+
+Each market has a single SOL vault, an account only the program itself can sign for, holding **all** lamports belonging to that market. The split is tracked by fields on the `Market` account, not by separate vaults:
+
+| Lamports in the vault | Tracked by |
+| --- | --- |
+| Curve raise (pre-graduation) | `Market.curve_sol_raised` |
+| AMM SOL reserve (post-graduation) | `Market.amm_sol_reserve` |
+| Short collateral | `Market.total_collateral` |
+| Insurance fund | `Market.insurance_lamports` |
+| Accrued protocol fees | `Market.fee_lamports` |
+| Rent buffer (untracked) | Seeded by the admin at market creation; never counted or withdrawn |
+
+Outbound transfers are signed by the vault PDA with seeds `["vault", market, vault_bump]` via the System Program. The untracked rent-exemption buffer guarantees outflows can never strand the vault in the below-rent-exempt band where system transfers start failing.
+
+## Identity escrows
+
+When a launch names a fee receiver by social identity (an X handle, a YouTube channel, an [Elite Fourum](https://elitefourum.com) user) instead of a wallet, that creator's fee share accumulates in a keyless system-account PDA seeded by `["escrow", sha256("platform:handle")]`. No key for the account exists anywhere, so nobody (including the team) can spend it while unverified. After the off-chain nonce-in-bio identity proof, the admin signs [`release_escrow`](/reference/instructions#release_escrow) and the program pays the balance to the wallet the verified creator chose, emitting [`EscrowReleased`](/reference/events#escrowreleased).
+
+## Deriving addresses in TypeScript
+
+The same derivations used by the test suite:
+
+```typescript
+import { PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+
+const [globalPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("global")],
+  program.programId
+);
+const [marketPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("market"), collection.toBuffer()],
+  program.programId
+);
+const [mintPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("mint"), marketPda.toBuffer()],
+  program.programId
+);
+const [poolPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("pool"), marketPda.toBuffer()],
+  program.programId
+);
+const [treasuryPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("treasury"), marketPda.toBuffer()],
+  program.programId
+);
+const [vaultPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("vault"), marketPda.toBuffer()],
+  program.programId
+);
+const [shortPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("short"), marketPda.toBuffer(), owner.toBuffer()],
+  program.programId
+);
+const [itemReservePda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("items"), marketPda.toBuffer()],
+  program.programId
+);
+const [itemRegistrationPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("item"), marketPda.toBuffer(), itemMint.toBuffer()],
+  program.programId
+);
+const [escrowPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("escrow"), idHash], // sha256("platform:handle"), 32 bytes
+  program.programId
+);
+
+// User synth balances live in standard associated token accounts
+const userAta = getAssociatedTokenAddressSync(mintPda, owner);
+```
+
+Stored bumps: `Global.bump`, `Market.bump`, `Market.vault_bump`, `Market.mint_bump`, `Market.treasury_bump`, and `ShortPosition.bump` are persisted at initialization and used for all PDA signing, so clients never need to pass bumps explicitly.

@@ -1,0 +1,148 @@
+---
+title: "Relayer Architecture"
+description: "How the off-chain price relayer computes and pushes the floor index for every market."
+---
+
+<Note>
+The v1 relayer is **built** and lives at `relayer/` in the repository (TypeScript, run
+with `npm run once` for a single cycle or `npm start` for the loop). The full stack was
+exercised end to end against live Mad Lads data from [Magic Eden](https://magiceden.io)
+on 2026-07-23: the relayer estimated and pushed the index, then the market ran curve
+launch, graduation, AMM trading, a hedger short, and funding accrual against it. On
+2026-07-24 the card pipeline did the same live: Umbreon VMAX Alt Art (swsh7-215, RAW,
+$2,137.76 on [TCGplayer](https://www.tcgplayer.com)) landed on chain at 28.32 SOL through a live [Pyth](https://pyth.network) SOL/USD read,
+within 2 bps of source, and the [Meteora](https://www.meteora.ag) DAMM mark source was verified against a live
+SOL-paired pool. Source coverage still grows over time; per-pipeline status is noted
+on the [card pipeline](/oracle/card-pipeline) and [NFT pipeline](/oracle/nft-pipeline)
+pages.
+</Note>
+
+## Overview
+
+Every ***commas*** market prices its synthetic against an **index**: the current market
+value of the collectible (a graded card, a basket of cards, or an NFT collection floor),
+expressed in lamports per whole unit. That index does not exist on any chain. The
+relayer is the market's price feed: a service ***commas*** runs that reads the
+collectible's real prices from marketplaces ([eBay](https://www.ebay.com) and TCGplayer aggregates, Collector
+Crypt, Magic Eden), filters manipulation, and writes the result on chain with a
+signature the program trusts.
+
+<Frame caption="The system: sources, relayer, program, indexer, app.">
+  <img className="hidden dark:block" src="/images/protocol/10-architecture.png" alt="The system: sources, relayer, program, indexer, app." noZoom />
+  <img className="block dark:hidden" src="/images/protocol/10-architecture-light.png" alt="The system: sources, relayer, program, indexer, app." noZoom />
+</Frame>
+
+The relayer is a single off-chain process that:
+
+- holds the **oracle authority keypair** (the only key the program accepts for
+  [`push_index`](/reference/instructions#push_index) and
+  [`push_mark`](/reference/instructions#push_mark)),
+- reads a **per-market config** mapping each market's address to an underlying spec
+  (which card, which grade, which sources, which gates),
+- runs a fetch, estimate, gate, convert, push cycle for every configured market,
+  typically hourly.
+
+One relayer instance serves all markets. Adding a market is one config entry plus an
+on-chain [`create_market`](/reference/instructions#create_market).
+
+The config is a YAML file (see `relayer/config/relayer.example.yaml`):
+
+```yaml
+rpcUrl: https://mainnet.helius-rpc.com/?api-key=YOUR_KEY
+programId: QsixfrupxfVEDDYuQsR4vJcE58bbNfctD9WjijM9BjM
+oracleKeypair: keys/oracle.json
+idlPath: ../target/idl/floorlaunch.json
+intervalSecs: 3600
+
+markets:
+  # NFT collection, priced from Magic Eden
+  - kind: nft
+    market: <MARKET_PDA>
+    symbol: mad_lads
+    lookbackDays: 3
+    minSales: 5
+    maxDisagreementBps: 2500
+
+  # Raw card, live keyless source (TCGplayer market via pokemontcg.io)
+  - kind: card
+    market: <MARKET_PDA>
+    name: "Umbreon VMAX Alt Art"
+    grade: "RAW"
+    source: pokemontcg
+    cardId: swsh7-215
+    variant: holofoil
+    lookbackDays: 14
+    minSales: 5
+    maxDisagreementBps: 1500
+
+  # Graded card until the graded API key lands: operator-attested USD
+  - kind: card
+    market: <MARKET_PDA>
+    name: "Umbreon VMAX Alt Art"
+    grade: "PSA 10"
+    source: manual
+    usdPrice: 4500
+    lookbackDays: 14
+    minSales: 5
+    maxDisagreementBps: 1500
+
+  # External-venue market: also compute and push the mark from Meteora
+  - kind: nft
+    market: <MARKET_PDA>
+    symbol: some_collection
+    externalPool: <DAMM_POOL_ADDRESS>
+    synthMint: <TOKEN_MINT>
+    lookbackDays: 3
+    minSales: 5
+    maxDisagreementBps: 2500
+```
+
+## The cycle
+
+For each market, each cycle:
+
+1. **Fetch** raw data from every configured source (sale prints, bids, asks,
+   marketplace quotes). Sources differ per asset class; see the
+   [card pipeline](/oracle/card-pipeline) and [NFT pipeline](/oracle/nft-pipeline).
+2. **Estimate** a single fair value in USD (cards) or SOL (NFT floors) using
+   recency-weighted medians with outlier rejection.
+3. **Gate** the estimate. If sources disagree too much, or there is not enough
+   underlying trade activity in the window, the relayer does not push. It holds the
+   last value and raises an alert instead.
+4. **Convert** to lamports per unit. Dollar-denominated estimates go through a
+   Pyth SOL/USD read.
+5. **Push** a signed `push_index(price_lamports)` transaction for the market.
+6. **External-venue markets only**: additionally compute the mark price from the
+   configured Meteora DAMM pool (reserve amounts from Meteora's public API; the pool
+   must be a synth/WSOL pair) and push it with `push_mark`. The on-chain program
+   never parses external pool bytes; the mark enters through the same oracle-signed,
+   EMA-smoothed, funding-clamped path as everything else. See
+   [Venues](/concepts/amm#venues).
+
+## Defense in depth: what the chain adds
+
+The relayer is a trusted component, but the program is designed so that trust is
+bounded. A pushed price passes through four on-chain defenses before it can affect
+anyone's position:
+
+| Defense | Parameter | Effect |
+| --- | --- | --- |
+| Push rate limit | `min_push_interval_secs` | Caps how often the index can be touched at all |
+| EMA TWAP | `index_window_secs` | A single push only pulls the index part of the way toward the new print |
+| [Circuit breaker](/concepts/circuit-breaker) | `breaker_bps` | A push deviating too far from the TWAP freezes the market instead of entering the index |
+| [Funding clamp](/concepts/funding) | `max_funding_bps_per_day` | Even a wrong index can only tilt a bounded daily funding flow |
+| [Staleness guard](/concepts/price-index#staleness-guard) | `max_index_age_secs` | An index the relayer stops refreshing stops being trusted: shorts, withdrawals against debt, funding, and liquidations halt until the feed resumes |
+
+There is no instruction anywhere in the program that redeems or pays out third-party
+funds at the oracle price. A bad print can tilt funding and shift collateral-ratio
+checks; it cannot drain a pool.
+
+## Pushes as heartbeat
+
+The relayer pushes every cycle **even when the price is unchanged**. Each accepted
+push updates `index_last_ts` on the market account, which both drives the on-chain
+[staleness guard](/concepts/price-index#staleness-guard) and lets anyone (UIs, bots)
+read exactly how fresh the index is. A market whose `index_last_ts` is hours old is
+visibly stale, and past `max_index_age_secs` it stops being trusted at all.
+
+See [Operations](/oracle/operations) for key handling, alerting, and failure behavior.

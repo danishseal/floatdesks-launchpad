@@ -1,0 +1,46 @@
+---
+title: "Errors"
+description: "The complete FloorlaunchError enum and where each error is raised"
+---
+
+Custom errors start at Anchor's standard offset (6000). Anchor constraint violations (`has_one`, seeds, ATA constraints) surface as Anchor's built-in error codes and are not listed here, with one exception: the `Unauthorized` custom error is attached to the oracle-signer and liquidation-owner constraints.
+
+| Error | Message | Raised by | Why |
+| --- | --- | --- | --- |
+| `Unauthorized` | unauthorized | `push_index`, `push_mark`, `liquidate` | Signer is not `Global.oracle_authority`; or the `position_owner` account does not match `position.owner` |
+| `NotBootstrap` | market is not in bootstrap phase | `curve_buy`, `curve_sell`, `graduate` | Curve operations after graduation |
+| `NotLive` | market is not live | `amm_buy`, `amm_sell`, `open_short`, `accrue_funding`, `liquidate` | Live-phase operations before graduation |
+| `Frozen` | market is frozen | `push_index`, `push_mark`, `curve_buy`, `curve_sell`, `graduate`, `amm_buy`, `amm_sell`, `open_short`, `withdraw_collateral`, `repay_burn`, `accrue_funding`, `liquidate`, `deposit_item`, `withdraw_item` | The [circuit breaker](/concepts/circuit-breaker) is set. Only `add_collateral` and admin instructions still work; oracle pushes are refused so the TWAP cannot be walked during a freeze |
+| `NotFrozen` | market is not frozen | (currently unused) | Reserved; `set_frozen` accepts either direction without checking prior state |
+| `PushTooSoon` | oracle push too soon after previous push | `push_index`, `push_mark` | Less than `min_push_interval_secs` since the last push |
+| `BadIndexValue` | index observation outside sane bounds | `push_index`, `push_mark` | Zero price |
+| `Slippage` | slippage limit exceeded | `curve_buy`, `curve_sell`, `amm_buy`, `amm_sell` | Output below the caller's minimum |
+| `ZeroAmount` | amount must be greater than zero | `create_market`, `curve_buy`, `curve_sell`, `graduate`, `amm_buy`, `amm_sell`, `open_short`, `add_collateral`, `withdraw_collateral`, `repay_burn`, `withdraw_fees`, `release_escrow` | Zero input, zero computed output, zero curve params at market creation, or an empty identity escrow |
+| `TargetNotReached` | graduation target not reached | `graduate` | `curve_sol_raised < graduation_target_sol` |
+| `CurveSellTooLarge` | curve sell exceeds tokens sold | `curve_sell` | Selling more than the curve has net-sold |
+| `InsufficientCollateral` | collateral ratio below requirement | `open_short`, `withdraw_collateral`, `close_position` | Post-action CR below `initial_cr_bps`; on `close_position`, collateral not yet withdrawn |
+| `OpenInterestCapReached` | open interest cap reached | `open_short` | Market-wide debt would exceed `max_open_interest`, the hedge-reserve size |
+| `NotLiquidatable` | position is not liquidatable | `liquidate` | Zero debt, or CR at or above `maintenance_cr_bps` |
+| `RepayTooLarge` | repay exceeds outstanding debt | `repay_burn` | Amount above current debt |
+| `CrankTooSoon` | funding crank too soon after previous crank | `accrue_funding` | Less than `min_crank_interval_secs` since the last crank |
+| `NoIndex` | no index price available yet | `graduate`, `open_short`, `withdraw_collateral` (with debt), `accrue_funding`, `liquidate`, `deposit_item`, `withdraw_item` | The market has never received an oracle push |
+| `IndexStale` | index price is stale | `open_short`, `withdraw_collateral` (with debt), `accrue_funding`, `liquidate`, `deposit_item`, `withdraw_item` | With `max_index_age_secs > 0`, the last accepted push is older than the configured age (on external markets `accrue_funding` also applies this to the pushed mark); see the [staleness guard](/concepts/price-index#staleness-guard) |
+| `MathOverflow` | math overflow | `accrue_funding`, AMM/curve math helpers | Funding index would go non-positive, or constant-product math underflowed |
+| `InsufficientVaultFunds` | insufficient vault funds for withdrawal | `curve_sell`, `amm_sell`, `withdraw_collateral`, `withdraw_fees` | Requested lamports exceed the tracked balance for that bucket |
+| `DebtOutstanding` | position still has outstanding debt | `close_position` | `debt_scaled != 0` |
+| `ImmutableParam` | parameter cannot be changed after market creation | `update_market_params` | Attempted to change `curve_virtual_sol` or `curve_virtual_tokens` on an existing market |
+| `WrongVenue` | instruction not available for this market venue | `push_mark`, `amm_buy`, `amm_sell` | `push_mark` requires an external-venue market; internal-AMM trading requires an internal-venue market |
+| `NoMark` | no mark price available yet | `accrue_funding`, `deposit_item`, `withdraw_item` | External-venue market has never received a [`push_mark`](/reference/instructions#push_mark); item swaps need a mark to price the swap |
+| `TreasuryDepleted` | treasury reserve cannot cover this mint | `open_short` | Treasury balance below the requested draw (both venues); the preminted or listing-funded reserve is the market's physical open-interest ceiling |
+| `ItemReserveDepleted` | item reserve cannot cover this deposit | `deposit_item` | The preminted [item reserve](/concepts/synth-token#item-swaps) holds fewer tokens than one item is currently worth; withdrawals replenish it |
+| `ItemNotRegistered` | item is not registered for this market | `deposit_item`, `withdraw_item` | Attached to the `ItemRegistration` constraint: the passed mint has no registration PDA for this market (an unregistered mint typically surfaces as an Anchor seeds violation) |
+| `ItemNotInEscrow` | item escrow does not hold this item | `withdraw_item` | The market's escrow for that mint is empty; someone already withdrew the copy |
+
+## Client handling notes
+
+- **`Slippage`**: retry with a fresh quote; both curve and AMM state may have moved between simulation and execution.
+- **`Frozen`**: subscribe to [`BreakerTripped`](/reference/events#breakertripped) to distinguish a breaker halt from an admin freeze; positions can still `add_collateral` while frozen.
+- **`CrankTooSoon` / `PushTooSoon`**: benign races between competing keepers/relayer retries; back off to the configured interval.
+- **`NoIndex`**: a freshly created market needs at least one `push_index` before graduation and any CDP activity.
+- **`IndexStale`**: the relayer has not pushed within `max_index_age_secs`. Index-priced operations resume on the next accepted push; nothing needs to be reset.
+- **`ItemNotInEscrow`**: item withdrawals are first-come while escrow inventory lasts; re-quote against `Market.items_deposited` before retrying.

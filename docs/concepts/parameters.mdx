@@ -1,0 +1,77 @@
+---
+title: "Parameters"
+description: "Every MarketParams field: what it controls and how it is set."
+---
+
+Every market carries a full `MarketParams` struct. Defaults live on the `Global` account and are set at `init_global`; the admin may override them per market at `create_market`, and update them later with [`update_market_params`](/reference/instructions#update_market_params). The two curve virtual reserves are the exception: they are immutable after creation (`ImmutableParam`), because the running curve state depends on them.
+
+<Note>
+The values below are illustrative, chosen to show sensible orders of magnitude for a liquid mainnet market. They are not final and would be tuned per underlying at listing time.
+</Note>
+
+## Oracle and index
+
+| Field | Type | Meaning | Illustrative |
+| --- | --- | --- | --- |
+| `index_window_secs` | u32 | EMA window for the index TWAP; a push moves the TWAP by min(dt, window)/window | 21600 (6h) |
+| `min_push_interval_secs` | u32 | Minimum seconds between accepted oracle pushes | 1800 (30m) |
+| `breaker_bps` | u16 | Push deviation from TWAP that trips the [circuit breaker](/concepts/circuit-breaker) | 2000 (20%) |
+| `max_index_age_secs` | u32 | [Staleness guard](/concepts/price-index#staleness-guard): an index older than this blocks shorts, withdrawals against debt, funding, and liquidations (`IndexStale`); 0 disables | 14400 (4h) |
+
+## Mark price and funding
+
+| Field | Type | Meaning | Illustrative |
+| --- | --- | --- | --- |
+| `mark_window_secs` | u32 | EMA window for the AMM mark price used by funding | 3600 (1h) |
+| `funding_k_bps` | u16 | Funding sensitivity; 10000 = daily rate equals the premium | 5000 (0.5x) |
+| `max_funding_bps_per_day` | u16 | Absolute clamp on the daily funding rate | 300 (3%/day) |
+| `min_crank_interval_secs` | u32 | Minimum seconds between `accrue_funding` cranks | 300 (5m) |
+
+## Collateral and liquidation
+
+| Field | Type | Meaning | Illustrative |
+| --- | --- | --- | --- |
+| `initial_cr_bps` | u16 | Collateral ratio required to open a short or withdraw collateral | 15000 (150%) |
+| `maintenance_cr_bps` | u16 | CR below which a position is liquidatable | 12000 (120%) |
+| `liq_bonus_bps` | u16 | Liquidator premium over repaid debt value | 500 (5%) |
+| `max_open_interest` | u64 | The size of the hedge reserve: the preminted allocation hedgers can draw against collateral, in synth base units. Also enforced arithmetically as a cap on total CDP debt (the derivatives term for this bound is an open interest cap) | sized to underlying depth |
+
+The hedge reserve is the tail-wags-dog guard: it keeps the synthetic market from outgrowing the real collectible market whose price it references. Sizing it is a listing-time judgment call; see [Listing a Market](/guides/listing-a-market).
+
+On the internal venue it plays a double role: `create_market` premints exactly this many base units into the treasury reserve before revoking the mint authority, so the parameter is both the arithmetic check and the physical supply allocation. The binding cap is the smaller of the parameter and the treasury balance. `update_market_params` can lower the effective cap, but it can never raise the physical reserve: supply is fixed, so the reserve chosen at creation is the facility's ceiling forever. Size it generously at listing.
+
+## Item swaps
+
+| Field | Type | Meaning | Illustrative |
+| --- | --- | --- | --- |
+| `item_reserve` | u64 | Preminted allocation backing [item swaps](/concepts/synth-token#item-swaps), base units; 0 disables the facility | sized for 25 items at launch scale |
+| `units_per_item_micro` | u64 | How many units (1M tokens each) one physical item was worth at launch, in millionths: `card_index_at_launch / 0.625 SOL`. Carries the item's real size into item swaps, since the launch-scaled index prices a unit, not a card. Must be `> 0` whenever `item_reserve > 0` (`ZeroAmount` at `create_market` otherwise) | `1_000_000` = one unit per item |
+
+Like the hedge reserve, `item_reserve` is a physical premint made before the mint authority is revoked, so it can never be raised after creation. Each `deposit_item` pays `index_twap * 1e12 * units_per_item_micro / mark_ema / 1e6` base units out of it and each `withdraw_item` pays the same formula back in, so the reserve floats around its initial size as copies flow in and out. The launch executor sizes it for 25 deposited items at launch scale (`units_per_item_micro * 1e6 * 25` base units). Size it to the number of vaulted copies you realistically expect deposited at once, with headroom for the token trading below parity (a cheap mark pays out more tokens per copy).
+
+## Launch curve and graduation
+
+| Field | Type | Meaning | Illustrative |
+| --- | --- | --- | --- |
+| `curve_fee_bps` | u16 | Trade fee on curve buys and sells | 100 (1%) |
+| `graduation_target_sol` | u64 | Real SOL raised that permits `graduate` | 100 SOL (launch convention) |
+| `insurance_share_bps` | u16 | Share of the raise seeding the [insurance fund](/concepts/insurance-fund) | 0 (launch convention: the full raise seeds the pool) |
+| `curve_virtual_sol` | u64 | Initial virtual SOL reserve, lamports; immutable after creation | 25 SOL (launch convention) |
+| `curve_virtual_tokens` | u64 | Initial virtual token reserve, base units; immutable after creation | the full 1B token supply (launch convention) |
+
+The two virtual reserves define the curve's starting price: `curve_virtual_sol / curve_virtual_tokens` lamports per base unit. The launch convention is identical for every market, regardless of the underlying: 25 SOL virtual against the full 1B supply opens the token at a 25 SOL market cap, and the 100 SOL graduation target closes the curve at 0.625 SOL per unit, about a 625 SOL market cap, with the entire raise seeding the AMM (see [Launch Curve](/concepts/launch-curve)).
+
+## AMM
+
+| Field | Type | Meaning | Illustrative |
+| --- | --- | --- | --- |
+| `amm_fee_bps` | u16 | Trade fee on post-graduation AMM swaps | 100 (1%) |
+
+## How parameters interact
+
+A few couplings worth knowing when tuning:
+
+- **Breaker vs push interval.** `breaker_bps` bounds movement per accepted push, and `min_push_interval_secs` bounds push frequency, so together they cap the index's maximum slew rate even under a compromised oracle key.
+- **Staleness vs push cadence.** `max_index_age_secs` should comfortably exceed the relayer's push interval (and `min_push_interval_secs`), or routine gaps will lock CDP operations; a 4h guard against an hourly push cadence leaves room for a few missed cycles.
+- **Initial vs maintenance CR.** The gap (150% vs 120% illustrative) is the shorter's buffer: how much the index can rise before a fresh position at minimum collateral becomes liquidatable.
+- **Funding clamp vs hedge reserve.** Worst-case daily value transfer from a manipulated index is `max_open_interest * max_funding_bps_per_day / 10000`. These two parameters are the security budget.

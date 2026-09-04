@@ -1,0 +1,117 @@
+---
+title: "Roadmap"
+description: "Where commas is today and what is planned, in order."
+---
+
+## Current status (v1)
+
+The core Anchor program is live on Solana mainnet and passing a 21-test
+integration suite: oracle pushes with EMA index and circuit breaker, bonding
+curve, graduation into the internal AMM, CDP shorts, clamped funding,
+liquidations with insurance top-up, the staleness guard, admin parameter
+updates, fee withdrawal, keyless [identity fee
+escrows](/reference/pdas#identity-escrows), value-based [item
+swaps](/concepts/synth-token#item-swaps) against registered vaulted copies,
+and an external-venue market running off a treasury reserve with an
+oracle-pushed mark.
+
+The v1 price feed (the [relayer](/oracle/architecture)) is built (TypeScript,
+`relayer/` in the repo): [Magic Eden](https://magiceden.io) listing-ladder estimation for NFT floors, a live keyless
+[TCGplayer](https://www.tcgplayer.com) source for raw cards plus config-priced graded mode with live [Pyth](https://pyth.network)
+SOL/USD conversion, a [Meteora](https://www.meteora.ag) DAMM mark source for external venues,
+disagreement gates, and YAML per-market config. On 2026-07-23 the full stack
+ran end to end against live Mad Lads data: the relayer
+pushed the real index, then the market ran curve launch, graduation, AMM
+trading, a hedger short, and funding accrual. On 2026-07-24 the card pipeline
+repeated the exercise live (Umbreon VMAX Alt Art, swsh7-215 RAW, $2,137.76 on
+TCGplayer, on chain at 28.32 SOL within 2 bps of source) and the Meteora mark
+source was verified against a live SOL-paired DAMM pool.
+
+An adversarial review pass on the funding, liquidation, and vault-conservation
+math ran on 2026-07-24; the three findings it produced (funding-crank dt cap,
+oracle pushes refused while frozen, vault rent buffer) are fixed and covered
+above.
+
+***commas*** is live on Solana mainnet: launches, trading, item swaps,
+hedging, and the oracle feeds all run in production. Remaining build-out:
+additional graded card-price API sources and the independent audit work
+below.
+
+## The commas token
+
+A ***commas*** token will launch on [pump.fun](https://pump.fun). The
+announcement and the official contract address will come from
+[@commasdotart on X](https://x.com/commasdotart) and nowhere else; treat any
+other address as fake. The protocol does not depend on it: every market's
+synth token works the same with or without it.
+
+## Planned work
+
+Roughly in build order. Items are planned, not promised.
+
+### Meteora external venue (shipped in v1 form)
+
+Done on chain: markets carry a [venue](/concepts/amm#venues), and
+[`create_external_market`](/reference/instructions#create_external_market)
+attaches a market to a token launched on Meteora DBC into a DAMM pool, with
+**treasury-reserve supply** (`open_short` draws from a program-held reserve
+whose balance is the physical open-interest cap) and an **oracle-pushed mark**
+([`push_mark`](/reference/instructions#push_mark)) computed by the relayer
+from Meteora's public pool API. The internal curve and AMM remain the default
+venue.
+
+Remaining on this path: a ***commas***-branded DBC config key so launches run
+through Meteora end to end from our UI (today an external launch happens on
+Meteora's side first, then the market attaches).
+
+### Production graded-card sources
+
+The relayer's raw-card source (TCGplayer via pokemontcg.io) is live. Graded
+production means wiring the full [oracle pipeline](/oracle/card-pipeline):
+subscription aggregator APIs plus [eBay](https://www.ebay.com) sold prints plus tokenized-venue
+cross-checks, MAD outlier rejection, sanity bands from capitalized bids,
+cross-source agreement gates, and paging alerts. The NFT side additionally
+gains a [Tensor](https://www.tensor.trade) bid leg (see [NFT pipeline](/oracle/nft-pipeline)) once API
+keys are provisioned.
+
+### On-chain staleness guard (shipped)
+
+Done: a per-market `max_index_age_secs` now rejects `open_short`,
+`withdraw_collateral` against debt, `accrue_funding`, and `liquidate` with
+`IndexStale` when `now - index_last_ts` exceeds it, alongside an admin
+`update_market_params` instruction (curve virtuals immutable). See the
+[staleness guard](/concepts/price-index#staleness-guard).
+
+### Physical delivery valve (shipped as item swaps)
+
+Superseded by something stronger than the original one-directional design:
+[item swaps](/concepts/synth-token#item-swaps) let holders deposit a
+registered vaulted-card NFT of the matching card+grade for tokens of equal
+value at current prices, and let any token holder swap tokens back for a copy
+from escrow. Bidirectional, value-based (index over mark EMA, so no fixed
+tokens-per-item rate to game), and funded by a preminted item reserve so
+supply stays fixed. Remaining on this path: on-chain collection verification
+to replace admin-gated `register_item`.
+
+### Long-side staked funding
+
+v1 settles funding against short debt only. v2 adds an opt-in staking pool so
+token holders who stake participate in funding flows directly, tightening the
+peg from the long side.
+
+### Permissionless listing
+
+Replace admin gating with on-chain depth attestations, so anyone can list a
+market whose underlying provably meets the [listing criteria](/guides/listing-a-market).
+
+### Timed auction frames
+
+An alternative launch mode in the style of Long's frames: time-gated targets
+where a launch fails cleanly if demand does not materialize on schedule,
+instead of lingering half-bootstrapped.
+
+### Audits
+
+Independent review of the funding math, liquidation edges, and vault
+accounting. A fuzz harness for the CDP and funding paths is part of this
+work.

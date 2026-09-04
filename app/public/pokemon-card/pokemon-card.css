@@ -1,0 +1,18 @@
+pokemon-card { --pcard-x:50%; --pcard-y:50%; --pcard-rx:0deg; --pcard-ry:0deg; display:inline-block; width:min(300px, 80vw); aspect-ratio: 660 / 921; perspective:1000px; }
+pokemon-card .pcard-shell { width:100%; height:100%; transition:transform .5s cubic-bezier(.2,.8,.2,1); }
+pokemon-card .pcard-tilt { position:relative; display:block; width:100%; height:100%; padding:0; border:0; border-radius:4.5%; overflow:hidden; cursor:pointer; transform:rotateX(var(--pcard-rx)) rotateY(var(--pcard-ry)); transform-style:preserve-3d; transition:transform .25s ease, box-shadow .25s ease; box-shadow:0 10px 25px #0005; background:#222; }
+pokemon-card .pcard-tilt:focus-visible { outline:3px solid #49d9ff; outline-offset:5px; }
+pokemon-card .pcard-image, pokemon-card .pcard-back { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; backface-visibility:hidden; }
+pokemon-card .pcard-back { transform:rotateY(180deg); }
+pokemon-card.is-flipped .pcard-tilt { transform:rotateY(180deg) rotateX(var(--pcard-rx)) rotateY(var(--pcard-ry)); }
+pokemon-card.is-flipped .pcard-shine, pokemon-card.is-flipped .pcard-glare { display:none; }
+pokemon-card .pcard-shine, pokemon-card .pcard-glare { position:absolute; inset:0; pointer-events:none; border-radius:inherit; opacity:0; transition:opacity .25s ease; }
+pokemon-card .pcard-shine { background:var(--pcard-foil, linear-gradient(115deg, transparent 15%, #fff8 35%, #f0f 45%, #0ff 55%, transparent 70%)); background-size:220% 220%; background-position:var(--pcard-x) var(--pcard-y); mix-blend-mode:color-dodge; }
+pokemon-card .pcard-glare { background:radial-gradient(circle at var(--pcard-x) var(--pcard-y), #fff9, transparent 35%); mix-blend-mode:screen; }
+pokemon-card.is-interacting .pcard-shine, pokemon-card.is-interacting .pcard-glare { opacity:.8; }
+pokemon-card.is-open { position:relative; z-index:1000; }
+pokemon-card.is-open .pcard-shell { transform:translate(calc(50vw - 50%), calc(50vh - 50%)) scale(min(1.75, 90vw / 300px, 90vh / 420px)); }
+pokemon-card.is-open .pcard-tilt { animation:pcard-pop .7s ease both; }
+pokemon-card.is-open:before { content:""; position:fixed; z-index:-1; inset:-100vmax; background:#0009; pointer-events:none; }
+@keyframes pcard-pop { 0% { transform:rotateY(0) scale(1) } 45% { transform:rotateY(360deg) scale(1.08) } 100% { transform:rotateY(360deg) scale(1) } }
+@media (prefers-reduced-motion:reduce) { pokemon-card *, pokemon-card *:before { animation:none!important; transition:none!important; } }

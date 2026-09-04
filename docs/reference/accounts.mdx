@@ -1,0 +1,157 @@
+---
+title: "Accounts"
+description: "Field-by-field reference for Global, Market, MarketParams, ShortPosition, and ItemRegistration"
+---
+
+## Constants
+
+Defined in `state.rs` and used throughout the account math:
+
+| Constant | Value | Meaning |
+| --- | --- | --- |
+| `TOKENS_PER_NFT` | `1_000_000` | Whole synth tokens per one unit of the underlying |
+| `SYNTH_DECIMALS` | `6` | Synth mint decimals |
+| `BASE_UNITS_PER_NFT` | `1_000_000_000_000` (1e12) | Token base units per underlying unit (1M tokens x 10^6) |
+| `FUNDING_ONE` | `1_000_000_000_000` (1e12) | Fixed-point one for the cumulative [funding index](/concepts/funding) |
+| `BPS` | `10_000` | Basis-point denominator |
+
+All prices per underlying unit (index, mark) are in **lamports per whole NFT/card**, so the target price per token base unit is `index / 1e12`.
+
+## Global
+
+Singleton at `["global"]`. Created once by [`init_global`](/reference/instructions#init_global).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `admin` | `Pubkey` | Can create markets, freeze/unfreeze, rotate the oracle key, withdraw fees |
+| `oracle_authority` | `Pubkey` | The only signer accepted by [`push_index`](/reference/instructions#push_index) and [`push_mark`](/reference/instructions#push_mark) |
+| `default_params` | `MarketParams` | Applied to new markets when `create_market` passes `params = null` |
+| `bump` | `u8` | PDA bump |
+
+## MarketParams
+
+Embedded in both `Global` (defaults) and each `Market` (active values). Updatable post-creation via [`update_market_params`](/reference/instructions#update_market_params), except the curve virtual reserves. See [Parameters](/concepts/parameters) for tuning guidance.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `index_window_secs` | `u32` | EMA window for the oracle index TWAP |
+| `min_push_interval_secs` | `u32` | Minimum seconds between oracle pushes |
+| `breaker_bps` | `u16` | Push deviation from TWAP beyond this trips the [circuit breaker](/concepts/circuit-breaker) |
+| `max_index_age_secs` | `u32` | [Staleness guard](/concepts/price-index#staleness-guard): index older than this blocks shorts, withdrawals against debt, funding, and liquidations; 0 disables |
+| `mark_window_secs` | `u32` | EMA window for the AMM mark price |
+| `funding_k_bps` | `u16` | Funding sensitivity: `rate_per_day = premium * funding_k_bps / 10000` |
+| `max_funding_bps_per_day` | `u16` | Absolute clamp on the daily funding rate |
+| `min_crank_interval_secs` | `u32` | Minimum seconds between [`accrue_funding`](/reference/instructions#accrue_funding) cranks |
+| `initial_cr_bps` | `u16` | Collateral ratio required to open a short or withdraw collateral (e.g. 15000 = 150%) |
+| `maintenance_cr_bps` | `u16` | Below this ratio a position is liquidatable |
+| `liq_bonus_bps` | `u16` | Liquidator bonus as bps of repaid debt value |
+| `max_open_interest` | `u64` | Cap on total CDP debt, in token base units |
+| `item_reserve` | `u64` | Preminted allocation backing [item swaps](/concepts/synth-token#item-swaps), in token base units; 0 disables item swaps for the market |
+| `units_per_item_micro` | `u64` | How many launch-scale units (1M tokens each) one physical item was worth at launch, in millionths; required nonzero when `item_reserve > 0` |
+| `curve_fee_bps` | `u16` | Trade fee during the launch curve |
+| `amm_fee_bps` | `u16` | Trade fee on the internal AMM |
+| `graduation_target_sol` | `u64` | Real SOL raised (lamports) that permits [graduation](/concepts/graduation) |
+| `insurance_share_bps` | `u16` | Share of the raise seeding the [insurance fund](/concepts/insurance-fund) (zero under the launch convention) |
+| `curve_virtual_sol` | `u64` | Initial virtual SOL reserve of the curve (lamports); immutable after creation |
+| `curve_virtual_tokens` | `u64` | Initial virtual token reserve of the curve (base units); immutable after creation |
+
+## Market
+
+One per underlying at `["market", collection]`.
+
+### Identity and status
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `collection` | `Pubkey` | Opaque underlying identifier (seed of this PDA) |
+| `synth_mint` | `Pubkey` | The market's synth SPL mint (program PDA on the internal venue, the externally launched mint on the external venue). Mint authority is `None` in both cases: internal mints are revoked at `create_market` after the premint, so every synth is fixed-supply |
+| `status` | `MarketStatus` | `Bootstrap` (curve phase) or `Live` (post-graduation; external markets start `Live`) |
+| `venue` | `Venue` | `Internal` (program curve + AMM; fixed supply preminted at creation, mint revoked) or `External` ([Meteora](https://www.meteora.ag) DBC/DAMM launch; mark via [`push_mark`](/reference/instructions#push_mark)). CDP supply flows through the treasury reserve on both |
+| `frozen` | `bool` | Circuit-breaker flag; independent of `status` so a freeze preserves the phase |
+| `params` | `MarketParams` | Active parameters (copied or overridden at creation) |
+
+### Oracle index
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `index_twap` | `u64` | Time-weighted EMA of accepted oracle observations, lamports per unit |
+| `index_last_raw` | `u64` | Last pushed raw observation (recorded even when the breaker trips) |
+| `index_last_ts` | `i64` | Unix time of the last push; drives the [staleness guard](/concepts/price-index#staleness-guard) and freshness display for clients |
+
+### Curve state
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `curve_virtual_sol` | `u64` | Current virtual SOL reserve |
+| `curve_virtual_tokens` | `u64` | Current virtual token reserve |
+| `curve_sol_raised` | `u64` | Net real SOL held from curve buys (after fees, minus sell-backs) |
+| `curve_tokens_sold` | `u64` | Net tokens minted to curve buyers |
+
+### AMM state
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `amm_sol_reserve` | `u64` | Real SOL reserve (post-graduation) |
+| `amm_token_reserve` | `u64` | Real token reserve, backed by the pool token account |
+| `mark_ema` | `u64` | EMA of the mark price, lamports per unit; fed by AMM swaps on the internal venue and by [`push_mark`](/reference/instructions#push_mark) on the external venue |
+| `mark_last_ts` | `i64` | Last mark update time; on external markets it also drives the mark-freshness check in `accrue_funding` |
+
+### Funding and CDP aggregates
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `funding_index` | `u128` | Cumulative funding index, `FUNDING_ONE` fixed point, starts at 1e12 |
+| `funding_last_ts` | `i64` | Last funding crank time |
+| `total_debt_scaled` | `u128` | Sum of all positions' scaled debt |
+| `total_collateral` | `u64` | Sum of all positions' collateral, lamports |
+
+### Vault accounting and bumps
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `insurance_lamports` | `u64` | Insurance fund balance inside the [SOL vault](/reference/pdas#the-sol-vault) |
+| `fee_lamports` | `u64` | Accrued protocol fees inside the SOL vault |
+| `items_deposited` | `u32` | Copies of the underlying currently held across the market's item escrows; incremented by `deposit_item`, decremented by `withdraw_item` |
+| `bump` / `vault_bump` / `mint_bump` / `treasury_bump` | `u8` | Stored PDA bumps (`mint_bump` is meaningless on external markets) |
+
+### Helper math (on-chain)
+
+```rust
+debt_from_scaled(scaled) = scaled * funding_index / FUNDING_ONE
+scaled_from_debt(debt)   = ceil(debt * FUNDING_ONE / funding_index)
+value_at_index(units)    = units * index_twap / BASE_UNITS_PER_NFT
+amm_spot_per_nft()       = amm_sol_reserve * BASE_UNITS_PER_NFT / amm_token_reserve
+```
+
+## ItemRegistration
+
+One per (market, item mint) at `["item", market, item_mint]`. Created by [`register_item`](/reference/instructions#register_item); its existence is what makes a specific on-chain copy (a vaulted-card NFT, a collection NFT) depositable via [item swaps](/concepts/synth-token#item-swaps).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `market` | `Pubkey` | Market the item is registered for |
+| `item_mint` | `Pubkey` | The copy's SPL mint (0 decimals, supply 1) |
+| `bump` | `u8` | PDA bump |
+
+## ShortPosition
+
+One per (market, owner) at `["short", market, owner]`. Created lazily by [`open_short`](/reference/instructions#open_short), closed by [`close_position`](/reference/instructions#close_position).
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `owner` | `Pubkey` | Position owner |
+| `market` | `Pubkey` | Parent market |
+| `collateral` | `u64` | Posted SOL collateral, lamports |
+| `debt_scaled` | `u128` | Funding-scaled debt (see below) |
+| `bump` | `u8` | PDA bump |
+
+### Funding-scaled debt
+
+Debt is not stored as a token amount. It is stored divided by the market's `funding_index` at the moment it was incurred, in `FUNDING_ONE` fixed point:
+
+```
+stored:  debt_scaled = ceil(minted * FUNDING_ONE / funding_index_at_open)
+current: debt        = debt_scaled * funding_index_now / FUNDING_ONE
+```
+
+Because every position's current debt is a multiplication by the same global `funding_index`, a single [funding](/concepts/funding) crank reprices every short in the market with one account write. When the mark trades above the index the funding index falls and every short's debt shrinks; below the index it grows.

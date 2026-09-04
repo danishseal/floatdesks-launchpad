@@ -1,0 +1,114 @@
+---
+title: "Hedging with Shorts"
+description: "Lock in the value of a card or NFT you hold by drawing synth against SOL collateral and selling it."
+---
+
+If you hold the underlying (a graded card, an NFT from the collection), you
+can hedge its downside without selling it: post SOL collateral, draw synth
+from the treasury reserve at the index, and sell the synth. If the market
+falls, your short profit offsets the loss on the physical asset. You keep the
+asset, its provenance, and any holder benefits.
+
+Shorts are also the supply side of the whole system: every circulating
+CDP-drawn token is backed by a short's collateral. See
+[Shorts](/concepts/shorts) for the mechanics.
+
+## Opening a short
+
+The market must be `Live` and not frozen. Your collateral must cover the
+drawn debt at the initial collateral ratio (`initial_cr_bps`, for example
+150%):
+
+```
+collateral >= mint_amount_value * initial_cr / 100
+mint_amount_value = mint_amount_base_units * index_twap / 1e12
+```
+
+```typescript
+// Mint 500,000 tokens (half a unit) against 80 SOL collateral
+await program.methods
+  .openShort(new BN(80 * LAMPORTS_PER_SOL), new BN("500000000000"))
+  .accountsPartial({
+    market: marketPda,
+    synthMint: mintPda,
+    solVault: vaultPda,
+    position: shortPda,       // ["short", market, owner]
+    owner: wallet.publicKey,
+    ownerAta: getAssociatedTokenAddressSync(mintPda, wallet.publicKey),
+  })
+  .rpc();
+```
+
+Then sell the drawn synth on the AMM. The SOL you receive is your hedge
+proceeds; your position's debt remains 500,000 tokens.
+
+## A worked example
+
+Index: 100 SOL per unit. You hold a card worth about 100 SOL and want to hedge
+all of it.
+
+- Mint 1,000,000 tokens (one unit, 1e12 base units). Debt value = 100 SOL.
+- At 150% initial CR you must post at least 150 SOL. Say you post 150 SOL.
+- You sell the synth for roughly 100 SOL (minus fees and slippage).
+- Maintenance CR is 120%, so you are liquidatable when
+  `150 / index < 1.2`, that is when the index rises above 125 SOL.
+
+If the floor drops to 70 SOL: your card lost about 30 SOL of value, but you
+can buy back 1,000,000 tokens for about 70 SOL, repay, and keep the roughly
+30 SOL difference. The hedge worked.
+
+If the floor rips to 130 SOL: your card gained 30 SOL, but your short is
+underwater and past maintenance. Either you topped up collateral on the way
+up, or a [liquidator](/concepts/liquidations) closed you out and your
+collateral paid for it. Hedges cap your upside; that is what a hedge is.
+
+## Managing the position
+
+| Action | Instruction | Constraint |
+| --- | --- | --- |
+| Add collateral | `addCollateral(amount)` | Always allowed, even frozen |
+| Remove collateral | `withdrawCollateral(amount)` | Post-withdraw CR must stay at or above initial CR |
+| Reduce debt | `repayBurn(amount)` | Returns synth from your wallet to the reserve, up to current debt |
+
+Watch your CR as the index moves. The index used everywhere is the smoothed
+`index_twap`, not raw pushes, so you have some time to react to spikes, but
+not unlimited time.
+
+## Funding while short
+
+Your debt is stored funding-scaled, so [funding](/concepts/funding) applies
+continuously without touching your account:
+
+- **Token above index** (positive premium): funding pays shorts. Your debt
+  shrinks slowly. You are being paid to hold the tether side.
+- **Token below index** (negative premium): funding charges shorts. Your debt
+  grows slowly, nudging you to buy cheap tokens back and repay, which is
+  exactly the arbitrage that lifts the price.
+
+Rates are clamped per day (`max_funding_bps_per_day`), so funding is a drift,
+never a shock.
+
+## Closing out
+
+<Steps>
+  <Step title="Buy back the synth">
+    Acquire tokens equal to your current debt. Current debt =
+    `debt_scaled * funding_index / 1e12`, read from your position and the
+    market.
+  </Step>
+  <Step title="Repay">
+    `repayBurn(currentDebt)` returns the tokens to the reserve and zeroes the
+    debt.
+  </Step>
+  <Step title="Withdraw and close">
+    `withdrawCollateral(all)` returns your SOL, then `closePosition()` reclaims
+    the account rent.
+  </Step>
+</Steps>
+
+<Warning>
+Liquidation is real: if the index rises enough that your CR falls below
+maintenance, anyone can liquidate you, and the liquidator's bonus comes out of
+your collateral. Size the hedge and your buffer so a normal rally does not
+liquidate you. See [Liquidations](/concepts/liquidations).
+</Warning>

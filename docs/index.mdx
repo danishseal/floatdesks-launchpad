@@ -1,0 +1,140 @@
+---
+title: "Introduction"
+---
+
+<div className="fl-hero">
+  <div className="fl-hero-title">Launch tokens backed by <em>real collectibles</em></div>
+  <div className="fl-hero-sub">
+    Every ***commas*** token tracks a real collectible market: a graded card
+    or an NFT collection floor. Deposit the real thing into the pool, trade
+    liquid exposure to it, or hedge it flat. No custody, no vault.
+  </div>
+</div>
+
+On every other launchpad, a token is backed by nothing but attention. On ***commas***, every token is launched **against a real collectible market**. The creator picks the underlying: a specific graded card (a [PSA](https://www.psacard.com) 10 Umbreon VMAX, say) or an NFT collection floor (Mad Lads). Buyers get liquid exposure to that collectible's price, and the token tracks it through a live price feed plus hedger arbitrage. SOL is just the money you pay with; it is never the thing being tracked. One million tokens represent one unit of the collectible: one graded card, or one floor NFT.
+
+<div className="fl-card-grid">
+  <div className="fl-card-wrap">
+    <a href="https://solscan.io/token/7iMMDFqAp2W5S4SiYKQWVC4QksDGvGRFQarzrpyZqA9N" target="_blank" rel="noreferrer">
+      <div className="fl-card">
+        <img src="/images/cards/ls-left.jpg" alt="The Last Supper, Panel I, commas original" noZoom />
+      </div>
+    </a>
+    <div className="fl-card-caption">
+      The Last Supper · Panel I<br />***commas*** original · 1/1 on mainnet<br />
+      <a className="fl-card-link" href="https://solscan.io/token/7iMMDFqAp2W5S4SiYKQWVC4QksDGvGRFQarzrpyZqA9N" target="_blank" rel="noreferrer">[Solscan](https://solscan.io)</a>
+      {" · "}
+      <a className="fl-card-link" href="https://core.metaplex.com/explorer/7iMMDFqAp2W5S4SiYKQWVC4QksDGvGRFQarzrpyZqA9N" target="_blank" rel="noreferrer">[Metaplex](https://www.metaplex.com)</a>
+    </div>
+  </div>
+  <div className="fl-card-wrap">
+    <a href="https://solscan.io/token/CQEWqnUSwn9RNFjwmeYXon8zKH6pztQuyoth2qWm55Ep" target="_blank" rel="noreferrer">
+      <div className="fl-card">
+        <img src="/images/cards/ls-center.jpg" alt="The Last Supper, Panel II, commas original" noZoom />
+      </div>
+    </a>
+    <div className="fl-card-caption">
+      The Last Supper · Panel II<br />***commas*** original · 1/1 on mainnet<br />
+      <a className="fl-card-link" href="https://solscan.io/token/CQEWqnUSwn9RNFjwmeYXon8zKH6pztQuyoth2qWm55Ep" target="_blank" rel="noreferrer">Solscan</a>
+      {" · "}
+      <a className="fl-card-link" href="https://core.metaplex.com/explorer/CQEWqnUSwn9RNFjwmeYXon8zKH6pztQuyoth2qWm55Ep" target="_blank" rel="noreferrer">Metaplex</a>
+    </div>
+  </div>
+  <div className="fl-card-wrap">
+    <a href="https://solscan.io/token/DYSHhuajQG3iD87jBhbkGU5gyndaZAnxT5WVmkLM4EVa" target="_blank" rel="noreferrer">
+      <div className="fl-card">
+        <img src="/images/cards/ls-right.jpg" alt="The Last Supper, Panel III, commas original" noZoom />
+      </div>
+    </a>
+    <div className="fl-card-caption">
+      The Last Supper · Panel III<br />***commas*** original · 1/1 on mainnet<br />
+      <a className="fl-card-link" href="https://solscan.io/token/DYSHhuajQG3iD87jBhbkGU5gyndaZAnxT5WVmkLM4EVa" target="_blank" rel="noreferrer">Solscan</a>
+      {" · "}
+      <a className="fl-card-link" href="https://core.metaplex.com/explorer/DYSHhuajQG3iD87jBhbkGU5gyndaZAnxT5WVmkLM4EVa" target="_blank" rel="noreferrer">Metaplex</a>
+    </div>
+  </div>
+</div>
+
+## Quickstart
+
+<CardGroup cols={2}>
+  <Card title="Launch a token" icon="rocket" href="/guides/quickstart/launch-a-token">
+    Pick a collectible, set a fee receiver, deploy. About a minute.
+  </Card>
+  <Card title="Buy a token" icon="arrow-down-to-line" href="/guides/quickstart/buy-a-token">
+    Pay with SOL, or deposit a real copy of the collectible.
+  </Card>
+  <Card title="Sell a token" icon="arrow-up-from-line" href="/guides/quickstart/sell-a-token">
+    Exit to SOL on the curve or the AMM, no gates.
+  </Card>
+  <Card title="Take out the card" icon="package-open" href="/guides/quickstart/redeem-a-card">
+    Redeem tokens for a real copy from the market's escrow.
+  </Card>
+</CardGroup>
+
+<CardGroup cols={2}>
+  <Card title="Economics" icon="scale" href="/guides/economics">
+    How token demand becomes a supply sink for the real collectible.
+  </Card>
+  <Card title="Contract safety" icon="shield-check" href="/guides/contract-safety">
+    The failure modes that kill launchpads, and how each is closed.
+  </Card>
+</CardGroup>
+
+<p style={{ textAlign: "center", fontSize: "0.8rem", opacity: 0.65, marginTop: "-1.2rem" }}>
+  Original ***commas*** artwork, minted 1/1 on Solana mainnet with the art stored permanently on Arweave. Click a panel for Solscan, or use the Metaplex explorer link under each card.
+</p>
+
+## Launching a market means choosing an underlying
+
+<Steps>
+  <Step title="Pick the collectible">
+    A market is listed for one underlying: one card at one grade, a basket of cards, or one NFT collection's floor.
+  </Step>
+  <Step title="The market gets a price feed">
+    A signed feed reads the collectible's real prices from marketplaces ([eBay](https://www.ebay.com) and [TCGplayer](https://www.tcgplayer.com) aggregates, [Collector Crypt](https://collectorcrypt.com), [Magic Eden](https://magiceden.io)), filters manipulation, and writes the result on chain.
+  </Step>
+  <Step title="The token launches on a curve">
+    Anyone can buy from the first block; the launch works like any memecoin curve: every token opens at a 25 SOL market cap and auto-migrates to the AMM once the curve has raised 100 SOL, so the pool starts with 100 SOL of liquidity inside it.
+  </Step>
+  <Step title="The token tracks the collectible">
+    Funding and hedger arbitrage pull the token's price toward the collectible's price, up and down. Card doubles, your exposure doubles.
+  </Step>
+</Steps>
+
+The protocol custodies nothing to back the token. There is no mandatory vault, no redemption queue, and no pooled collateral priced by an oracle. The tether comes from two forces instead: collateralized reserve arbitrage against the index (drawing fixed-supply tokens from a program treasury and returning them), and a clamped funding rate that pays whichever side pulls price back toward it. Every synth is a fixed-supply SPL token whose mint authority is revoked at creation. On top of that, markets can run an [item pool](/concepts/synth-token#item-swaps): holders of vaulted on-chain copies of the underlying deposit a copy and receive tokens of equal value, and anyone can swap tokens back for a copy, so the collectible's own supply becomes liquidity without ever being what the token's solvency depends on.
+
+<Note>
+***commas*** is live on Solana mainnet: the program, oracle relayer, item swaps, and external-venue ([Meteora](https://www.meteora.ag)) support all run in production. Program ID: `QsixfrupxfVEDDYuQsR4vJcE58bbNfctD9WjijM9BjM`. Additional graded-card API sources are planned work; pages that describe them say so explicitly.
+</Note>
+
+## Who it's for
+
+- **Longs.** Anyone who wants price exposure to a PSA 10 card or a blue-chip NFT floor without buying, storing, grading, or insuring the real thing. Buy the synth on the launch curve or the AMM; sell it whenever you like.
+- **Hedgers (the natural shorts).** Holders of the underlying can post SOL collateral, draw synth from the reserve at the index, and sell it, locking in today's price without selling their card or NFT. They are structurally motivated to supply the short side, which is what most floor-derivative designs lack.
+- **Liquidators and crankers.** Funding accrual and liquidations are permissionless. Keepers earn a liquidation bonus for closing undercollateralized shorts.
+
+## Why this design
+
+Every earlier attempt at collectible price exposure died in one of two ways: vault models (fractionalization) filled with the worst items and amplified crashes, and oracle-settled perps got drained the first time someone manipulated a thin floor print. ***commas*** is shaped around those failure modes:
+
+- **No vault dependency.** The token's solvency never rests on custodied items, so there is nothing to fill with lemons and no reflexive redemption spiral. The optional [item pool](/concepts/synth-token#item-swaps) escrows only admin-registered copies of the exact card+grade (fungible by construction) and prices every swap at live value, so it cannot be gamed by dumping inferior items at a fixed rate.
+- **Bounded oracle damage.** A bad index print cannot unlock anyone's funds. It can only tilt the funding rate, which is clamped per day, and a print that deviates too far from the TWAP trips a circuit breaker that freezes the market.
+- **A bounded hedge facility.** Each market premints a fixed hedge reserve that hedgers draw against collateral, sized against the real depth of the collectible's market. When the reserve is empty the facility is simply full, so the synthetic can never grow large enough to become the price setter for its own underlying.
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="How it works" icon="route" href="/how-it-works">
+    The full market lifecycle, from listing through launch, graduation, and live trading.
+  </Card>
+  <Card title="Asset classes" icon="layers" href="/asset-classes">
+    Why graded cards are the flagship underlying and how NFT floors differ.
+  </Card>
+  <Card title="Funding" icon="scale" href="/concepts/funding">
+    The mechanism that tethers the synth to the index without redemption.
+  </Card>
+  <Card title="Instruction reference" icon="code" href="/reference/instructions">
+    Every program instruction, its arguments, and its accounts.
+  </Card>
+</CardGroup>

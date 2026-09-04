@@ -1,0 +1,920 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* Single typeface: Geist for body, display AND numerics (tabular figures kept
+     via font-feature-settings on .mono/.tnum). */
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* pew uses a tight 4px radius scale */
+  --radius-sm: 0.125rem;
+  --radius-md: 0.1875rem;
+  --radius-lg: var(--radius);
+  --radius-xl: 0.375rem;
+  --radius-2xl: 0.5rem;
+  --radius-3xl: 0.625rem;
+  --radius-4xl: 0.75rem;
+}
+
+:root {
+  --radius: 0.25rem;
+
+  /* Float-inspired primitives. Components consume the semantic roles below. */
+  --cream-100: #f5f1e8;
+  --cream-200: #eee9dd;
+  --cream-300: #e7e1d2;
+  --ink-950: #1a1a1a;
+  --ink-700: #4a4a44;
+  --ink-600: #5f5f57;
+  --ink-500: #6b6b62;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --green-700: #166f3d;
+  --red-700: #a73520;
+
+  --color-bg-page: var(--cream-200);
+  --color-bg-surface: var(--cream-100);
+  --color-bg-raised: var(--cream-300);
+  --color-bg-hover: #ddd6c6;
+  --color-text-primary: var(--ink-950);
+  --color-text-secondary: var(--ink-700);
+  --color-text-muted: var(--ink-600);
+  --color-text-subtle: var(--ink-500);
+  --color-border: var(--ink-950);
+  --color-border-soft: rgb(26 26 26 / 18%);
+  --color-border-muted: rgb(26 26 26 / 32%);
+  --color-accent-solid: var(--blue-600);
+  --color-accent-strong: var(--blue-700);
+  --color-accent-soft: rgb(37 99 235 / 12%);
+  --color-on-accent: #ffffff;
+  --color-positive: var(--green-700);
+  --color-negative: var(--red-700);
+  --color-negative-soft: rgb(167 53 32 / 10%);
+  --pixel-frame-inset: clamp(12px, 1.25vw, 18px);
+
+  --background: var(--color-bg-page);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-surface);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-surface);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-solid);
+  --primary-foreground: var(--color-on-accent);
+  --secondary: var(--color-bg-raised);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-raised);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-accent-soft);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-negative);
+  --border: var(--color-border-soft);
+  --input: var(--color-bg-surface);
+  --ring: var(--color-accent-solid);
+  --chart-1: var(--color-accent-solid);
+  --chart-2: var(--color-positive);
+  --chart-3: #7f9acf;
+  --chart-4: #79311b;
+  --chart-5: var(--color-negative);
+  --sidebar: var(--color-bg-surface);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-accent-solid);
+  --sidebar-primary-foreground: var(--color-on-accent);
+  --sidebar-accent: var(--color-accent-soft);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-border-soft);
+  --sidebar-ring: var(--color-accent-solid);
+
+  /* Compatibility names used throughout the existing launchpad. */
+  --ansem: var(--color-accent-solid);
+  --ansem-dim: var(--color-accent-strong);
+  --up: var(--color-positive);
+  --down: var(--color-negative);
+  --surface-0: var(--color-bg-page);
+  --surface-1: var(--color-bg-surface);
+  --surface-2: var(--color-bg-raised);
+  --surface-3: var(--color-bg-hover);
+  --hairline: var(--color-border-soft);
+  --hairline-strong: var(--color-border-muted);
+  --hero-ink: 37 99 235;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    /* Seamless scrolling everywhere: no visible scroll component. */
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  /* Opt-in: fully hide the scrollbar (horizontal carousels) while keeping scroll. */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Hero carousel: time-decay pager fill + slide fade-in. */
+  @keyframes ansem-hero-fill {
+    from {
+      width: 0%;
+    }
+    to {
+      width: 100%;
+    }
+  }
+  .ansem-hero-fill {
+    width: 0%;
+    animation-name: ansem-hero-fill;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+  @keyframes ansem-hero-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .ansem-hero-slide {
+    animation: ansem-hero-in 0.45s ease-out both;
+  }
+
+  /* Reusable content transition for toggles/tabs (key the element to replay). */
+  @keyframes ansem-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    /* `to` intentionally omits transform so the element does NOT keep a lingering
+       transform after the animation. A persisted transform creates a stacking
+       context on every faded card, which traps absolute dropdowns (the repost
+       menu) behind later sibling cards. The slide-in still animates to 0. */
+    to {
+      opacity: 1;
+    }
+  }
+  .ansem-fade-in {
+    animation: ansem-fade-in 0.28s ease-out both;
+  }
+
+  /* Horns explorer: animate the detail panel swapping between Horns. */
+  @keyframes horn-swap {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .horn-swap {
+    animation: horn-swap 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .horn-swap {
+      animation: none;
+    }
+  }
+
+  @keyframes live-token-lane-up {
+    from { transform: translateY(0); }
+    to { transform: translateY(-50%); }
+  }
+
+  @keyframes live-token-lane-down {
+    from { transform: translateY(-50%); }
+    to { transform: translateY(0); }
+  }
+
+  .live-token-lanes {
+    display: grid;
+    width: 100%;
+    max-width: none;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    height: min(62vh, 640px);
+    min-height: 420px;
+    overflow: hidden;
+  }
+
+  @media (min-width: 640px) {
+    .live-token-lanes {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 900px) {
+    .live-token-lanes {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .live-token-lane {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .live-token-lane-track {
+    width: 100%;
+    will-change: transform;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  .live-token-lane-track--up {
+    animation-name: live-token-lane-up;
+  }
+
+  .live-token-lane-track--down {
+    animation-name: live-token-lane-down;
+  }
+
+  .live-token-lane-set {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 14px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live-token-lanes {
+      height: auto;
+      min-height: 0;
+      overflow: visible;
+    }
+    .live-token-lane-track {
+      animation: none;
+    }
+    .live-token-lane-set[aria-hidden="true"] { display: none; }
+  }
+
+  body {
+    @apply text-foreground font-sans;
+    background-color: #ffffff;
+    overflow: hidden;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  .pixel-frame {
+    position: relative;
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: #ffffff;
+  }
+
+  .pixel-frame__canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .pixel-frame__window {
+    position: absolute;
+    inset: var(--pixel-frame-inset);
+    z-index: 1;
+    overflow: hidden;
+    color: var(--color-text-primary);
+  }
+
+  .app-shell-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--pixel-frame-inset);
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .app-shell-header {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+  }
+
+  .app-shell-body-frame {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-page);
+  }
+
+  .app-shell-body-scroll {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+    scrollbar-width: none;
+  }
+
+  .app-shell-body-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pixel-frame__scrollbar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    width: 0.5rem;
+    border: 0.0625rem solid #000000;
+    border-radius: 0;
+    background-color: #ffffff;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  .pixel-frame__scrollbar-thumb {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: clamp(3rem, 14vh, 7rem);
+    border-radius: 0;
+    background-color: #000000;
+  }
+
+  @media (max-width: 639px) {
+    :root {
+      --pixel-frame-inset: 8px;
+    }
+
+  }
+
+  /* Ported utoken tile-field backdrop (see TileFieldBackground). Fixed behind
+     all content, never intercepts pointer events. */
+  .ansem-tilefield {
+    background-color: var(--color-bg-page);
+  }
+  .ansem-tilefield-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Subtle animated green backdrop (see AnimatedBackground). */
+  .ansem-bg-blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(130px);
+    will-change: transform;
+  }
+  .ansem-bg-blob-1 {
+    width: 620px;
+    height: 620px;
+    top: -12%;
+    left: 12%;
+    background: var(--color-accent-solid);
+    opacity: 0.10;
+    animation: ansem-drift-1 34s ease-in-out infinite;
+  }
+  .ansem-bg-blob-2 {
+    width: 540px;
+    height: 540px;
+    top: 24%;
+    right: 6%;
+    background: #7f9acf;
+    opacity: 0.11;
+    animation: ansem-drift-2 42s ease-in-out infinite;
+  }
+  .ansem-bg-blob-3 {
+    width: 460px;
+    height: 460px;
+    bottom: -14%;
+    left: 38%;
+    background: #1d4ed8;
+    opacity: 0.09;
+    animation: ansem-drift-3 38s ease-in-out infinite;
+  }
+  @keyframes ansem-drift-1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(7%, 9%) scale(1.12); }
+  }
+  @keyframes ansem-drift-2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-8%, -6%) scale(1.1); }
+  }
+  @keyframes ansem-drift-3 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(5%, -8%) scale(1.15); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ansem-bg-blob { animation: none; }
+  }
+
+  /* Price-ticker marquee (utoken spec §3): content is duplicated, so a -50%
+     translate loops seamlessly. Pauses on hover; respects reduced-motion. */
+  @keyframes ansem-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .ansem-marquee {
+    display: flex;
+    width: max-content;
+    animation: ansem-marquee 60s linear infinite;
+    /* Scrolls left (keyframe translates to -50%); no reverse. */
+  }
+  .ansem-marquee:hover { animation-play-state: paused; }
+  @media (prefers-reduced-motion: reduce) {
+    .ansem-marquee { animation: none; }
+  }
+
+  /* Range slider used in the Horns launch step */
+  .ansem-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-bg-hover);
+    outline: none;
+  }
+  .ansem-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 999px;
+    background: var(--color-accent-solid);
+    cursor: pointer;
+    border: 2px solid var(--color-bg-surface);
+  }
+  .ansem-range::-moz-range-thumb {
+    height: 14px;
+    width: 14px;
+    border-radius: 999px;
+    background: var(--color-accent-solid);
+    cursor: pointer;
+    border: 2px solid var(--color-bg-surface);
+  }
+
+  .fee-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+  }
+  .fee-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 4px solid var(--color-bg-surface);
+    background: var(--color-on-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-solid), 0 4px 14px rgba(0, 0, 0, 0.2);
+    transition: transform 160ms ease, box-shadow 160ms ease;
+  }
+  .fee-range:hover::-webkit-slider-thumb,
+  .fee-range:focus-visible::-webkit-slider-thumb {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 35%), 0 5px 18px rgba(0, 0, 0, 0.22);
+  }
+  .fee-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    border: 4px solid var(--color-bg-surface);
+    background: var(--color-on-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-solid), 0 4px 14px rgba(0, 0, 0, 0.2);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background: var(--color-accent-solid);
+    color: var(--color-on-accent);
+  }
+}
+
+/* ---- pew.fun design-language utilities ---- */
+
+/* Section header: sentence case, not all-caps. */
+.eyebrow {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.eyebrow-sub {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Odometer / split-flap digit strip used in the PROTOCOL stats */
+.odo {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.odo-d {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.86em;
+  padding: 0.08em 0.16em;
+  border-radius: 3px;
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 35%),
+    inset 0 -1px 0 rgb(26 26 26 / 12%);
+  line-height: 1;
+}
+.odo-sep {
+  color: var(--color-text-muted);
+  padding: 0 0.05em;
+}
+
+/* Legacy class name retained; it now maps to the single primary action role. */
+.btn-white {
+  background: var(--color-accent-solid);
+  color: var(--color-on-accent);
+  font-weight: 700;
+  transition: opacity 0.15s ease;
+}
+.btn-white:hover {
+  opacity: 0.85;
+}
+
+.hairline {
+  background: var(--color-border-soft);
+}
+
+/* Horn badge uses the interactive accent, not the positive-market color. */
+.badge-horns {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+  border: 1px solid rgb(37 99 235 / 28%);
+  border-radius: 3px;
+  padding: 2px 5px;
+  line-height: 1;
+}
+
+@keyframes bankr-float {
+  0%, 100% { transform: translateY(0) rotate(-8deg); }
+  50% { transform: translateY(-10px) rotate(-5deg); }
+}
+
+@keyframes bankr-float-alt {
+  0%, 100% { transform: translateY(0) rotate(10deg); }
+  50% { transform: translateY(12px) rotate(7deg); }
+}
+
+.bankr-grid {
+  background-image: linear-gradient(rgb(26 26 26 / 6%) 1px, transparent 1px), linear-gradient(90deg, rgb(26 26 26 / 6%) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(90deg, transparent 0%, black 30%, black 100%);
+}
+
+/* Float footer and particle field ported from the mirrored float-web footer. */
+.float-footer {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  color: #ffffff;
+  background: #000000;
+}
+
+.float-footer__container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4.5rem;
+  padding: 3.125rem 1rem 2.5rem;
+  background: #000000;
+}
+
+.float-footer__logo {
+  display: inline-flex;
+  width: fit-content;
+}
+
+.float-footer__logo img {
+  width: 6.25rem;
+  height: auto;
+}
+
+.float-footer__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3rem;
+}
+
+.float-footer__navigation,
+.float-footer__copyright,
+.float-footer__newsletter-card {
+  font-family: var(--font-mono);
+}
+
+.float-footer__navigation li {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.float-footer__navigation a {
+  display: inline-block;
+  padding: 0.25rem 0;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.float-footer__navigation a:hover,
+.float-footer__social-list a:hover {
+  opacity: 0.68;
+}
+
+.float-footer__navigation a:focus-visible,
+.float-footer__social-list a:focus-visible,
+.float-footer__logo:focus-visible,
+.float-footer__newsletter-card :is(input, button):focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.float-footer__social-list {
+  display: flex;
+  align-items: center;
+  gap: 1.5625rem;
+}
+
+.float-footer__social-list a {
+  display: flex;
+  color: #ffffff;
+  transition: opacity 150ms ease;
+}
+
+.float-footer__social-list svg {
+  width: auto;
+  height: 1.5rem;
+}
+
+.float-footer__copyright {
+  max-width: 22ch;
+  font-size: 0.875rem;
+  line-height: normal;
+}
+
+.float-footer__newsletter {
+  position: relative;
+  width: 100%;
+  color: #000000;
+}
+
+.float-footer__newsletter-card {
+  width: 100%;
+  border: 1px solid #000000;
+  background: #ffffff;
+  padding: 0.5rem;
+}
+
+.float-footer__newsletter-card h3 {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+}
+
+.float-footer__newsletter-card form {
+  position: relative;
+}
+
+.float-footer__newsletter-card input {
+  width: 100%;
+  border: 1px solid #000000;
+  border-radius: 0;
+  background: #ffffff;
+  padding: 0.5rem 2.75rem 0.5rem 0.75rem;
+  color: #000000;
+  font: inherit;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+
+.float-footer__newsletter-card input::placeholder {
+  color: #424242;
+}
+
+.float-footer__newsletter-card button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  aspect-ratio: 1;
+  height: 100%;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  background: #000000;
+  color: #ffffff;
+}
+
+.float-footer__newsletter-card button svg {
+  width: auto;
+  height: 0.875rem;
+}
+
+.float-footer__animation {
+  width: 100%;
+  height: 50svh;
+  min-height: 20rem;
+  background: #000000;
+}
+
+.float-footer__animation canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+@media (min-width: 768px) {
+  .float-footer__container {
+    padding-inline: 2rem;
+  }
+
+  .float-footer__logo img {
+    width: 9.375rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .float-footer__container {
+    gap: 7rem;
+    padding-right: 15rem;
+  }
+
+  .float-footer__bottom {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: end;
+    gap: 1rem;
+  }
+
+  .float-footer__newsletter {
+    position: absolute;
+    top: 3.125rem;
+    right: 0;
+    width: 15rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .float-footer {
+    display: flex;
+    height: calc(100svh - 6rem);
+    flex-direction: column;
+  }
+
+  .float-footer__animation {
+    height: 100%;
+    min-height: 0;
+    flex-grow: 1;
+  }
+}
+
+/* The trading terminal uses a tight rounded geometry from the reference UI. */
+.terminal-page .rounded-2xl { border-radius: 10px; }
+.terminal-page .rounded-xl { border-radius: 8px; }
+.terminal-page .rounded-lg { border-radius: 6px; }
+
+/* Fee configuration sliders live outside Tailwind's component primitives, so
+   keep their native-control reset unlayered to win over browser defaults. */
+input[type="range"].fee-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"].fee-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 3px solid var(--color-bg-surface);
+  background: var(--color-on-accent);
+  box-shadow: 0 0 0 1px var(--color-accent-solid), 0 2px 5px rgba(0, 0, 0, 0.18);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+input[type="range"].fee-range:hover::-webkit-slider-thumb,
+input[type="range"].fee-range:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px rgb(37 99 235 / 34%), 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+input[type="range"].fee-range::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 3px solid var(--color-bg-surface);
+  background: var(--color-on-accent);
+  box-shadow: 0 0 0 1px var(--color-accent-solid), 0 2px 7px rgba(0, 0, 0, 0.2);
+}

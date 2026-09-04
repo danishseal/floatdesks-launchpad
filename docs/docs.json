@@ -1,0 +1,175 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "commas",
+  "description": "commas is a launchpad for funding-pegged synthetic tokens that track collectible markets: graded trading cards and NFT collection floors. commas.art",
+  "theme": "almond",
+  "icons": {
+    "library": "lucide"
+  },
+  "colors": {
+    "primary": "#171717",
+    "light": "#FAFAFA",
+    "dark": "#171717"
+  },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "dark": "min-dark",
+        "light": "min-light"
+      }
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "icon": "book-open",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "index",
+              "how-it-works",
+              "asset-classes",
+              "glossary"
+            ]
+          },
+          {
+            "group": "Project",
+            "pages": [
+              "roadmap",
+              "faq"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Guides",
+        "icon": "map",
+        "groups": [
+          {
+            "group": "Quickstart",
+            "pages": [
+              "guides/quickstart/launch-a-token",
+              "guides/quickstart/buy-a-token",
+              "guides/quickstart/sell-a-token",
+              "guides/quickstart/redeem-a-card"
+            ]
+          },
+          {
+            "group": "Understanding",
+            "pages": [
+              "guides/economics",
+              "guides/contract-safety"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "guides/going-long",
+              "guides/hedging",
+              "guides/running-a-liquidator",
+              "guides/listing-a-market"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Protocol",
+        "icon": "cpu",
+        "groups": [
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/price-index",
+              "concepts/launch-curve",
+              "concepts/graduation",
+              "concepts/amm",
+              "concepts/synth-token",
+              "concepts/shorts",
+              "concepts/funding",
+              "concepts/liquidations",
+              "concepts/insurance-fund",
+              "concepts/circuit-breaker",
+              "concepts/parameters"
+            ]
+          },
+          {
+            "group": "Oracle & Relayer",
+            "pages": [
+              "oracle/architecture",
+              "oracle/card-pipeline",
+              "oracle/nft-pipeline",
+              "oracle/operations"
+            ]
+          },
+          {
+            "group": "Program Reference",
+            "pages": [
+              "reference/pdas",
+              "reference/accounts",
+              "reference/instructions",
+              "reference/events",
+              "reference/errors"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API",
+        "icon": "square-terminal",
+        "groups": [
+          {
+            "group": "API Reference",
+            "pages": [
+              "api-reference/index"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "fonts": {
+    "heading": {
+      "family": "Inter",
+      "weight": 600
+    },
+    "body": {
+      "family": "Inter"
+    }
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "background": {
+    "color": {
+      "light": "#FFFFFF",
+      "dark": "#0B0D10"
+    }
+  },
+  "logo": {
+    "light": "/logo/commas-art-light.png",
+    "dark": "/logo/commas-art-dark.png"
+  },
+  "favicon": "/favicon.png",
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "Home",
+      "href": "https://commas.art/"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/commasdotart"
+    }
+  }
+}

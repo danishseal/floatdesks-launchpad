@@ -1,0 +1,103 @@
+---
+title: "Running a Liquidator"
+description: "Keeper guide: monitor short positions, liquidate underwater ones, and run the funding crank."
+---
+
+Liquidations on ***commas*** are permissionless. Anyone who holds enough synth
+to cover a position's debt can liquidate it once it falls below maintenance
+collateral, and earn a bonus for doing so. Keepers also run the
+permissionless funding crank. This page covers both jobs.
+
+## Watching positions
+
+Every short is a `ShortPosition` account at a program-derived address (`["short", market, owner]`). Fetch all
+of them per market with `getProgramAccounts` filtered on the account
+discriminator and the market field, then compute each position's health:
+
+```
+current_debt  = debt_scaled * market.funding_index / 1e12   (base units)
+debt_value    = current_debt * market.index_twap / 1e12     (lamports)
+liquidatable  = collateral * 10000 < debt_value * maintenance_cr_bps
+```
+
+Both `funding_index` and `index_twap` live on the `Market` account, so one
+market fetch prices every position in it. Re-check after every oracle push
+(subscribe to the market account or the `IndexPushed` event) since index
+moves, not time, are what push positions underwater.
+
+## Executing a liquidation
+
+The liquidator repays the position's full debt from their own wallet (the
+tokens return to the market's treasury reserve), so you need synth inventory
+first. Buy it from the [AMM](/concepts/amm) in the same
+transaction or hold a standing balance.
+
+```typescript
+await program.methods
+  .liquidate()
+  .accountsPartial({
+    market: marketPda,
+    synthMint: mintPda,
+    solVault: vaultPda,
+    position: shortPda,            // ["short", market, victimOwner]
+    positionOwner: victimOwner,    // receives any collateral remainder
+    liquidator: wallet.publicKey,
+    liquidatorAta: getAssociatedTokenAddressSync(mintPda, wallet.publicKey),
+  })
+  .rpc();
+```
+
+What you receive, in lamports:
+
+```
+target = debt_value * (1 + liq_bonus_bps / 10000)
+payout = min(target, collateral)
+       + insurance top-up if collateral < target (bounded by the insurance fund)
+```
+
+If the collateral more than covers the target, the remainder is refunded to
+the position owner. v1 liquidations are full: the entire debt is repaid in one
+call, there is no partial close.
+
+## Economics
+
+Your gross margin per liquidation is the bonus (`liq_bonus_bps`, for example
+5% of debt value) minus:
+
+- AMM slippage and fee when acquiring the synth to repay with. For large positions
+  this is the dominant cost; check pool depth against position size before
+  committing.
+- Transaction fees (negligible on Solana).
+- Inventory risk if you pre-hold synth between opportunities.
+
+Because the repay amount is the full debt, large positions in shallow pools can
+be unprofitable to liquidate even when technically eligible. The
+[insurance fund](/concepts/insurance-fund) covers collateral shortfalls, not
+your execution costs.
+
+## Running the funding crank
+
+`accrueFunding()` is permissionless and takes only the market account. It
+updates the mark EMA and applies the clamped funding rate to the global
+funding index. It rejects calls more frequent than
+`min_crank_interval_secs` with `CrankTooSoon`.
+
+```typescript
+await program.methods
+  .accrueFunding()
+  .accountsPartial({ market: marketPda })
+  .rpc();
+```
+
+Crank every market on a timer slightly above the minimum interval. There is no
+direct payment for cranking in v1; keepers run it because stale funding delays
+the debt drift that creates liquidation opportunities, and because a live
+funding index keeps position math (and therefore your monitoring) accurate.
+
+<Note>
+Liquidation and the crank both require the market to be `Live` and not frozen,
+and liquidation requires a nonzero index. During a
+[circuit breaker](/concepts/circuit-breaker) freeze, positions cannot be
+liquidated; expect a queue of eligible positions when the market unfreezes,
+and price the reopening race accordingly.
+</Note>

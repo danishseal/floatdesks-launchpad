@@ -1,0 +1,23 @@
+---
+title: "Contract safety"
+description: "The risks that kill launchpads, and how commas closes them."
+---
+
+Smart contract risk is real everywhere, and pretending otherwise is how users get hurt. This page lists the failure modes that have actually burned launchpad users, what ***commas*** does about each, and what risk remains.
+
+## The classic launchpad failure modes
+
+| Risk | What happens elsewhere | ***commas*** |
+| --- | --- | --- |
+| Hidden mint | Team mints supply after launch and dumps | **Impossible by construction**: the mint authority is revoked in the creation transaction; supply can only shrink (unsold curve tokens burn at migration) |
+| Curve rug | Creator edits curve parameters mid-flight | Curve parameters are **immutable** after creation; the program rejects any change |
+| Fake liquidity | Pool seeded thin, drained by insiders | Migration requires the full 100 SOL raise, and **all of it** seeds the AMM pool |
+| Oracle manipulation | A bad price feed liquidates or mispricess everyone | Oracle pushes are EMA-smoothed and rate-limited; any push deviating hard from the trend **freezes the market** instead of moving it (circuit breaker), and stale feeds block the risky operations entirely |
+| Sandwich pricing | Swap rates read spot price, attacker moves it in the same block | Item swaps and funding price off a **time-weighted mark**, which a single-transaction spike barely moves |
+| Insolvent liquidations | Bad debt socialized to everyone | Overcollateralized positions (150% to open, 120% maintenance), liquidator bonus, and a per-market insurance fund |
+
+## The Meteora DBC leg
+
+Launches on the external venue run on **[Meteora](https://www.meteora.ag)'s Dynamic Bonding Curve into DAMM v2**: contracts that are audited, immutable to us, and already carry billions in volume across the Solana ecosystem. On that venue ***commas*** never holds custody of the curve or the pool at all; we attach the synthetic layer (oracle, hedging, item pools) alongside, and creator fee splits are enforced by Meteora's own program, not ours.
+
+This is a deliberate architecture choice: the highest-risk piece of any launchpad: the money-holding curve: can run on the most battle-tested contracts on Solana rather than on fresh code.
