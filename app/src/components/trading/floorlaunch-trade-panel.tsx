@@ -10,7 +10,7 @@
  * That is the whole point of the venue, so it is shown rather than hidden.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Gear } from "@phosphor-icons/react";

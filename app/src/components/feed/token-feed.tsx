@@ -7,7 +7,8 @@ import { ArrowRight, Horse } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTokens } from "@/hooks/use-tokens";
 import { useFloorlaunchLive } from "@/hooks/use-floorlaunch-live";
-import { fetchGraduationThreshold, type TokenListItem } from "@/lib/api";
+import { fetchGraduationThreshold, type TokenListItem,
+} from "@/lib/api";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import { formatDistanceToNow } from "date-fns";
 
@@ -18,29 +19,24 @@ function byNewest(tokens: TokenListItem[]): TokenListItem[] {
   );
 }
 
-// Real bonding-curve fill toward AMM graduation: CHANSE raised on the curve
-// (ansem_reserves, uchanse micro) over the launchpad's live graduation
-// threshold. `thresholdMicro` comes from one cached config read; until it
-// resolves we return null so the bar shows an indeterminate state rather than a
-// fake 0%.
-function curveProgress(
-  token: TokenListItem,
-  thresholdMicro: number,
-): number | null {
+// Fill toward graduation, taken from the token's OWN curve: the raise
+// (curveSolRaised) against the target that curve graduates at
+// (graduationTargetSol), both in whole units of the underlying fSHARE.
+//
+// It deliberately does not use a global threshold. Each curve's gradTarget is
+// set at launch from the underlying's mark, so it differs per token, and
+// comparing a raw 1e18 raise against a USD figure reported every token as 100%.
+function curveProgress(token: TokenListItem): number | null {
   if (token.graduated) return 100;
-  if (!thresholdMicro || thresholdMicro <= 0) return null;
-  const raised = Number(token.hodl_reserves) || 0;
-  return Math.min(100, Math.max(0, (raised / thresholdMicro) * 100));
+  const raised = token.market.curveSolRaised;
+  const target = token.market.graduationTargetSol;
+  if (!target || target <= 0) return null;
+  return Math.min(100, Math.max(0, (raised / target) * 100));
 }
 
 export function TokenFeed() {
   const { data: tokens, isLoading, error } = useTokens();
   useFloorlaunchLive();
-  const { data: gradThreshold = 0 } = useQuery({
-    queryKey: ["graduation-threshold"],
-    queryFn: fetchGraduationThreshold,
-    staleTime: 5 * 60_000,
-  });
 
   const rankedByCap = useMemo(() => {
     const src = tokens ?? [];
@@ -181,7 +177,7 @@ export function TokenFeed() {
                   </div>
                 ))
               : recentTokens.map((token) => (
-                  <NewCoinRow key={token.address} token={token} thresholdMicro={gradThreshold} />
+                  <NewCoinRow key={token.address} token={token} />
                 ))}
             {!isLoading && recentTokens.length === 0 && (
               <p className="px-5 py-12 text-center text-sm text-[var(--color-text-muted)]">
@@ -255,7 +251,7 @@ function LaunchFooterBar() {
           </span>
           <div>
             <p className="font-display text-[14px] font-semibold tracking-tight text-[var(--color-text-primary)]">
-              Graduate to a locked Floatdesk AMM pool with Horns attached
+              Graduate into a locked Uniswap v4 pool against the underlying fSHARE
             </p>
             <p className="mt-0.5 font-mono text-[11px] text-[var(--color-text-subtle)]">
               bonding curve → AMM · liquidity locked · swap fees skim to holders
@@ -429,11 +425,11 @@ function Odometer({ value }: { value: string }) {
 
 /* ---------- new coins row ---------- */
 
-function NewCoinRow({ token, thresholdMicro }: { token: TokenListItem; thresholdMicro: number }) {
+function NewCoinRow({ token }: { token: TokenListItem }) {
   const router = useRouter();
   const creatorAddr = token.creator ?? token.address;
   const cap = (Number(token.current_price) / 1e6) * token.market.solUsd * DEFAULT_TOKEN_SUPPLY;
-  const progress = curveProgress(token, thresholdMicro);
+  const progress = curveProgress(token);
   const launched = new Date(token.first_seen_at);
   const age = Number.isNaN(launched.getTime())
     ? "just now"

@@ -257,7 +257,10 @@ function toToken(t: IndexerToken, underlyingUsdPx: number, curve?: {
     // Consumers read this as `Number(current_price) / 1e6` = fSHARE per token.
     // A curve price of ~1e-8 rounds to zero as an integer, so keep the decimal.
     current_price: String(px * 1e6),
-    hodl_reserves: t.raised ?? "0",
+    // Consumers read this as `Number(hodl_reserves) / 1e6` = whole units of the
+    // quote asset, so keep that convention rather than passing the raw 1e18
+    // on-chain value, which reported every curve as fully graduated.
+    hodl_reserves: String((Number(t.raised ?? 0) / 1e18) * 1e6),
     volume_24h: "0",
     volume_total: "0",
     creator_fees_total: "0",
@@ -288,7 +291,26 @@ export async function fetchTokens(): Promise<TokenListItem[]> {
       rates.set(u, await underlyingUsd(u));
     }),
   );
-  return rows.map((t) => toToken(t, rates.get(t.underlying) ?? 0));
+  // Read each curve, not just the indexer row. Every graduation target is set
+  // at launch from its own underlying's mark, so without the curve a list item
+  // has no target to measure progress against and the whole board falls back to
+  // a placeholder. The RPC batches these, and the token count is small.
+  const curves = await Promise.all(
+    rows.map((t) => tokenCurve(t.token as `0x${string}`).catch(() => undefined)),
+  );
+  return rows.map((t, i) => {
+    const c = curves[i];
+    const token = toToken(t, rates.get(t.underlying) ?? 0, c);
+    if (c) {
+      token.hodl_reserves = String((Number(c.rQuote) / 1e18) * 1e6);
+      if (!c.graduated) {
+        const q = Number(c.vQuote + c.rQuote);
+        const b = Number(c.vToken - c.sold);
+        if (b > 0) token.current_price = String((q / b) * 1e6);
+      }
+    }
+    return token;
+  });
 }
 
 export async function fetchToken(address: string): Promise<TokenListItem> {
@@ -304,6 +326,9 @@ export async function fetchToken(address: string): Promise<TokenListItem> {
   }
   const usdPx = await underlyingUsd(t.underlying);
   const token = toToken(t, usdPx, curve);
+  if (curve) {
+    token.hodl_reserves = String((Number(curve.rQuote) / 1e18) * 1e6);
+  }
   if (curve && !curve.graduated) {
     // Marginal price on a constant-product curve with virtual reserves.
     const q = Number(curve.vQuote + curve.rQuote);
@@ -544,7 +569,7 @@ export async function fetchCurveProgress(tokenAddress: string): Promise<CurvePro
   return {
     tokens_sold: c.sold.toString(),
     tokens_remaining: (c.vToken - c.sold).toString(),
-    hodl_reserves: c.rQuote.toString(),
+    hodl_reserves: String((Number(c.rQuote) / 1e18) * 1e6),
     graduation_threshold: c.gradTarget.toString(),
     // Progress is the RAISE against its target, which is what graduates the
     // curve. Supply sold is not the gate.
@@ -552,6 +577,21 @@ export async function fetchCurveProgress(tokenAddress: string): Promise<CurvePro
     current_price: remaining > 0 ? String((q / remaining) * 1e6) : "0",
     graduated: c.graduated,
   };
+}
+
+/**
+ * Fill toward graduation, 0-100, or null when the target is not known yet.
+ *
+ * Always measured against the token's OWN gradTarget, which is set at launch
+ * from the underlying's mark and so differs per token. A single global
+ * threshold cannot work here: the raise is denominated in the underlying
+ * fSHARE, not in dollars, and comparing the two reported every curve as 100%.
+ */
+export function graduationProgress(token: TokenListItem): number | null {
+  if (token.graduated) return 100;
+  const target = token.market.graduationTargetSol;
+  if (!target || target <= 0) return null;
+  return Math.min(100, Math.max(0, (token.market.curveSolRaised / target) * 100));
 }
 
 // ── live feed ───────────────────────────────────────────────────────────────

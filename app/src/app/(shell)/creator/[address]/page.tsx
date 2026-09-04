@@ -13,7 +13,6 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { fetchTokens, type TokenListItem } from "@/lib/api";
-import { usd, px8 } from "@/components/liquidity/use-pools";
 import { activeNetwork } from "@/lib/float/networks";
 
 export default function CreatorPage() {

@@ -16,7 +16,9 @@ import {
 import { useTokens } from "@/hooks/use-tokens";
 import { Sparkline } from "@/components/utoken/sparkline";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
-import { fetchGraduationThreshold, type TokenListItem } from "@/lib/api";
+import { fetchGraduationThreshold, type TokenListItem,
+  graduationProgress,
+} from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 
 type Filter = "all" | "curve" | "amm";
@@ -84,7 +86,7 @@ export function Scanner() {
         <div>
           <h1 className="font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">Scanner</h1>
           <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">
-            Every coin on Floatdesk, across the bonding curve and the Floatdesk AMM.
+            Every coin on Floatdesk, across the bonding curve and its graduated v4 pool.
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--hairline)] bg-[var(--color-bg-page)] px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
@@ -599,8 +601,7 @@ function priceUsdOf(t: TokenListItem): number {
 /** Curve fill toward graduation, or null when the threshold is unavailable. */
 function gradProgress(t: TokenListItem, thresholdMicro: number): number | null {
   if (thresholdMicro <= 0) return null;
-  const raised = Number(t.hodl_reserves) || 0;
-  return Math.min(100, Math.max(0, (raised / thresholdMicro) * 100));
+  return graduationProgress(t) ?? 0;
 }
 
 function changeColor(change: number | null): string {

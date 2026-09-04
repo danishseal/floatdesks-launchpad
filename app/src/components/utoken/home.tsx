@@ -6,7 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTokens } from "@/hooks/use-tokens";
 import { Sparkline } from "@/components/utoken/sparkline";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
-import { fetchGraduationThreshold, type TokenListItem } from "@/lib/api";
+import { fetchGraduationThreshold, type TokenListItem,
+  graduationProgress,
+} from "@/lib/api";
 
 export function UtokenHome() {
   const { data: tokens, isLoading } = useTokens();
@@ -39,7 +41,7 @@ export function UtokenHome() {
               Live coins
             </h2>
             <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">
-              Live across the bonding curve and the Floatdesk AMM.
+              Live across the bonding curve and its graduated v4 pool.
             </p>
           </div>
         </div>
@@ -75,12 +77,7 @@ function TokenPreviewBanner({
   const priceUsd = (Number(token.current_price) / 1e6) * token.market.solUsd;
   const volumeUsd = (Number(token.volume_24h) / 1e6) * token.market.solUsd;
   const liquidityUsd = (Number(token.hodl_reserves) / 1e6) * token.market.solUsd;
-  const raised = Number(token.hodl_reserves) || 0;
-  const progress = token.graduated
-    ? 100
-    : thresholdMicro > 0
-      ? Math.min(100, Math.max(2, (raised / thresholdMicro) * 100))
-      : 4;
+  const progress = graduationProgress(token) ?? 4;
 
   return (
     <section key={token.address} className="ansem-fade-in grid overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:h-[420px] lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.7fr)]" aria-label={`${token.name} live market preview`}>
@@ -230,8 +227,7 @@ function FeaturedCard({
 }) {
   const change = token.price_change_24h;
   const graduated = token.graduated;
-  const raised = Number(token.hodl_reserves) || 0;
-  const pct = graduated ? 100 : thresholdMicro > 0 ? Math.min(100, Math.max(2, (raised / thresholdMicro) * 100)) : 4;
+  const pct = graduationProgress(token) ?? 4;
 
   return (
     <Link
@@ -444,9 +440,9 @@ function StatusPill({ token, thresholdMicro }: { token: TokenListItem; threshold
   let pct = 100;
   let label = "Pool on AMM";
   if (!graduated) {
-    const raised = Number(token.hodl_reserves) || 0;
-    pct = thresholdMicro > 0 ? Math.min(100, Math.max(3, (raised / thresholdMicro) * 100)) : 6;
-    label = thresholdMicro > 0 ? `Bonding ${pct.toFixed(0)}%` : "Bonding";
+    const p = graduationProgress(token);
+    pct = p ?? 6;
+    label = p === null ? "Bonding" : `Bonding ${p.toFixed(0)}%`;
   }
   return (
     <div className="relative h-[19px] w-[148px] overflow-hidden rounded-md bg-[var(--color-bg-raised)]">
