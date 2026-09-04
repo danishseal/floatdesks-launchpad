@@ -22,27 +22,31 @@ export async function GET() {
     const hook = await deskHookAddress();
     if (!hook) {
       return NextResponse.json(
-        { network: net.key, hook: null, pools: [], quote: null, asOf: Math.floor(Date.now() / 1000) },
+        // hook: null is "this deployment has no DeskHook", which is a different
+        // fact from "it has one and there are no pools". Both return an empty
+        // list, so the caller is told which it is looking at.
+        { network: net.key, hook: null, pools: [], unreadable: [], quote: null, asOf: Math.floor(Date.now() / 1000) },
         { headers: { "cache-control": "no-store" } },
       );
     }
 
     const usdgAddr = await resolve("USDG");
-    const [usdg, pools] = await Promise.all([erc20(usdgAddr), hookPools()]);
+    const [usdg, result] = await Promise.all([erc20(usdgAddr), hookPools()]);
 
     return NextResponse.json(
       {
         network: net.key,
         hook,
         quote: { address: usdgAddr, symbol: usdg.symbol, decimals: usdg.decimals },
-        pools,
+        pools: result.pools,
+        unreadable: result.unreadable,
         asOf: Math.floor(Date.now() / 1000),
       },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e), network: net.key, pools: [] },
+      { error: e instanceof Error ? e.message : String(e), network: net.key, pools: [], unreadable: [] },
       { status: 502 },
     );
   }

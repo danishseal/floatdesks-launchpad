@@ -125,14 +125,31 @@ async function soft<T>(p: Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-export async function hookPools(): Promise<HookPool[]> {
+/** A pool the hook says it opened but that could not be read, and why. */
+export interface UnreadablePool {
+  poolId: `0x${string}`;
+  assetId: `0x${string}`;
+  reason: string;
+}
+
+export interface HookPoolsResult {
+  pools: HookPool[];
+  /**
+   * Dropping a bad row keeps the board up, but a row that vanishes silently
+   * is indistinguishable from a pool that never existed, so the reader is told
+   * what is missing instead of quietly being shown less than the truth.
+   */
+  unreadable: UnreadablePool[];
+}
+
+export async function hookPools(): Promise<HookPoolsResult> {
   const hook = await deskHookAddress();
-  if (!hook) return [];
+  if (!hook) return { pools: [], unreadable: [] };
 
   const pc = publicClient();
   const listings = await resolve("LISTINGS");
   const opened = await openedPools(hook);
-  if (opened.length === 0) return [];
+  if (opened.length === 0) return { pools: [], unreadable: [] };
 
   const read = (functionName: string, args: unknown[]) =>
     pc.readContract({ address: hook, abi: DESK_HOOK_ABI, functionName, args } as never);
@@ -143,7 +160,7 @@ export async function hookPools(): Promise<HookPool[]> {
   // reverting, so `set` is the only thing that distinguishes "this pool exists"
   // from "you asked about nothing": treat a zero struct as absent, not as data.
   const rows = await Promise.all(
-    opened.map(async ({ poolId, assetId }): Promise<HookPool | null> => {
+    opened.map(async ({ poolId, assetId }): Promise<HookPool | UnreadablePool> => {
       try {
       const [book, cfg, acq, listing] = await Promise.all([
         read("book", [poolId]) as Promise<Record<string, bigint | number | boolean>>,
@@ -173,7 +190,8 @@ export async function hookPools(): Promise<HookPool[]> {
         soft(read("ladder", [poolId]) as Promise<unknown[]>, []),
       ]);
 
-      if (!cfg.set) return null; // a poolId from an older hook at this registry key
+      // a poolId from an older hook at this registry key: absent, not broken
+      if (!cfg.set) return { poolId, assetId, reason: "not known to this hook" };
       const band = cfg.band as Record<string, number>;
       const night = Boolean(book.night);
       const halfTicks = night ? band.nightHalfSpreadTicks : band.dayHalfSpreadTicks;
@@ -219,12 +237,26 @@ export async function hookPools(): Promise<HookPool[]> {
         oracleTick: Number(oracleTick),
         rungs: ladder.length,
       } satisfies HookPool;
-      } catch {
+      } catch (e) {
         // a delisted asset, a replaced Listings, an RPC that dropped the call:
-        // drop this row, keep the rest of the board
-        return null;
+        // keep the rest of the board, and say which one went and why
+        return { poolId, assetId, reason: reasonOf(e) };
       }
     }),
   );
-  return rows.filter((r): r is HookPool => r !== null);
+  return {
+    pools: rows.filter((r): r is HookPool => "ticker" in r),
+    unreadable: rows.filter((r): r is UnreadablePool => !("ticker" in r)),
+  };
+}
+
+/**
+ * The useful part of a viem revert is not on the first line, so taking
+ * `message` alone captures the preamble and throws away the signature while
+ * looking like it kept it. Prefer the named error, then the short message.
+ */
+function reasonOf(e: unknown): string {
+  const err = e as { shortMessage?: string; metaMessages?: string[]; message?: string };
+  const named = err?.metaMessages?.find((m) => /Error:/.test(m))?.replace(/^\s*Error:\s*/, "");
+  return (named ?? err?.shortMessage ?? err?.message ?? String(e)).replace(/\s+/g, " ").trim().slice(0, 200);
 }
