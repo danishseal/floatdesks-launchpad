@@ -137,8 +137,14 @@ export async function hookPools(): Promise<HookPool[]> {
   const read = (functionName: string, args: unknown[]) =>
     pc.readContract({ address: hook, abi: DESK_HOOK_ABI, functionName, args } as never);
 
-  return Promise.all(
-    opened.map(async ({ poolId, assetId }) => {
+  // One unreadable pool must not take the board down with it, and a pool the
+  // hook does not actually know must not render as a row of zeros. Solidity
+  // mappings answer an unknown key with an all-zero struct rather than
+  // reverting, so `set` is the only thing that distinguishes "this pool exists"
+  // from "you asked about nothing": treat a zero struct as absent, not as data.
+  const rows = await Promise.all(
+    opened.map(async ({ poolId, assetId }): Promise<HookPool | null> => {
+      try {
       const [book, cfg, acq, listing] = await Promise.all([
         read("book", [poolId]) as Promise<Record<string, bigint | number | boolean>>,
         read("cfg", [poolId]) as Promise<Record<string, unknown>>,
@@ -167,6 +173,7 @@ export async function hookPools(): Promise<HookPool[]> {
         soft(read("ladder", [poolId]) as Promise<unknown[]>, []),
       ]);
 
+      if (!cfg.set) return null; // a poolId from an older hook at this registry key
       const band = cfg.band as Record<string, number>;
       const night = Boolean(book.night);
       const halfTicks = night ? band.nightHalfSpreadTicks : band.dayHalfSpreadTicks;
@@ -212,6 +219,12 @@ export async function hookPools(): Promise<HookPool[]> {
         oracleTick: Number(oracleTick),
         rungs: ladder.length,
       } satisfies HookPool;
+      } catch {
+        // a delisted asset, a replaced Listings, an RPC that dropped the call:
+        // drop this row, keep the rest of the board
+        return null;
+      }
     }),
   );
+  return rows.filter((r): r is HookPool => r !== null);
 }
