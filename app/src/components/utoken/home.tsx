@@ -165,19 +165,19 @@ function StarterBanner() {
   return (
     <section key="launchpad" className="ansem-fade-in flex min-h-[380px] items-center justify-center overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-5 py-8 lg:h-[420px]" aria-label="Floatdesk launchpad">
       <div className="w-full max-w-[520px] text-center">
-        <p className="font-mono text-[13px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
+        <h1 className="font-display text-[18px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-primary)]">
           Floatdesk launchpad
-        </p>
-        <p className="mx-auto mt-8 max-w-md text-[13px] leading-5 text-[var(--color-text-secondary)]">
-          Give the coin a name, an image, and a ticker. Floatdesk opens the market on a fair bonding curve.
+        </h1>
+        <p className="mx-auto mt-7 max-w-[430px] text-[15px] leading-6 text-[var(--color-text-secondary)]">
+          Choose a name, image, and ticker. Floatdesk handles the market and bonding curve.
         </p>
 
-        <Link href="/create" className="group/launch mx-auto mt-6 flex h-11 max-w-[360px] items-center justify-between bg-[var(--color-accent-solid)] px-4 font-mono text-[11px] font-semibold text-[var(--color-on-accent)] transition-[transform,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-accent-strong)] hover:shadow-[4px_4px_0_var(--color-border)]">
+        <Link href="/create" className="group/launch mx-auto mt-6 flex h-11 max-w-[360px] items-center justify-between bg-[var(--color-accent-solid)] px-4 font-mono text-[12px] font-semibold text-[var(--color-on-accent)] transition-[transform,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-accent-strong)] hover:shadow-[4px_4px_0_var(--color-border)]">
           <span>Launch your coin</span>
           <span className="transition-transform duration-200 group-hover/launch:translate-x-1" aria-hidden="true">→</span>
         </Link>
-        <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
-          Hover a live coin below to preview its market
+        <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
+          Hover over any live coin to preview its market
         </p>
       </div>
     </section>
