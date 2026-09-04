@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, CopySimple, SignOut, UserCircle, Wallet } from "@phosphor-icons/react";
-import { useFloorWallet } from "@/components/wallet/solana-wallet-provider";
+import { useFloorWallet } from "@/components/wallet/float-wallet-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +35,7 @@ export function AccountDisplay({
   compact?: boolean;
   balanceOnly?: boolean;
 } = {}) {
-  const { address, balance, ansemBalance, walletName, disconnect } = useFloorWallet();
+  const { address, balance, nativeBalance, walletName, disconnect } = useFloorWallet();
   const [copied, setCopied] = useState(false);
   const router = useRouter();
 
@@ -68,7 +68,7 @@ export function AccountDisplay({
               <Wallet size={17} weight="fill" className="shrink-0 text-[var(--color-text-secondary)]" />
               <span className="flex min-w-0 flex-col items-start font-sans text-[12px] font-semibold leading-tight">
                 <span className="truncate">{balance === null ? "-" : formatSol(balance)} CHANSE</span>
-                <span className="truncate text-[var(--color-text-secondary)]">{ansemBalance ? formatSol(ansemBalance) : "0"} Floatdesk</span>
+                <span className="truncate text-[var(--color-text-secondary)]">{nativeBalance ? formatSol(nativeBalance) : "0"} Floatdesk</span>
               </span>
             </>
           ) : (
@@ -79,7 +79,7 @@ export function AccountDisplay({
                   <span className="shrink-0 text-[var(--color-text-subtle)]">|</span>
                   <span className="shrink-0">
                     {formatSol(balance)} CHANSE
-                    {ansemBalance ? ` · ${formatSol(ansemBalance)} Floatdesk` : ""}
+                    {nativeBalance ? ` · ${formatSol(nativeBalance)} Floatdesk` : ""}
                   </span>
                 </>
               )}
@@ -118,7 +118,7 @@ export function AccountDisplay({
           <div className="flex items-center justify-between">
             <span className="text-[var(--color-text-muted)]">Floatdesk balance</span>
             <span className="font-semibold text-[var(--color-text-primary)]">
-              {ansemBalance ? `${formatSol(ansemBalance)} Floatdesk` : "0 Floatdesk"}
+              {nativeBalance ? `${formatSol(nativeBalance)} Floatdesk` : "0 Floatdesk"}
             </span>
           </div>
         </div>

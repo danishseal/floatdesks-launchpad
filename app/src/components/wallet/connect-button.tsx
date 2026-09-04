@@ -1,6 +1,6 @@
 "use client";
 
-import { useFloorWallet } from "@/components/wallet/solana-wallet-provider";
+import { useFloorWallet } from "@/components/wallet/float-wallet-provider";
 import { Wallet } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { AccountDisplay } from "@/components/wallet/account-display";

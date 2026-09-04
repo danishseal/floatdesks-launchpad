@@ -3,7 +3,7 @@ import { LiquidityMarket } from "@/components/liquidity/liquidity-market";
 
 export const metadata: Metadata = {
   title: "Liquidity | Floatdesk",
-  description: "Browse Floatdesk liquidity pools and market rewards.",
+  description: "The Desk vault, the funding queue, and every market it quotes.",
 };
 
 export default function LiquidityPage() {

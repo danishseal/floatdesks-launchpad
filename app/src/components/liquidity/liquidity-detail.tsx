@@ -1,115 +1,470 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePools, fromUnits, usd, pct, duration, POOLS_QUERY_KEY, type PoolsResponse } from "./use-pools";
 import styles from "./liquidity.module.css";
 import { TokenPair } from "./token-pair";
+import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
+import { tx, waitFor, deskShares } from "@/lib/float/chain";
 
-const RANGES = [
-  { name: "Deep ±50%", apr: "APR: 15%" },
-  { name: "Passive ±25%", apr: "APR: 30%" },
-  { name: "Wide ±10%", apr: "APR: 74%" },
-  { name: "Narrow ±2.5%", apr: "APR: 295%" },
-  { name: "Degen · 1 tick", apr: "APR: 29,450%" },
-] as const;
+/**
+ * Deposit panel.
+ *
+ * This replaced a Uniswap-style concentrated-liquidity range builder with five
+ * invented APR tiers and a drawn depth chart. The Desk is not a CL pool: it is a
+ * shared vault you buy shares of, so there is no range to pick, no tick, and no
+ * per-range APR to quote. What there is: a share price, a queue you can fund,
+ * and a withdrawal delay.
+ */
+
+type Mode = "desk" | "funder" | "market";
 
 export function LiquidityDetail() {
-  const [range, setRange] = useState("Narrow ±2.5%");
+  const params = useParams<{ pool: string }>();
+  const pool = (params?.pool ?? "").toLowerCase();
+  const { data, isLoading } = usePools();
+
+  if (isLoading || !data) {
+    return <div className={styles.detailPage}><p className="py-16 text-center text-sm">Reading the vault…</p></div>;
+  }
+
+  const mode: Mode =
+    pool === data.desk.address.toLowerCase() ? "desk"
+    : pool === data.funder.address.toLowerCase() ? "funder"
+    : "market";
+
+  const market = data.markets.find((m) => m.token.toLowerCase() === pool);
 
   return (
     <div className={styles.detailPage}>
-      <nav className={styles.breadcrumbs} aria-label="Breadcrumb"><Link href="/">Home</Link><span>›</span><Link href="/liquidity">Liquidity</Link><span>›</span><span>HYPE/USDC</span></nav>
+      <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+        <Link href="/">Home</Link><span>›</span>
+        <Link href="/liquidity">Liquidity</Link><span>›</span>
+        <span>{mode === "desk" ? "The Desk" : mode === "funder" ? "Funding queue" : market ? `f${market.ticker}` : "Pool"}</span>
+      </nav>
+
       <div className={styles.detailGrid}>
-        <section className={styles.builder} aria-labelledby="pool-title">
-          <header className={styles.poolHeading}>
-            <TokenPair tokenA="HYPE" tokenB="USDC" />
-            <div><h1 id="pool-title">HYPE/USDC</h1><div className={styles.poolBadges}><span className={styles.poolBadge}>0.12%</span><span className={styles.poolBadge}>CL5</span></div></div>
-          </header>
-
-          <div className={styles.priceRange}>
-            <RangeField label="Min USDC per HYPE" value="82.9" delta="−2.48%" />
-            <RangeField label="Max USDC per HYPE" value="87.15" delta="+2.53%" />
-          </div>
-
-          <section className={styles.formSection}>
-            <div className={styles.sectionTitleRow}><h2 className={styles.sectionTitle}>Range type</h2><span className={styles.fieldLabel}>Projected position</span></div>
-            <div className={styles.rangeOptions}>
-              {RANGES.map((option) => (
-                <button key={option.name} type="button" className={`${styles.rangeButton} ${range === option.name ? styles.rangeButtonActive : ""}`} onClick={() => setRange(option.name)} aria-pressed={range === option.name}>
-                  <span className={styles.rangeName}>{option.name}</span><span className={styles.rangeApr}>{option.apr}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className={styles.formSection}>
-            <div className={styles.sectionTitleRow}><h2 className={styles.sectionTitle}>Input amounts</h2><button type="button" className={styles.slippageButton}>Slippage&nbsp; 0.5%</button></div>
-            <AmountCard token="HYPE" ticker="H" />
-            <AmountCard token="USDC" ticker="$" />
-          </section>
-
-          <button type="button" className={styles.connectButton}>Connect wallet</button>
+        <section className={styles.builder}>
+          {mode === "desk" ? <DeskDeposit data={data} />
+            : mode === "funder" ? <FunderContribute data={data} />
+            : market ? <MarketStake data={data} ticker={market.ticker} assetId={market.assetId} token={market.token} status={market.status} />
+            : <p className="text-sm">Unknown pool {pool}.</p>}
         </section>
 
-        <aside className={styles.marketPanel} aria-label="Pool market information">
-          <div className={styles.chartCard}>
-            <div className={styles.chartHeader}><span>HYPE price in USDC ↔</span><span>APR&nbsp; <strong>295%</strong></span></div>
-            <DepthChart />
-          </div>
-          <PoolMetrics />
+        <aside className={styles.marketPanel} aria-label="Pool information">
+          <VaultMetrics data={data} />
         </aside>
       </div>
     </div>
   );
 }
 
-function RangeField({ label, value, delta }: { label: string; value: string; delta: string }) {
+/* ------------------------------------------------------------ desk deposit */
+
+function DeskDeposit({ data }: { data: PoolsResponse }) {
+  const wallet = useFloatWallet();
+  const qc = useQueryClient();
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [myShares, setMyShares] = useState<number | null>(null);
+
+  const dp = data.quote.decimals;
+  const equity = fromUnits(data.desk.equity, dp);
+  const shares = fromUnits(data.desk.totalShares, dp);
+  const sharePrice = shares > 0 ? equity / shares : 1;
+  const n = Number(amount) || 0;
+
+  useMemo(() => {
+    if (!wallet.address) { setMyShares(null); return; }
+    void deskShares(wallet.address).then((s) => setMyShares(Number(s) / 10 ** dp)).catch(() => setMyShares(null));
+  }, [wallet.address, dp]);
+
+  async function deposit() {
+    setBusy(true);
+    try {
+      const account = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      const raw = BigInt(Math.round(n * 10 ** dp));
+      toast.info("Approving and depositing…");
+      const hash = await tx.deskDeposit(account, raw);
+      await waitFor(hash);
+      toast.success(`Deposited ${usd(n)} into the Desk.`);
+      setAmount("");
+      await wallet.refreshBalance();
+      await qc.invalidateQueries({ queryKey: POOLS_QUERY_KEY });
+    } catch (e) {
+      toast.error(readableError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className={styles.rangeField}>
-      <div className={styles.rangeFieldCopy}><span className={styles.fieldLabel}>{label}</span><strong className={styles.rangeValue}>{value}</strong><span className={styles.rangeDelta}>{delta}</span></div>
-      <div className={styles.stepper}><button className={styles.stepButton} type="button" aria-label={`Increase ${label}`}>+</button><button className={styles.stepButton} type="button" aria-label={`Decrease ${label}`}>−</button></div>
-    </div>
+    <>
+      <header className={styles.poolHeading}>
+        <TokenPair tokenA={data.quote.symbol} tokenB="DESK" />
+        <div>
+          <h1>{data.quote.symbol} · The Desk</h1>
+          <div className={styles.poolBadges}>
+            <span className={styles.poolBadge}>{(data.desk.txFeeBps / 100).toFixed(2)}% tx fee</span>
+            <span className={styles.poolBadge}>{duration(data.desk.withdrawDelay)} exit</span>
+          </div>
+        </div>
+      </header>
+
+      <p className={styles.pageDescription}>
+        One pooled vault quotes every market. Depositing {data.quote.symbol} mints shares of
+        it, and the share price moves with the spread and size impact the Desk earns
+        across all {data.markets.length} markets, including the fSHARE demand created by
+        every token launched on the launchpad. Shares are marked against live open
+        interest, so the price falls as well as rises.
+      </p>
+
+      <section className={styles.formSection}>
+        <div className={styles.sectionTitleRow}>
+          <h2 className={styles.sectionTitle}>Deposit</h2>
+          <span className={styles.balance}>
+            Balance: {wallet.balance === null ? "-" : `${wallet.balance.toFixed(2)} ${data.quote.symbol}`}
+          </span>
+        </div>
+        <div className={styles.amountCard}>
+          <div className={styles.amountInputWrap}>
+            <input
+              className={styles.amountInput}
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+            />
+            <span className={styles.tokenSelect}>{data.quote.symbol}</span>
+          </div>
+          <div className={styles.amountUsd}>
+            {n > 0 ? `≈ ${(n / sharePrice).toFixed(4)} shares at ${sharePrice.toFixed(5)}` : " "}
+          </div>
+        </div>
+
+        {wallet.connected ? (
+          <button
+            type="button"
+            className={styles.connectButton}
+            disabled={busy || n <= 0 || (wallet.balance !== null && n > wallet.balance)}
+            onClick={deposit}
+          >
+            {busy ? "Confirming…"
+              : wallet.wrongChain ? `Switch to ${data.network.label}`
+              : n <= 0 ? "Enter an amount"
+              : wallet.balance !== null && n > wallet.balance ? `Not enough ${data.quote.symbol}`
+              : `Deposit ${usd(n)}`}
+          </button>
+        ) : (
+          <button type="button" className={styles.connectButton} onClick={() => void wallet.connect()}>
+            Connect wallet
+          </button>
+        )}
+
+        {data.network.testnet && wallet.connected ? <FaucetButton symbol={data.quote.symbol} dp={dp} /> : null}
+      </section>
+
+      {myShares !== null && myShares > 0 ? (
+        <Withdraw data={data} myShares={myShares} sharePrice={sharePrice} />
+      ) : null}
+    </>
   );
 }
 
-function AmountCard({ token, ticker }: { token: string; ticker: string }) {
-  return (
-    <div className={styles.amountCard}>
-      <div className={styles.amountInputWrap}><label className="sr-only" htmlFor={`amount-${token}`}>{token} amount</label><input id={`amount-${token}`} className={styles.amountInput} inputMode="decimal" placeholder="0.0" /><div className={styles.amountUsd}>≈ $0.00</div></div>
-      <div className={styles.tokenSide}><button className={styles.tokenSelect} type="button"><span className={styles.miniToken}>{ticker}</span>{token}</button><span className={styles.balance}>Balance: 0</span></div>
-    </div>
-  );
-}
+function Withdraw({ data, myShares, sharePrice }: { data: PoolsResponse; myShares: number; sharePrice: number }) {
+  const wallet = useFloatWallet();
+  const [busy, setBusy] = useState(false);
+  const dp = data.quote.decimals;
 
-function DepthChart() {
-  return (
-    <svg className={styles.depthChart} viewBox="0 0 600 330" preserveAspectRatio="none" role="img" aria-label="Hard-coded HYPE and USDC liquidity distribution">
-      <line className={styles.chartGridLine} x1="0" y1="80" x2="600" y2="80" />
-      <line className={styles.chartGridLine} x1="0" y1="165" x2="600" y2="165" />
-      <line className={styles.chartGridLine} x1="0" y1="250" x2="600" y2="250" />
-      <path className={styles.chartBid} d="M22 294h22v-12H22zm28 0h22v-18H50zm28 0h22v-25H78zm28 0h22v-32h-22zm28 0h22v-48h-22zm28 0h22v-66h-22zm28 0h22v-88h-22zm28 0h22V178h-22zm28 0h22V132h-22zm28 0h22V82h-22z" />
-      <path className={styles.chartAsk} d="M320 294h22V68h-22zm28 0h22V108h-22zm28 0h22V151h-22zm28 0h22V190h-22zm28 0h22v-74h-22zm28 0h22v-57h-22zm28 0h22v-43h-22zm28 0h22v-31h-22zm28 0h22v-22h-22zm28 0h22v-15h-22z" />
-      <line className={styles.chartMid} x1="300" y1="28" x2="300" y2="304" />
-    </svg>
-  );
-}
+  async function requestExit() {
+    setBusy(true);
+    try {
+      const account = wallet.getAccount();
+      const hash = await tx.deskRequestWithdraw(account, BigInt(Math.round(myShares * 10 ** dp)));
+      await waitFor(hash);
+      toast.success(`Exit requested. Claimable in ${duration(data.desk.withdrawDelay)}.`);
+    } catch (e) {
+      toast.error(readableError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
-function PoolMetrics() {
-  const rows = [
-    ["TVL", "$2,387,185"],
-    ["Total rewards this epoch", "$93,389"],
-    ["Average APR", "278%"],
-    ["Current fee tier", "0.12%"],
-  ] as const;
   return (
-    <section className={styles.metrics}>
-      <h2 className={styles.metricsTitle}>Pool metrics</h2>
-      <div className={styles.shareBar} aria-hidden="true"><span /><span /></div>
-      <div className={styles.shareLegend}><span><strong className={styles.accentValue}>41.1%</strong>&nbsp; $980,731</span><span>$1,406,455&nbsp; <strong className={styles.accentValue}>58.9%</strong></span></div>
-      <div className={styles.metricRows}>
-        {rows.map(([label, value]) => <div className={styles.metricRow} key={label}><span className={styles.metricLabel}>{label}</span><strong>{value}</strong></div>)}
-        <div className={styles.metricRow}><span className={styles.metricLabel}>Pool address</span><a href="https://hyperevmscan.io/address/0x5a177cf0effb7e0e7115d792e587c1a5a9cbc9d4" target="_blank" rel="noreferrer">0x5a17…c9d4</a></div>
+    <section className={styles.formSection}>
+      <div className={styles.sectionTitleRow}>
+        <h2 className={styles.sectionTitle}>Your position</h2>
+        <span className={styles.balance}>{myShares.toFixed(4)} shares</span>
       </div>
+      <div className={styles.metricRows}>
+        <div className={styles.metricRow}>
+          <span className={styles.metricLabel}>Value at current share price</span>
+          <span className={styles.cellValue}>{usd(myShares * sharePrice)}</span>
+        </div>
+        <div className={styles.metricRow}>
+          <span className={styles.metricLabel}>Exit delay</span>
+          <span className={styles.cellValue}>{duration(data.desk.withdrawDelay)}</span>
+        </div>
+      </div>
+      <button type="button" className={styles.secondaryButton} disabled={busy} onClick={requestExit}>
+        {busy ? "Confirming…" : "Request withdrawal"}
+      </button>
     </section>
   );
+}
+
+/* -------------------------------------------------------- funder contribute */
+
+function FunderContribute({ data }: { data: PoolsResponse }) {
+  const wallet = useFloatWallet();
+  const qc = useQueryClient();
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const dp = data.quote.decimals;
+  const target = fromUnits(data.funder.target, dp);
+  const funded = fromUnits(data.funder.funded, dp);
+  const head = data.markets.find((m) => m.assetId.toLowerCase() === data.funder.assetId.toLowerCase());
+  const n = Number(amount) || 0;
+
+  async function contribute() {
+    setBusy(true);
+    try {
+      const account = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      const hash = await tx.contribute(account, data.funder.assetId, BigInt(Math.round(n * 10 ** dp)));
+      await waitFor(hash);
+      toast.success(`Contributed ${usd(n)} toward ${head?.ticker ?? "the next market"}.`);
+      setAmount("");
+      await qc.invalidateQueries({ queryKey: POOLS_QUERY_KEY });
+    } catch (e) {
+      toast.error(readableError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <header className={styles.poolHeading}>
+        <TokenPair tokenA={data.quote.symbol} tokenB={head?.ticker ?? "?"} />
+        <div>
+          <h1>Funding queue · {head?.ticker ?? "next market"}</h1>
+          <div className={styles.poolBadges}>
+            <span className={styles.poolBadge}>{data.funder.queueLength} queued</span>
+            <span className={styles.poolBadge}>{pct(target > 0 ? (funded / target) * 100 : 0, 1)} funded</span>
+          </div>
+        </div>
+      </header>
+
+      <p className={styles.pageDescription}>
+        Markets open one at a time. Protocol fees fill the head of the queue on their
+        own, and anyone can bring it forward by contributing {data.quote.symbol} directly.
+        Contributors receive Desk shares pro-rata once the market opens, so this is the
+        same vault position as a direct deposit, bought earlier.
+      </p>
+
+      <section className={styles.formSection}>
+        <div className={styles.sectionTitleRow}>
+          <h2 className={styles.sectionTitle}>Contribute</h2>
+          <span className={styles.balance}>
+            {usd(funded)} of {usd(target)} raised
+          </span>
+        </div>
+        <div className={styles.amountCard}>
+          <div className={styles.amountInputWrap}>
+            <input
+              className={styles.amountInput}
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+            />
+            <span className={styles.tokenSelect}>{data.quote.symbol}</span>
+          </div>
+          <div className={styles.amountUsd}>
+            {n > 0 ? `${pct(((funded + n) / target) * 100, 1)} funded after this` : " "}
+          </div>
+        </div>
+        {!data.funder.acceptsContribution ? (
+          <p className={styles.cellSubtle}>
+            Nothing is queued for contribution right now, so this market fills from
+            protocol fees only. Direct contributions revert until a market is enqueued.
+          </p>
+        ) : wallet.connected ? (
+          <button type="button" className={styles.connectButton} disabled={busy || n <= 0} onClick={contribute}>
+            {busy ? "Confirming…" : n <= 0 ? "Enter an amount" : `Contribute ${usd(n)}`}
+          </button>
+        ) : (
+          <button type="button" className={styles.connectButton} onClick={() => void wallet.connect()}>
+            Connect wallet
+          </button>
+        )}
+      </section>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------- market stake */
+
+function MarketStake({
+  data, ticker, assetId, token, status,
+}: {
+  data: PoolsResponse; ticker: string; assetId: `0x${string}`; token: `0x${string}`; status: number;
+}) {
+  const wallet = useFloatWallet();
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const n = Number(amount) || 0;
+
+  async function stake() {
+    setBusy(true);
+    try {
+      const account = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      const hash = await tx.stake(account, assetId, BigInt(Math.round(n * 1e18)), token);
+      await waitFor(hash);
+      toast.success(`Staked ${n} f${ticker}.`);
+      setAmount("");
+    } catch (e) {
+      toast.error(readableError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <header className={styles.poolHeading}>
+        <TokenPair tokenA={`f${ticker}`} tokenB={data.quote.symbol} />
+        <div>
+          <h1>f{ticker} stake vault</h1>
+          <div className={styles.poolBadges}>
+            <span className={styles.poolBadge}>{(data.desk.stakerFeeBps / 100).toFixed(2)}% staker fee</span>
+          </div>
+        </div>
+      </header>
+
+      <p className={styles.pageDescription}>
+        Staking f{ticker} back into its own market deepens the size the Desk can quote
+        there and earns that market&apos;s staker fee stream, paid in {data.quote.symbol}.
+        This is a different position from the Desk vault: it takes the equity&apos;s price
+        risk, because you are holding the fSHARE.
+      </p>
+
+      {status !== 0 ? (
+        <p className={styles.pageDescription}>
+          This market is not open yet, so there is nothing to stake. Fund it from the
+          queue to bring it forward.
+        </p>
+      ) : (
+        <section className={styles.formSection}>
+          <div className={styles.sectionTitleRow}>
+            <h2 className={styles.sectionTitle}>Stake</h2>
+          </div>
+          <div className={styles.amountCard}>
+            <div className={styles.amountInputWrap}>
+              <input
+                className={styles.amountInput}
+                inputMode="decimal"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+              />
+              <span className={styles.tokenSelect}>f{ticker}</span>
+            </div>
+          </div>
+          {wallet.connected ? (
+            <button type="button" className={styles.connectButton} disabled={busy || n <= 0} onClick={stake}>
+              {busy ? "Confirming…" : n <= 0 ? "Enter an amount" : `Stake ${n} f${ticker}`}
+            </button>
+          ) : (
+            <button type="button" className={styles.connectButton} onClick={() => void wallet.connect()}>
+              Connect wallet
+            </button>
+          )}
+        </section>
+      )}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ shared */
+
+function FaucetButton({ symbol, dp }: { symbol: string; dp: number }) {
+  const wallet = useFloatWallet();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      className={styles.secondaryButton}
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const hash = await tx.faucetUsdg(wallet.getAccount(), BigInt(1000 * 10 ** dp));
+          await waitFor(hash);
+          toast.success(`Minted 1,000 test ${symbol}.`);
+          await wallet.refreshBalance();
+        } catch (e) {
+          toast.error(readableError(e));
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      {busy ? "Minting…" : `Get 1,000 test ${symbol}`}
+    </button>
+  );
+}
+
+function VaultMetrics({ data }: { data: PoolsResponse }) {
+  const dp = data.quote.decimals;
+  const equity = fromUnits(data.desk.equity, dp);
+  const shares = fromUnits(data.desk.totalShares, dp);
+
+  const rows: Array<[string, string]> = [
+    ["Available to quote", usd(fromUnits(data.desk.available, dp))],
+    ["Vault equity", usd(equity)],
+    ["Shares outstanding", shares.toLocaleString()],
+    ["Share price", shares > 0 ? (equity / shares).toFixed(5) : "-"],
+    ["Trade fee", `${(data.desk.txFeeBps / 100).toFixed(2)}%`],
+    ["Staker share", `${(data.desk.stakerFeeBps / 100).toFixed(2)}%`],
+    ["Withdrawal delay", duration(data.desk.withdrawDelay)],
+    ["Markets backed", String(data.markets.length)],
+    ["Live now", String(data.markets.filter((m) => m.status === 0).length)],
+  ];
+
+  return (
+    <div className={styles.metrics}>
+      <h2 className={styles.metricsTitle}>Vault</h2>
+      <div className={styles.metricRows}>
+        {rows.map(([label, value]) => (
+          <div className={styles.metricRow} key={label}>
+            <span className={styles.metricLabel}>{label}</span>
+            <span className={styles.cellValue}>{value}</span>
+          </div>
+        ))}
+      </div>
+      <p className={styles.cellSubtle} style={{ marginTop: 12 }}>
+        Registry {data.network.registry.slice(0, 10)}… on {data.network.label}. Every
+        address on this page resolves from it at runtime.
+      </p>
+    </div>
+  );
+}
+
+/** Contract reverts arrive as long simulation dumps; surface the useful line. */
+function readableError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  const named = msg.match(/reverted with the following reason:\s*\n?(.+)/)
+    ?? msg.match(/Error: ([A-Za-z]+\(\))/);
+  if (named) return named[1].trim();
+  if (/User rejected|denied transaction/i.test(msg)) return "Rejected in wallet.";
+  return msg.split("\n")[0].slice(0, 160);
 }

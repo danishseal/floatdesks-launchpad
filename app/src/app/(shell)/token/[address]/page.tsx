@@ -12,12 +12,13 @@ import { useTokenHolders } from "@/hooks/use-token-holders";
 import { useCandles } from "@/hooks/use-candles";
 import { TradingChartSkeleton } from "@/components/trading/trading-chart-skeleton";
 import { FloorlaunchTradePanel } from "@/components/trading/floorlaunch-trade-panel";
-import { TokenComments } from "@/components/utoken/feed";
-import { TokenProposals } from "@/components/proposals/token-proposals";
 import { fetchTokenChange24h } from "@/lib/api";
 import type { Timeframe, TokenListItem, TokenTrade } from "@/lib/api";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import { explorerUrl, solscanUrl, AMM_CONTRACT, LAUNCHPAD_CONTRACT } from "@/lib/floorlaunch/config";
+import { activeNetwork } from "@/lib/float/networks";
+
+const NETWORK_LABEL = activeNetwork().label;
 
 const TradingChart = dynamic(
   () =>
@@ -220,7 +221,7 @@ export default function TokenDetailPage() {
           <FloorlaunchTradePanel token={token} />
           <Overview token={token} trades={visibleTrades} />
         </aside>
-        {/* BOTTOM-LEFT: expanded info panel (Holders / Transactions / Comments) */}
+        {/* BOTTOM-LEFT: expanded info panel (Holders / Transactions) */}
         <TokenInformationPanel
           token={token}
           trades={visibleTrades}
@@ -233,14 +234,13 @@ export default function TokenDetailPage() {
         <div className="flex h-[700px] min-w-0 flex-col">
           <div className="hidden h-2.5 shrink-0 xl:block" />
           <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-[var(--color-bg-page)]">
-            <TokenProposals token={address} />
           </section>
         </div>
     </div>
   );
 }
 
-type InformationTab = "holders" | "transactions" | "comments";
+type InformationTab = "holders" | "transactions";
 
 function TokenInformationPanel({
   token,
@@ -296,9 +296,6 @@ function TokenInformationPanel({
         <InformationTabButton active={tab === "transactions"} onClick={() => setTab("transactions")}>
           Transactions{trades.length ? ` (${trades.length})` : ""}
         </InformationTabButton>
-        <InformationTabButton active={tab === "comments"} onClick={() => setTab("comments")}>
-          Comments
-        </InformationTabButton>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
@@ -314,11 +311,6 @@ function TokenInformationPanel({
           <TransactionsTable trades={trades} symbol={token.symbol ?? "TOKEN"} baseLabel={token.base_label ?? "CHANSE"} />
         )}
 
-        {tab === "comments" && (
-          <div className="p-3">
-            <TokenComments token={token.address} />
-          </div>
-        )}
       </div>
       </section>
     </div>
@@ -607,7 +599,7 @@ function Overview({ token, trades }: { token: TokenListItem; trades: TokenTrade[
     <section className="relative rounded-xl bg-[var(--color-bg-page)] px-3 pb-4 pt-3">
       <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">About {token.name}</h2>
       <p className="mt-1.5 line-clamp-3 text-[11px] leading-[15px] text-[var(--color-text-secondary)]">
-        {token.description?.trim() || `Trade ${token.name} against its live collectible market.`}
+        {token.description?.trim() || `${token.name} is quoted and settled in ${token.base_label}, so every buy of it buys the equity underneath.`}
       </p>
 
       {(token.social_links?.length ?? 0) > 0 ? (
@@ -689,10 +681,10 @@ function Overview({ token, trades }: { token: TokenListItem; trades: TokenTrade[
             </div>
             <div className="mt-2 text-[10px]">
               <OverviewDetailRow label="Created" value={overviewCreatedLabel(token, now)} />
-              <OverviewDetailRow label="Chain" value="Floatdesk" />
+              <OverviewDetailRow label="Chain" value={NETWORK_LABEL} />
               <OverviewDetailRow
                 label="Venue"
-                value={token.market.dbcPool ? "Meteora DBC" : token.graduated ? "Floatdesk AMM" : "Launch curve"}
+                value={token.graduated ? "Uniswap v4 pool" : "Launch curve"}
               />
               <OverviewDetailRow label="Contract address">
                 <CopyValue value={token.mint} />

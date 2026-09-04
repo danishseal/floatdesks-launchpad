@@ -1,0 +1,113 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+
+/** Shapes returned by /api/float/pools. Amounts are stringified base units. */
+export interface PoolsMarket {
+  assetId: `0x${string}`;
+  ticker: string;
+  displayName: string;
+  token: `0x${string}`;
+  status: 0 | 1 | 2;
+  spot: boolean;
+  markPx: string;
+  oraclePx: string | null;
+  oracleUpdatedAt: number | null;
+  marketOpen: boolean | null;
+  oiCapQuote: string;
+  netOI: string;
+  baseSpreadBps: number;
+  ahSpreadBps: number;
+  totalStaked: string | null;
+  volume24h: number;
+  volume7d: number;
+  fees7d: number;
+  trades: number;
+}
+
+export interface PoolsToken {
+  token: `0x${string}`;
+  name: string;
+  symbol: string;
+  underlyingTicker: string;
+  raised: string;
+  gradTarget: string;
+  sold: string;
+  graduated: boolean;
+}
+
+export interface PoolsResponse {
+  network: { key: string; label: string; chainId: number; explorer: string; registry: string; testnet: boolean };
+  venue: "token-launchpad" | "curve-funder" | null;
+  quote: { address: `0x${string}`; symbol: string; decimals: number };
+  desk: {
+    address: `0x${string}`; available: string; equity: string; totalShares: string;
+    sharePrice: number; txFeeBps: number; stakerFeeBps: number; withdrawDelay: number;
+  };
+  funder: {
+    address: `0x${string}`; assetId: `0x${string}`; target: string; funded: string;
+    queueLength: number; feeBalance: string;
+    /** False when contribute() would revert NotQueued. */
+    acceptsContribution: boolean;
+  };
+  launchpad: Record<string, string> | null;
+  markets: PoolsMarket[];
+  tokens: PoolsToken[];
+  totals: { volume24h: number; volume7d: number; fees7d: number; tradeCount: number };
+  asOf: number;
+}
+
+export const POOLS_QUERY_KEY = ["float", "pools"] as const;
+
+export function usePools() {
+  return useQuery<PoolsResponse>({
+    queryKey: POOLS_QUERY_KEY,
+    queryFn: async () => {
+      const r = await fetch("/api/float/pools", { cache: "no-store" });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error ?? `pools -> HTTP ${r.status}`);
+      }
+      return r.json();
+    },
+    refetchInterval: 15_000,
+  });
+}
+
+// ---------------------------------------------------------------- formatting
+
+/** USDG and every quote amount on Float is 6dp. */
+export const QUOTE_DP = 6;
+
+export function fromUnits(raw: string | bigint, decimals: number): number {
+  return Number(BigInt(raw)) / 10 ** decimals;
+}
+
+export function usd(n: number, opts: { max?: number; min?: number } = {}): string {
+  const { min = 0, max = n >= 1000 ? 0 : 2 } = opts;
+  return n.toLocaleString("en-US", {
+    style: "currency", currency: "USD",
+    minimumFractionDigits: min, maximumFractionDigits: max,
+  });
+}
+
+export function pct(n: number, dp = 2): string {
+  return `${n >= 0 ? "" : "-"}${Math.abs(n).toFixed(dp)}%`;
+}
+
+export const STATUS_LABEL: Record<number, string> = {
+  0: "Live",
+  1: "Settle only",
+  2: "Halted",
+};
+
+/** Oracle price is 1e8-scaled; mark price shares that scale. */
+export function px8(raw: string | null): number {
+  return raw ? Number(BigInt(raw)) / 1e8 : 0;
+}
+
+export function duration(secs: number): string {
+  if (secs % 86400 === 0) return `${secs / 86400}d`;
+  if (secs % 3600 === 0) return `${secs / 3600}h`;
+  return `${Math.round(secs / 60)}m`;
+}

@@ -1,347 +1,282 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+/**
+ * Trade panel for a launched token.
+ *
+ * The quote asset is the token's UNDERLYING fSHARE, not a stablecoin, so buying
+ * a token means holding that fSHARE first. Rather than reverting with an opaque
+ * transfer failure, the panel reads the balance and offers the missing leg:
+ * buy the fSHARE from the Desk with USDG, then buy the token on its curve.
+ * That is the whole point of the venue, so it is shown rather than hidden.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { TokenListItem } from "@/lib/api";
-import {
-  buy,
-  sell,
-  simulateBuy,
-  simulateSell,
-  ammBuy,
-  ammSell,
-  ammSimulateBuy,
-  ammSimulateSell,
-} from "@/lib/ansem/launchpad-tx";
-import { denomLabel, explorerUrl } from "@/lib/floorlaunch/config";
-import { useFloorWallet } from "@/components/wallet/solana-wallet-provider";
-import { ConnectButton } from "@/components/wallet/connect-button";
-import { Button } from "@/components/ui/button";
 import { Gear } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { TOKEN_DETAIL_QUERY_KEY } from "@/hooks/use-token-detail";
-import { TOKEN_TRADES_QUERY_KEY, TOKEN_HOLDERS_QUERY_KEY, fetchTokenBalance } from "@/lib/api";
+import {
+  TOKEN_TRADES_QUERY_KEY, TOKEN_HOLDERS_QUERY_KEY, fetchTokenBalance,
+  type TokenListItem,
+} from "@/lib/api";
+import {
+  tokenPreviewBuy, tokenPreviewSell, deskPreviewBuy, tx, waitFor, balanceOf, getListing,
+} from "@/lib/float/chain";
 
 const DEFAULT_SLIPPAGE = 0.02;
 const SLIPPAGE_PRESETS = [0.005, 0.01, 0.02, 0.05];
-const MIN_SLIPPAGE = 0.001;
-const MAX_SLIPPAGE = 0.5;
-const UTOKEN = 1_000_000;
+const WAD = 1e18;
 
-// Format a slippage fraction as a percent string without trailing-zero noise.
 function pctLabel(frac: number): string {
   return `${Number((frac * 100).toFixed(3))}%`;
 }
 
 export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
-  const wallet = useFloorWallet();
+  const wallet = useFloatWallet();
   const queryClient = useQueryClient();
+
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [quoteOut, setQuoteOut] = useState<number | null>(null);
-  // Adjustable slippage tolerance (fraction). Defaults to 2%, clamped 0.1%-50%.
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE);
   const [customSlippage, setCustomSlippage] = useState("");
   const [showSlippage, setShowSlippage] = useState(false);
-  // The connected wallet's balance of THIS token, so the Sell tab can show how
-  // much the user holds (and a Max shortcut). Refetched after each trade (busy).
   const [holdings, setHoldings] = useState<number | null>(null);
+  const [fshare, setFshare] = useState<{ address: `0x${string}`; balance: number } | null>(null);
+
+  const assetId = token.base_denom as `0x${string}`;
+  const baseLabel = token.base_label || "fSHARE";
+  const numeric = Number(amount) || 0;
+
+  // Token balance for the sell tab.
   useEffect(() => {
     let cancelled = false;
-    if (!wallet.address) {
-      setHoldings(null);
-      return;
-    }
-    fetchTokenBalance(token.address, wallet.address).then((b) => {
+    if (!wallet.address) { setHoldings(null); return; }
+    void fetchTokenBalance(token.address, wallet.address).then((b) => {
       if (!cancelled) setHoldings(b);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [wallet.address, token.address, busy]);
 
-  const baseDenom = token.base_denom || "uchanse";
-  const baseLabel = denomLabel(baseDenom);
-  const numeric = Number(amount) || 0;
-  // Graduated tokens trade on the AMM, not the curve; route quotes + trades there.
-  const graduated = Boolean(token.graduated);
-
-  // Live quote via the on-chain simulate queries (curve or AMM).
+  // The underlying fSHARE the curve is quoted in, and how much of it we hold.
   useEffect(() => {
     let cancelled = false;
-    if (numeric <= 0) {
-      setQuoteOut(null);
-      return;
-    }
-    const inUtoken = String(Math.round(numeric * UTOKEN));
-    const p =
-      side === "buy"
-        ? (graduated ? ammSimulateBuy : simulateBuy)(token.address, inUtoken)
-        : (graduated ? ammSimulateSell : simulateSell)(token.address, inUtoken);
-    p.then((out) => {
-      if (!cancelled) setQuoteOut(Number(out) / UTOKEN);
-    }).catch(() => {
-      if (!cancelled) setQuoteOut(null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [side, numeric, token.address, graduated]);
+    if (!assetId) return;
+    void (async () => {
+      try {
+        const listing = await getListing(assetId);
+        const bal = wallet.address ? await balanceOf(listing.token, wallet.address) : 0n;
+        if (!cancelled) setFshare({ address: listing.token, balance: Number(bal) / WAD });
+      } catch {
+        if (!cancelled) setFshare(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [assetId, wallet.address, busy]);
 
-  const outLabel = side === "buy" ? token.symbol ?? "tokens" : baseLabel;
-  const payLabel = side === "buy" ? baseLabel : token.symbol ?? "tokens";
-  const symbol = token.symbol ?? "tokens";
+  // Live quote off the curve's own preview functions.
+  useEffect(() => {
+    let cancelled = false;
+    if (numeric <= 0) { setQuoteOut(null); return; }
+    const raw = BigInt(Math.round(numeric * WAD));
+    const p = side === "buy"
+      ? tokenPreviewBuy(token.address as `0x${string}`, raw)
+      : tokenPreviewSell(token.address as `0x${string}`, raw);
+    void p.then(([out]) => { if (!cancelled) setQuoteOut(Number(out) / WAD); })
+      .catch(() => { if (!cancelled) setQuoteOut(null); });
+    return () => { cancelled = true; };
+  }, [numeric, side, token.address]);
 
-  // The balance shown on the "available" line and used by the balance shortcut:
-  // CHANSE on Buy (what you spend), this token's holdings on Sell.
-  const availBalance = side === "buy" ? wallet.balance : holdings;
-  const availLabel = side === "buy" ? baseLabel : symbol;
+  const needsFshare = side === "buy" && fshare !== null && numeric > fshare.balance;
 
-  // Quick-amount chips. Buy uses fixed CHANSE presets; Sell uses fractions of the
-  // connected wallet's holdings so the chips always map to something spendable.
-  const quickChips: Array<{ label: string; value: string; disabled: boolean }> =
-    side === "buy"
-      ? [10, 100, 500, 1000].map((p) => ({ label: p.toLocaleString(), value: String(p), disabled: false }))
-      : [0.25, 0.5, 0.75, 1].map((f) => ({
-          label: f === 1 ? "Max" : `${f * 100}%`,
-          value: holdings != null ? String(Number((holdings * f).toFixed(6))) : "",
-          disabled: holdings == null || holdings <= 0,
-        }));
+  const invalidate = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: TOKEN_DETAIL_QUERY_KEY(token.address) }),
+      queryClient.invalidateQueries({ queryKey: TOKEN_TRADES_QUERY_KEY(token.address) }),
+      queryClient.invalidateQueries({ queryKey: TOKEN_HOLDERS_QUERY_KEY(token.address) }),
+    ]);
+  }, [queryClient, token.address]);
 
-  const minOut = useMemo(
-    () => (quoteOut != null ? Math.floor(quoteOut * (1 - slippage) * UTOKEN) : 0),
-    [quoteOut, slippage],
-  );
-
-  function applyCustomSlippage(raw: string) {
-    setCustomSlippage(raw);
-    const pct = Number(raw);
-    if (!Number.isFinite(pct) || pct <= 0) return;
-    const clamped = Math.min(Math.max(pct / 100, MIN_SLIPPAGE), MAX_SLIPPAGE);
-    setSlippage(clamped);
-  }
-
-  function selectPreset(frac: number) {
-    setSlippage(frac);
-    setCustomSlippage("");
-  }
-
-  async function submit() {
-    if (!wallet.address) return;
+  async function trade() {
     setBusy(true);
-    toast.loading(`Confirm the ${side} in your wallet…`, { id: "trade" });
     try {
-      const client = await wallet.getSigningClient();
-      const inUtoken = String(Math.round(numeric * UTOKEN));
-      const hash =
-        side === "buy"
-          ? await (graduated ? ammBuy : buy)(client, wallet.address, token.address, baseDenom, inUtoken, String(minOut))
-          : await (graduated ? ammSell : sell)(client, wallet.address, token.address, inUtoken, String(minOut));
-      toast.success(`${side === "buy" ? "Bought" : "Sold"} ${token.symbol ?? "token"}`, {
-        id: "trade",
-        // Clickable tx hash -> the Floatdesk explorer.
-        description: (
-          <a
-            href={explorerUrl("tx", hash)}
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono underline decoration-dotted underline-offset-2 hover:text-[var(--color-accent-strong)]"
-          >
-            {hash.slice(0, 10)}… ↗
-          </a>
-        ),
-      });
+      const account = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      const raw = BigInt(Math.round(numeric * WAD));
+      const minOut = quoteOut !== null
+        ? BigInt(Math.floor(quoteOut * (1 - slippage) * WAD))
+        : 0n;
+
+      if (side === "buy") {
+        if (!fshare) throw new Error("Could not resolve the underlying fSHARE.");
+        const hash = await tx.tokenBuy(account, token.address as `0x${string}`, raw, minOut, fshare.address);
+        await waitFor(hash);
+        toast.success(`Bought ${token.symbol ?? "token"}.`);
+      } else {
+        const hash = await tx.tokenSell(account, token.address as `0x${string}`, raw, minOut);
+        await waitFor(hash);
+        toast.success(`Sold ${token.symbol ?? "token"}.`);
+      }
       setAmount("");
-      const refresh = () => {
-        // Chain-backed reads (holders, wallet balance) update immediately;
-        // indexer-derived reads (detail, trades, candles) lag a few seconds, so
-        // we refetch now AND again after the indexer catches up.
-        void queryClient.invalidateQueries({ queryKey: TOKEN_HOLDERS_QUERY_KEY(token.address) });
-        void queryClient.invalidateQueries({ queryKey: TOKEN_DETAIL_QUERY_KEY(token.address) });
-        void queryClient.invalidateQueries({ queryKey: TOKEN_TRADES_QUERY_KEY(token.address) });
-        void queryClient.invalidateQueries({ queryKey: ["candles", token.address] });
-        void queryClient.invalidateQueries({ queryKey: ["tokens"] });
-        void wallet.refreshBalance();
-      };
-      refresh();
-      window.setTimeout(refresh, 3000);
-      window.setTimeout(refresh, 8000);
+      await invalidate();
     } catch (e) {
-      toast.error("Trade failed", {
-        id: "trade",
-        description: e instanceof Error ? e.message : String(e),
-      });
+      toast.error(readableError(e));
     } finally {
       setBusy(false);
     }
   }
 
+  /** Buy the underlying fSHARE from the Desk so the curve trade can settle. */
+  async function getUnderlying() {
+    setBusy(true);
+    try {
+      const account = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      const shortfall = Math.max(0, numeric - (fshare?.balance ?? 0));
+      // Size the USDG leg off the Desk's own preview so the spread and impact
+      // are priced in, then add a small buffer for the move between quote and fill.
+      const usdgGuess = BigInt(Math.round(shortfall * (token.market.solUsd || 1) * 1.05 * 1e6));
+      const [baseOut] = await deskPreviewBuy(assetId, usdgGuess);
+      const minBase = (baseOut * 99n) / 100n;
+      const hash = await tx.deskBuy(account, assetId, usdgGuess, minBase);
+      await waitFor(hash);
+      toast.success(`Bought ${baseLabel} from the Desk.`);
+      await wallet.refreshBalance();
+    } catch (e) {
+      toast.error(readableError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const outLabel = side === "buy" ? token.symbol ?? "tokens" : baseLabel;
+  const inLabel = side === "buy" ? baseLabel : token.symbol ?? "tokens";
+  const balance = side === "buy" ? fshare?.balance ?? null : holdings;
+
   return (
-    <div className="flex flex-col gap-3 rounded-xl bg-[var(--color-bg-page)] p-4">
-      {/* Buy / Sell segmented tabs */}
-      <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
-        {(["buy", "sell"] as const).map((s) => {
-          const active = side === s;
-          return (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setSide(s)}
-              className={`rounded-[8px] px-4 py-2 font-display text-[13px] font-semibold capitalize transition ${
-                active
-                  ? s === "buy"
-                    ? "bg-[var(--color-accent-solid)]/15 text-[var(--color-accent-strong)]"
-                    : "bg-[var(--color-negative)]/15 text-[#ff7a7a]"
-                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-              }`}
-            >
-              {s}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Big amount field */}
-      <div className="rounded-[10px] bg-[var(--color-bg-page)] px-4 py-3.5">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-            {side === "buy" ? "You pay" : "You sell"}
-          </span>
-          <span className="rounded-[6px] bg-[var(--color-bg-surface)] px-2 py-0.5 font-mono text-[10px] font-semibold text-[var(--color-text-secondary)]">
-            {payLabel}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-3">
-          <span className="shrink-0 font-mono text-[15px] text-[var(--color-text-subtle)]">{payLabel}</span>
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Enter amount"
-            inputMode="decimal"
-            aria-label={side === "buy" ? `Amount of ${payLabel} to spend` : `Amount of ${payLabel} to sell`}
-            className="min-w-0 flex-1 bg-transparent text-right font-mono text-[28px] font-semibold tabular-nums text-[var(--color-text-primary)] outline-none placeholder:text-[18px] placeholder:font-normal placeholder:text-[var(--color-text-subtle)]"
-          />
-        </div>
-        <p className="mt-2 text-right text-[12px] text-[var(--color-text-muted)]">
-          {quoteOut != null && numeric > 0 ? (
-            <>
-              <span className="text-[var(--color-text-subtle)]">≈ </span>
-              <span className="font-mono tabular-nums text-[var(--color-text-secondary)]">
-                {quoteOut.toLocaleString(undefined, { maximumFractionDigits: 6 })}
-              </span>{" "}
-              {outLabel}
-            </>
-          ) : (
-            "Enter an amount to quote"
-          )}
-        </p>
-      </div>
-
-      {/* Quick-amount chips + slippage gear */}
-      <div className="flex items-center gap-1.5">
-        {quickChips.map((chip, i) => (
+    <div className="rounded-[14px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-4">
+      <div className="mb-4 flex items-center gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
+        {(["buy", "sell"] as const).map((s) => (
           <button
-            key={i}
+            key={s}
             type="button"
-            disabled={chip.disabled}
-            onClick={() => setAmount(chip.value)}
-            className="flex-1 rounded-[8px] bg-[var(--color-bg-page)] px-2 py-1.5 font-mono text-[11px] font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--color-bg-page)] disabled:hover:text-[var(--color-text-secondary)]"
+            onClick={() => { setSide(s); setAmount(""); }}
+            className={`flex-1 rounded-[8px] py-2 text-[14px] font-semibold capitalize transition ${
+              side === s ? "bg-[var(--color-text-primary)] text-[var(--color-bg-page)]" : "text-[var(--color-text-secondary)]"
+            }`}
           >
-            {chip.label}
+            {s}
           </button>
         ))}
+      </div>
+
+      <div className="mb-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="text-[13px] text-[var(--color-text-secondary)]">You pay</label>
+          <span className="text-[12px] text-[var(--color-text-subtle)]">
+            {balance === null ? "-" : `${balance.toFixed(4)} ${inLabel}`}
+            {balance !== null && balance > 0 ? (
+              <button type="button" className="ml-2 underline" onClick={() => setAmount(String(balance))}>max</button>
+            ) : null}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3 py-2.5">
+          <input
+            className="w-full bg-transparent text-[16px] outline-none"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+          />
+          <span className="shrink-0 text-[13px] font-semibold">{inLabel}</span>
+        </div>
+      </div>
+
+      <div className="mb-4 flex items-center justify-between text-[13px]">
+        <span className="text-[var(--color-text-secondary)]">You receive</span>
+        <span className="font-semibold">
+          {quoteOut === null ? "-" : `${quoteOut.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${outLabel}`}
+        </span>
+      </div>
+
+      <div className="mb-4">
         <button
           type="button"
           onClick={() => setShowSlippage((v) => !v)}
-          title="Slippage settings"
-          aria-label="Slippage settings"
-          aria-expanded={showSlippage}
-          className={`flex shrink-0 items-center justify-center rounded-[8px] px-2 py-1.5 transition ${
-            showSlippage
-              ? "bg-[var(--color-accent-solid)]/15 text-[var(--color-accent-strong)]"
-              : "bg-[var(--color-bg-page)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]"
-          }`}
+          className="flex items-center gap-1.5 text-[12px] text-[var(--color-text-subtle)]"
         >
-          <Gear size={15} weight="fill" />
+          <Gear size={13} /> Slippage {pctLabel(slippage)}
         </button>
-      </div>
-
-      {/* Slippage control (held by the gear) */}
-      {showSlippage && (
-        <div className="rounded-[10px] bg-[var(--color-bg-page)] p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-medium text-[var(--color-text-secondary)]">Slippage tolerance</span>
-            <span className="font-mono text-[11px] font-semibold text-[var(--color-accent-strong)]">{pctLabel(slippage)}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
+        {showSlippage ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {SLIPPAGE_PRESETS.map((p) => (
               <button
                 key={p}
                 type="button"
-                onClick={() => selectPreset(p)}
-                className={`flex-1 rounded-[6px] px-2 py-1.5 font-mono text-[11px] font-semibold transition ${
-                  !customSlippage && slippage === p
-                    ? "bg-[var(--color-accent-solid)] text-[var(--color-on-accent)]"
-                    : "bg-[var(--color-bg-page)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]"
+                onClick={() => setSlippage(p)}
+                className={`rounded-[7px] border px-2 py-1 text-[12px] ${
+                  slippage === p ? "border-[var(--color-text-primary)]" : "border-[var(--color-border-soft)]"
                 }`}
               >
                 {pctLabel(p)}
               </button>
             ))}
-            <div className="relative flex-1">
-              <input
-                value={customSlippage}
-                onChange={(e) => applyCustomSlippage(e.target.value)}
-                placeholder="Custom"
-                inputMode="decimal"
-                aria-label="Custom slippage percent"
-                className="w-full rounded-[6px] bg-[var(--color-bg-page)] px-2 py-1.5 pr-5 text-right font-mono text-[11px] text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-subtle)] focus:bg-[var(--color-bg-surface)]"
-              />
-              <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 font-mono text-[11px] text-[var(--color-text-subtle)]">%</span>
-            </div>
+            <input
+              className="w-20 rounded-[7px] border border-[var(--color-border-soft)] bg-transparent px-2 py-1 text-[12px] outline-none"
+              placeholder="custom %"
+              value={customSlippage}
+              onChange={(e) => {
+                setCustomSlippage(e.target.value);
+                const v = Number(e.target.value) / 100;
+                if (v >= 0.001 && v <= 0.5) setSlippage(v);
+              }}
+            />
           </div>
-          <p className="mt-2 text-[10px] text-[var(--color-text-subtle)]">Allowed range {pctLabel(MIN_SLIPPAGE)} to {pctLabel(MAX_SLIPPAGE)}.</p>
-        </div>
-      )}
+        ) : null}
+      </div>
 
-      {/* Balance line */}
-      <button
-        type="button"
-        onClick={() => {
-          if (availBalance != null && availBalance > 0) setAmount(String(availBalance));
-        }}
-        disabled={availBalance == null || availBalance <= 0}
-        title="Use full balance"
-        className="flex items-center justify-between text-[11px] text-[var(--color-text-muted)] transition enabled:hover:text-[var(--color-text-secondary)] disabled:cursor-default"
-      >
-        <span className="uppercase tracking-[0.08em]">Balance</span>
-        <span className="font-mono tabular-nums">
-          {(availBalance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 })} {availLabel} available
-        </span>
-      </button>
-
-      {/* Action button */}
       {!wallet.connected ? (
-        <ConnectButton />
+        <Button className="w-full" onClick={() => void wallet.connect()}>Connect wallet</Button>
+      ) : token.graduated ? (
+        <div className="rounded-[10px] border border-[var(--color-border-soft)] px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
+          This token has graduated. Its curve is spent and it now trades in a Uniswap v4
+          pool, which this panel does not route to yet.
+        </div>
+      ) : needsFshare ? (
+        <div className="space-y-2">
+          <p className="text-[12px] text-[var(--color-text-secondary)]">
+            This curve settles in {baseLabel}, and you hold {(fshare?.balance ?? 0).toFixed(4)}.
+            Buy the rest from the Desk first.
+          </p>
+          <Button className="w-full" disabled={busy} onClick={getUnderlying}>
+            {busy ? "Confirming…" : `Buy ${baseLabel} with USDG`}
+          </Button>
+        </div>
       ) : (
         <Button
-          onClick={submit}
-          disabled={busy || numeric <= 0}
-          className={
-            "h-12 rounded-[10px] border-0 font-display text-[14px] font-semibold text-[var(--color-text-primary)] " +
-            (side === "buy"
-              ? "bg-[var(--color-accent-solid)] hover:bg-[var(--color-accent-strong)]"
-              : "bg-[#c9403f] hover:bg-[#d54847]")
-          }
+          className="w-full"
+          disabled={busy || numeric <= 0 || (balance !== null && numeric > balance)}
+          onClick={trade}
         >
-          {busy ? "Submitting…" : side === "buy" ? `Buy ${symbol}` : `Sell ${symbol}`}
+          {busy ? "Confirming…"
+            : wallet.wrongChain ? "Switch network"
+            : numeric <= 0 ? "Enter an amount"
+            : balance !== null && numeric > balance ? `Not enough ${inLabel}`
+            : `${side === "buy" ? "Buy" : "Sell"} ${token.symbol ?? "token"}`}
         </Button>
       )}
-
-      <p className="text-[11px] leading-relaxed text-[var(--color-text-subtle)]">
-        Trades settle on the Floatdesk {graduated ? "AMM" : "bonding curve"}. Slippage tolerance {pctLabel(slippage)}.
-      </p>
     </div>
   );
+}
+
+function readableError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/User rejected|denied transaction/i.test(msg)) return "Rejected in wallet.";
+  if (/Graduated/.test(msg)) return "This curve has graduated; trade the pool instead.";
+  if (/Slippage|minOut/i.test(msg)) return "Price moved past your slippage. Try again.";
+  const named = msg.match(/reverted with the following reason:\s*\n?(.+)/);
+  return named ? named[1].trim() : msg.split("\n")[0].slice(0, 160);
 }

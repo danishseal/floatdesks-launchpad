@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Coins } from "@phosphor-icons/react";
-import { useFloorWallet } from "@/components/wallet/solana-wallet-provider";
+import { useFloorWallet } from "@/components/wallet/float-wallet-provider";
 import {
   AssetImage,
   ConnectState,

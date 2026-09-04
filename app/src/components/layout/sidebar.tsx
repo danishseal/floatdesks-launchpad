@@ -19,10 +19,10 @@ const navItems: NavItem[] = [
     activeWhen: (p) => p === "/" || p.startsWith("/token/"),
   },
   { label: "Explore", href: "/explore" },
-  { label: "Messages", href: "/messages" },
-  { label: "Horns", href: "/horns" },
-  { label: "Horn Vault", href: "/your-tokens" },
-  { label: "Stats", href: "/explore" },
+  { label: "Liquidity", href: "/liquidity" },
+  { label: "Analytics", href: "/analytics" },
+  { label: "Leaderboard", href: "/leaderboard" },
+  { label: "Your tokens", href: "/your-tokens" },
 ];
 
 interface SidebarProps {

@@ -6,7 +6,7 @@ import { ConnectButton } from "@/components/wallet/connect-button";
 
 const NAV_ITEMS = [
   { label: "Scanner", href: "/explore", badge: "S", badgeClass: "bg-[#c49a32]" },
-  { label: "Feed", href: "/feed", badge: "F", badgeClass: "bg-[#91a9d6]" },
+  { label: "Portfolio", href: "/your-tokens", badge: "P", badgeClass: "bg-[#91a9d6]" },
   { label: "Analytics", href: "/analytics", badge: "A", badgeClass: "bg-[#0d4b2d] text-white" },
   { label: "Liquidity", href: "/liquidity", badge: "Q", badgeClass: "bg-[#a6b4a3]" },
   { label: "Leaderboard", href: "/leaderboard", badge: "L", badgeClass: "bg-[#ddb8cc]" },

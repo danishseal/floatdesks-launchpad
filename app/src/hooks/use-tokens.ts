@@ -47,7 +47,7 @@ export function useTokens() {
     const changes = changesQuery.data;
     if (!changes) return tokens;
     return tokens.map((t) => {
-      const change = changes[t.address];
+      const change = changes.get(t.address);
       return change == null ? t : { ...t, price_change_24h: change };
     });
   }, [tokensQuery.data, changesQuery.data]);
