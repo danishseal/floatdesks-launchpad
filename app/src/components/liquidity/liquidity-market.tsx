@@ -183,16 +183,16 @@ function DeskVaultCard({ data }: { data: PoolsResponse }) {
         </div>
       </div>
 
-      <FunderRow data={data} />
+      {data.funder ? <FunderRow data={data} funder={data.funder} /> : null}
     </section>
   );
 }
 
-function FunderRow({ data }: { data: PoolsResponse }) {
+function FunderRow({ data, funder }: { data: PoolsResponse; funder: NonNullable<PoolsResponse["funder"]> }) {
   const dp = data.quote.decimals;
-  const target = fromUnits(data.funder.target, dp);
-  const funded = fromUnits(data.funder.funded, dp);
-  const head = data.markets.find((m) => m.assetId.toLowerCase() === data.funder.assetId.toLowerCase());
+  const target = fromUnits(funder.target, dp);
+  const funded = fromUnits(funder.funded, dp);
+  const head = data.markets.find((m) => m.assetId.toLowerCase() === funder.assetId.toLowerCase());
   const progress = target > 0 ? (funded / target) * 100 : 0;
 
   return (
@@ -200,13 +200,13 @@ function FunderRow({ data }: { data: PoolsResponse }) {
       <div className={styles.poolIdentity}>
         <TokenPair tokenA={data.quote.symbol} tokenB={head?.ticker ?? "?"} />
         <div>
-          <Link className={styles.poolName} href={`/liquidity/${data.funder.address}`}>
+          <Link className={styles.poolName} href={`/liquidity/${funder.address}`}>
             Funding queue
             <span className={styles.tokenMeta}> · </span>
             {head?.ticker ?? "next market"}
           </Link>
           <div className={styles.poolBadges}>
-            <span className={styles.poolBadge}>{data.funder.queueLength} queued</span>
+            <span className={styles.poolBadge}>{funder.queueLength} queued</span>
             <span className={styles.poolBadge}>Desk shares pro-rata</span>
           </div>
         </div>
@@ -222,15 +222,15 @@ function FunderRow({ data }: { data: PoolsResponse }) {
       </div>
       <div>
         <span className={styles.mobileLabel}>From fees</span>
-        <span className={styles.cellValue}>{usd(fromUnits(data.funder.feeBalance, dp))}</span>
+        <span className={styles.cellValue}>{usd(fromUnits(funder.feeBalance, dp))}</span>
       </div>
       <div>
         <span className={styles.mobileLabel}>Opens at</span>
         <span className={styles.cellValue}>{usd(target)}</span>
       </div>
       <div>
-        {data.funder.acceptsContribution ? (
-          <Link className={styles.depositLink} href={`/liquidity/${data.funder.address}`}>
+        {funder.acceptsContribution ? (
+          <Link className={styles.depositLink} href={`/liquidity/${funder.address}`}>
             Contribute <ArrowRight size={13} weight="bold" />
           </Link>
         ) : (

@@ -44,12 +44,13 @@ export interface PoolsResponse {
     address: `0x${string}`; available: string; equity: string; totalShares: string;
     sharePrice: number; txFeeBps: number; stakerFeeBps: number; withdrawDelay: number;
   };
+  /** Null when the funder could not be read; the queue row is then omitted. */
   funder: {
     address: `0x${string}`; assetId: `0x${string}`; target: string; funded: string;
     queueLength: number; feeBalance: string;
     /** False when contribute() would revert NotQueued. */
     acceptsContribution: boolean;
-  };
+  } | null;
   launchpad: Record<string, string> | null;
   markets: PoolsMarket[];
   tokens: PoolsToken[];

@@ -34,7 +34,7 @@ export function LiquidityDetail() {
 
   const mode: Mode =
     pool === data.desk.address.toLowerCase() ? "desk"
-    : pool === data.funder.address.toLowerCase() ? "funder"
+    : pool === data.funder?.address.toLowerCase() ? "funder"
     : "market";
 
   const market = data.markets.find((m) => m.token.toLowerCase() === pool);
@@ -50,7 +50,7 @@ export function LiquidityDetail() {
       <div className={styles.detailGrid}>
         <section className={styles.builder}>
           {mode === "desk" ? <DeskDeposit data={data} />
-            : mode === "funder" ? <FunderContribute data={data} />
+            : mode === "funder" && data.funder ? <FunderContribute data={data} funder={data.funder} />
             : market ? <MarketStake data={data} ticker={market.ticker} assetId={market.assetId} token={market.token} status={market.status} />
             : <p className="text-sm">Unknown pool {pool}.</p>}
         </section>
@@ -220,16 +220,16 @@ function Withdraw({ data, myShares, sharePrice }: { data: PoolsResponse; myShare
 
 /* -------------------------------------------------------- funder contribute */
 
-function FunderContribute({ data }: { data: PoolsResponse }) {
+function FunderContribute({ data, funder }: { data: PoolsResponse; funder: NonNullable<PoolsResponse["funder"]> }) {
   const wallet = useFloatWallet();
   const qc = useQueryClient();
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
 
   const dp = data.quote.decimals;
-  const target = fromUnits(data.funder.target, dp);
-  const funded = fromUnits(data.funder.funded, dp);
-  const head = data.markets.find((m) => m.assetId.toLowerCase() === data.funder.assetId.toLowerCase());
+  const target = fromUnits(funder.target, dp);
+  const funded = fromUnits(funder.funded, dp);
+  const head = data.markets.find((m) => m.assetId.toLowerCase() === funder.assetId.toLowerCase());
   const n = Number(amount) || 0;
 
   async function contribute() {
@@ -237,7 +237,7 @@ function FunderContribute({ data }: { data: PoolsResponse }) {
     try {
       const account = wallet.getAccount();
       if (wallet.wrongChain) await wallet.switchChain();
-      const hash = await tx.contribute(account, data.funder.assetId, BigInt(Math.round(n * 10 ** dp)));
+      const hash = await tx.contribute(account, funder.assetId, BigInt(Math.round(n * 10 ** dp)));
       await waitFor(hash);
       toast.success(`Contributed ${usd(n)} toward ${head?.ticker ?? "the next market"}.`);
       setAmount("");
@@ -256,7 +256,7 @@ function FunderContribute({ data }: { data: PoolsResponse }) {
         <div>
           <h1>Funding queue · {head?.ticker ?? "next market"}</h1>
           <div className={styles.poolBadges}>
-            <span className={styles.poolBadge}>{data.funder.queueLength} queued</span>
+            <span className={styles.poolBadge}>{funder.queueLength} queued</span>
             <span className={styles.poolBadge}>{pct(target > 0 ? (funded / target) * 100 : 0, 1)} funded</span>
           </div>
         </div>
@@ -291,7 +291,7 @@ function FunderContribute({ data }: { data: PoolsResponse }) {
             {n > 0 ? `${pct(((funded + n) / target) * 100, 1)} funded after this` : " "}
           </div>
         </div>
-        {!data.funder.acceptsContribution ? (
+        {!funder.acceptsContribution ? (
           <p className={styles.cellSubtle}>
             Nothing is queued for contribution right now, so this market fills from
             protocol fees only. Direct contributions revert until a market is enqueued.

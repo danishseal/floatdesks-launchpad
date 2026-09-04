@@ -63,12 +63,19 @@ export async function GET() {
   }
   try {
     const venue = await detectVenue();
-    const [vault, queue, ids, usdgAddr] = await Promise.all([
-      deskVault(), funderQueue(), listingIds(), resolve("USDG"),
+    // The Desk vault and the quote asset are fatal: without them there is no
+    // board. The funder queue and the listing set are not, so they degrade
+    // rather than taking the deposit surface down with them.
+    const [vault, usdgAddr] = await Promise.all([deskVault(), resolve("USDG")]);
+    const [queue, ids] = await Promise.all([
+      funderQueue().catch(() => null),
+      listingIds().catch(() => [] as `0x${string}`[]),
     ]);
     // contribute() reverts NotQueued unless the head is enqueued and unpoured,
     // and a market funded straight from a curve is never enqueued at all.
-    const queueOpen = await funderAcceptsContribution(queue.assetId).catch(() => false);
+    const queueOpen = queue
+      ? await funderAcceptsContribution(queue.assetId).catch(() => false)
+      : false;
     const usdg = await erc20(usdgAddr);
 
     const now = Math.floor(Date.now() / 1000);
@@ -80,7 +87,12 @@ export async function GET() {
     const sumFees = (rows: TradeRow[]) =>
       rows.reduce((a, r) => a + Number(BigInt(r.quote ?? "0")) * (r.fee_bps ?? 0) / 10_000, 0);
 
-    const markets = await Promise.all(ids.map(async (assetId) => {
+    // Each market row fails on its own. getListing reverts UnknownAsset on a
+    // delisted or zeroed listing, and inside a shared Promise.all one such
+    // revert rejected the whole board, so a single bad row took down the Desk
+    // vault card people deposit into. Drop the row, keep the board.
+    const marketRows = await Promise.all(ids.map(async (assetId) => {
+      try {
       const [l, mark, oi, oracle, pool] = await Promise.all([
         getListing(assetId),
         markPx(assetId).catch(() => 0n),
@@ -111,7 +123,11 @@ export async function GET() {
         fees7d: sumFees(mine(windowed(7 * DAY))),
         trades: mine(trades).length,
       };
+      } catch {
+        return null;
+      }
     }));
+    const markets = marketRows.filter((m): m is NonNullable<typeof m> => m !== null);
 
     // Launched tokens, only where this deployment runs the fSHARE curve.
     let tokens: unknown[] = [];
@@ -171,7 +187,7 @@ export async function GET() {
         stakerFeeBps: vault.stakerFeeBps,
         withdrawDelay: Number(vault.withdrawDelay),
       },
-      funder: {
+      funder: queue && {
         address: queue.address,
         assetId: queue.assetId,
         target: queue.target.toString(),
