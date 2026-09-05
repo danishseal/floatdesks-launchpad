@@ -30,6 +30,7 @@ export type RegistryKey =
   | "CURVE_FUNDER"
   | "GRADUATOR"
   | "V4_POOL_MANAGER"
+  | "TOKEN_META"
   | "V4_STATE_VIEW"
   | "DESK_HOOK";
 

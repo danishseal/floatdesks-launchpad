@@ -304,7 +304,14 @@ function MarketTable({ data, query, filter }: { data: PoolsResponse; query: stri
   const dp = data.quote.decimals;
 
   return (
-    <section className={styles.tableShell} aria-label="Markets">
+    <section className={styles.tableShell} aria-label="Desk markets">
+      <div className={styles.sectionTitleRow} style={{ padding: "14px 20px 0" }}>
+        <h2 className={styles.sectionTitle}>Desk markets</h2>
+        <span className={styles.cellSubtle}>
+          quoted by the shared vault above. The same fSHARE can also sit in a public
+          v4 pool, which is separate capital and counted separately.
+        </span>
+      </div>
       <div className={styles.tableHeader} aria-hidden="true">
         <span className={styles.columnLabel}>Market</span>
         <span className={styles.columnLabel}>Mark</span>
@@ -357,6 +364,7 @@ function MarketRow({ m, dp, symbol, feedOk }: { m: PoolsMarket; dp: number; symb
             {symbol}
           </Link>
           <div className={styles.poolBadges}>
+            <span className={styles.poolBadge}>Desk</span>
             <span className={styles.poolBadge}>{STATUS_LABEL[m.status]}</span>
             <span className={styles.poolBadge}>
               {m.marketOpen ? `${m.baseSpreadBps / 100}% spread` : `${m.ahSpreadBps / 100}% night`}

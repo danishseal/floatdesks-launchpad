@@ -75,6 +75,29 @@ export const NETWORKS: Record<string, FloatNetwork> = {
 export const DEFAULT_NETWORK = "float-testnet";
 const STORAGE_KEY = "float-network";
 
+/**
+ * Network handed to the client by the server at runtime.
+ *
+ * NEXT_PUBLIC_* is inlined into the client bundle at BUILD time while server
+ * routes read process.env per request, so starting the dev server with a
+ * different NEXT_PUBLIC_FLOAT_NETWORK gave a split brain: the pools API served
+ * mainnet while every browser-side contract read went to the testnet RPC baked
+ * into the bundle. Reads returned null for contracts that exist, and the UI
+ * concluded "this deployment has no metadata contract".
+ *
+ * So the server is the single source of truth. The client asks once, at boot,
+ * and that answer outranks its own build-time value.
+ */
+let runtimeKey: string | null = null;
+
+export function setRuntimeNetwork(key: string) {
+  if (NETWORKS[key]) runtimeKey = key;
+}
+
+export function runtimeNetworkKey(): string | null {
+  return runtimeKey;
+}
+
 function env(name: string): string | undefined {
   const v = process.env[name];
   return v && v.trim() ? v.trim() : undefined;
@@ -83,12 +106,15 @@ function env(name: string): string | undefined {
 /** Network key from env, overridable in the browser by the switcher. */
 export function activeNetworkKey(): string {
   if (typeof window !== "undefined") {
+    // An explicit in-app switch wins; then what the server told us; then the
+    // bundle's own build-time value.
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored && NETWORKS[stored]) return stored;
     } catch {
       /* private mode */
     }
+    if (runtimeKey) return runtimeKey;
   }
   const fromEnv = env("NEXT_PUBLIC_FLOAT_NETWORK");
   if (fromEnv && NETWORKS[fromEnv]) return fromEnv;

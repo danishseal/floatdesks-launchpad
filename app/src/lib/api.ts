@@ -19,7 +19,7 @@ import {
   tokenCurve, markPx, publicClient, balanceOf, launchpadParams,
 } from "@/lib/float/chain";
 import { resolve, detectVenue } from "@/lib/float/registry";
-import { cfAllTokensDetailed, cfCurve, cfTokenMeta } from "@/lib/float/curve-funder";
+import { cfAllTokensDetailed, cfCurve, cfTokenMeta, readTokenMeta } from "@/lib/float/curve-funder";
 
 const API = "/api/float";
 
@@ -295,9 +295,13 @@ function toToken(t: IndexerToken, underlyingUsdPx: number, curve?: {
 async function fetchCurveFunderTokens(): Promise<TokenListItem[]> {
   const entries = await cfAllTokensDetailed();
   const rows = await Promise.all(entries.map(async ({ token, launcher, superseded }) => {
-    const [c, meta] = await Promise.all([
+    const [c, meta, extra] = await Promise.all([
       cfCurve(token, launcher).catch(() => null),
       cfTokenMeta(token).catch(() => ({ name: "", symbol: "" })),
+      // LaunchedToken carries no image or links; they live in the separate
+      // TokenMetadata contract, so read them rather than leaving every token
+      // on this venue blank.
+      readTokenMeta(token).catch(() => null),
     ]);
     if (!c) return null;
     const remaining = Number(c.vToken - c.sold);
@@ -308,9 +312,9 @@ async function fetchCurveFunderTokens(): Promise<TokenListItem[]> {
       mint: token,
       name: meta.name,
       symbol: meta.symbol,
-      image: null,
-      description: null,
-      social_links: [],
+      image: extra?.image ?? null,
+      description: extra?.description ?? null,
+      social_links: [extra?.website, extra?.twitter, extra?.telegram].filter(Boolean) as string[],
       creator: c.creator,
       source: superseded ? "curve-funder-legacy" : "curve-funder",
       graduated: c.graduated,
@@ -354,8 +358,12 @@ async function fetchCurveFunderTokens(): Promise<TokenListItem[]> {
       listing: {
         ticker: meta.symbol,
         name: meta.name,
-        image: null,
-        links: {},
+        image: extra?.image ?? null,
+        links: {
+          ...(extra?.website ? { website: extra.website } : {}),
+          ...(extra?.twitter ? { twitter: extra.twitter } : {}),
+          ...(extra?.telegram ? { telegram: extra.telegram } : {}),
+        },
         feeReceiver: { kind: "creator", value: c.creator },
         identifier: token,
         launchedBy: c.creator,
