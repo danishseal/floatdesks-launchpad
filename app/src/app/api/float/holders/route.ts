@@ -86,9 +86,36 @@ export async function GET(req: Request) {
     // Label the addresses that are protocol machinery, so a curve holding its
     // own unsold supply does not read as a whale.
     const labels = new Map<string, string>();
-    for (const k of ["TOKEN_LAUNCHPAD", "CURVE_FUNDER", "DESK", "STAKE_VAULTS", "FUNDER"] as const) {
+    for (const k of [
+      "TOKEN_LAUNCHPAD", "CURVE_FUNDER", "DESK", "STAKE_VAULTS", "FUNDER",
+      // The v4 PoolManager custodies every graduated pool's liquidity, so on a
+      // graduated token it is usually the second largest holder. Unlabelled it
+      // reads as a whale, which is the exact confusion labels are here to stop.
+      "V4_POOL_MANAGER", "GRADUATOR",
+    ] as const) {
       try { labels.set((await resolve(k)).toLowerCase(), k); } catch { /* absent on this deployment */ }
     }
+
+    // Reconcile against totalSupply. If the scan started after the token's first
+    // transfer, early mints are missed and the remaining deltas are simply
+    // WRONG, not merely incomplete: balances go negative and drop out silently.
+    // A distribution that does not sum to supply is not a distribution.
+    let supply: bigint | null = null;
+    try {
+      supply = (await pc.readContract({
+        address: token as Address,
+        abi: [{ type: "function", name: "totalSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+        functionName: "totalSupply",
+      })) as bigint;
+    } catch { /* unreadable supply: report without the check */ }
+
+    const summed = [...balances.values()].reduce((a, v) => (v > 0n ? a + v : a), 0n);
+    const reconciles = supply === null ? null : summed === supply;
+
+    // 0x…dEaD is the conventional burn sink and is not a holder in any
+    // meaningful sense; label it rather than leaving a mystery dust row.
+    const BURN = "0x000000000000000000000000000000000000dead";
+    labels.set(BURN, "BURNED");
 
     const holders = [...balances.entries()]
       .filter(([, v]) => v > 0n)
@@ -101,9 +128,18 @@ export async function GET(req: Request) {
 
     const body = {
       token,
-      holders,
+      // A distribution that does not add up is not shown at all.
+      holders: reconciles === false ? [] : holders,
       scanned: { from: Number(from), to: Number(tip) },
       truncated: false,
+      reconciles,
+      ...(reconciles === false
+        ? {
+            note: "the scanned range misses this token's earliest transfers, so the balances would be wrong rather than merely partial",
+            summed: summed.toString(),
+            supply: supply?.toString() ?? null,
+          }
+        : {}),
     };
     cache.set(key, { at: Date.now(), body });
     return NextResponse.json(body, { headers: { "cache-control": "no-store" } });

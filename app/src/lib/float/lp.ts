@@ -228,3 +228,105 @@ export async function positionLiquidity(tokenId: bigint): Promise<bigint> {
     address: posm, abi: POSM_ABI, functionName: "getPositionLiquidity", args: [tokenId],
   })) as bigint;
 }
+
+const POSM_NFT_ABI = [
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "id", type: "uint256", indexed: true },
+    ],
+  },
+  { type: "function", name: "ownerOf", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "address" }] },
+  {
+    type: "function",
+    name: "getPoolAndPositionInfo",
+    stateMutability: "view",
+    inputs: [{ type: "uint256" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "currency0", type: "address" },
+          { name: "currency1", type: "address" },
+          { name: "fee", type: "uint24" },
+          { name: "tickSpacing", type: "int24" },
+          { name: "hooks", type: "address" },
+        ],
+      },
+      { type: "uint256" },
+    ],
+  },
+] as const;
+
+export interface OwnedPosition {
+  tokenId: string;
+  liquidity: string;
+  tickLower: number;
+  tickUpper: number;
+}
+
+/** int24 out of the packed PositionInfo word. */
+function toInt24(v: bigint): number {
+  const n = Number(v & 0xffffffn);
+  return n >= 0x800000 ? n - 0x1000000 : n;
+}
+
+/**
+ * The caller's own positions in one pool.
+ *
+ * The PositionManager is an ERC-721 with no per-owner enumeration, so the only
+ * way to find someone's positions is their Transfer log history. A token can
+ * have moved on since, so ownership is re-checked on chain rather than trusted
+ * from the log, and a position drained to zero liquidity is dropped: it still
+ * exists as an NFT but there is nothing in it to withdraw.
+ */
+export async function positionsIn(pool: LpPool, owner: Address): Promise<OwnedPosition[]> {
+  const posm = await positionManager();
+  if (!posm) return [];
+  const pc = publicClient();
+
+  const logs = await pc.getLogs({
+    address: posm,
+    event: POSM_NFT_ABI[0],
+    args: { to: owner },
+    fromBlock: 0n,
+    toBlock: "latest",
+  });
+  const ids = [...new Set(logs.map((l) => (l.args as { id?: bigint }).id).filter((v): v is bigint => v !== undefined))];
+  if (ids.length === 0) return [];
+
+  const out: OwnedPosition[] = [];
+  for (const tokenId of ids) {
+    try {
+      const [holder, poolAndInfo, liquidity] = await Promise.all([
+        pc.readContract({ address: posm, abi: POSM_NFT_ABI, functionName: "ownerOf", args: [tokenId] }) as Promise<Address>,
+        pc.readContract({ address: posm, abi: POSM_NFT_ABI, functionName: "getPoolAndPositionInfo", args: [tokenId] }) as Promise<
+          [{ currency0: Address; currency1: Address; fee: number; tickSpacing: number; hooks: Address }, bigint]
+        >,
+        positionLiquidity(tokenId),
+      ]);
+      if (holder.toLowerCase() !== owner.toLowerCase()) continue;
+      if (liquidity === 0n) continue;
+      const [k, info] = poolAndInfo;
+      const samePool =
+        k.currency0.toLowerCase() === pool.key.currency0.toLowerCase() &&
+        k.currency1.toLowerCase() === pool.key.currency1.toLowerCase() &&
+        Number(k.fee) === pool.key.fee &&
+        Number(k.tickSpacing) === pool.key.tickSpacing &&
+        k.hooks.toLowerCase() === pool.key.hooks.toLowerCase();
+      if (!samePool) continue;
+      out.push({
+        tokenId: tokenId.toString(),
+        liquidity: liquidity.toString(),
+        tickLower: toInt24(info >> 8n),
+        tickUpper: toInt24(info >> 32n),
+      });
+    } catch {
+      // a burnt token reverts on ownerOf; it is simply not a position any more
+    }
+  }
+  return out;
+}

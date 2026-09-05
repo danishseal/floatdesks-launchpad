@@ -418,6 +418,9 @@ const LABEL_TEXT: Record<string, string> = {
   DESK: "The Desk",
   STAKE_VAULTS: "Stake vault",
   FUNDER: "Funding queue",
+  V4_POOL_MANAGER: "v4 pool",
+  GRADUATOR: "Graduator",
+  BURNED: "Burned",
 };
 
 function formatWholeAmount(amount: number): string {
