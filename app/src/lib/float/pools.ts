@@ -117,7 +117,128 @@ const STATE_VIEW_ABI = [
     inputs: [{ type: "bytes32" }, { type: "int24" }],
     outputs: [{ type: "uint128" }, { type: "int128" }],
   },
+  {
+    type: "function",
+    name: "getTickBitmap",
+    stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "int16" }],
+    outputs: [{ type: "uint256" }],
+  },
 ] as const;
+
+/**
+ * Did this fail because the chain said no, or because we could not ask?
+ *
+ * viem wraps the transport error as a `cause`, so the useful name can sit a
+ * couple of levels down. Matching on names rather than message text on
+ * purpose: a substring test proves containment, not identity, and the prose
+ * of these messages is not an interface.
+ */
+const TRANSPORT_ERRORS = new Set([
+  "HttpRequestError",
+  "RpcRequestError",
+  "TimeoutError",
+  "UnknownRpcError",
+  "InternalRpcError",
+  "LimitExceededRpcError",
+  "SocketClosedError",
+  "WebSocketRequestError",
+]);
+
+function isTransportFailure(e: unknown): boolean {
+  for (let x = e as { name?: string; cause?: unknown } | undefined; x; x = x.cause as typeof x) {
+    if (typeof x.name === "string" && TRANSPORT_ERRORS.has(x.name)) return true;
+  }
+  return false;
+}
+
+/**
+ * The tick range the pool's ACTIVE liquidity actually spans.
+ *
+ * Active liquidity is constant between INITIALISED ticks, and those are
+ * multiples of the spacing but not adjacent ones. Valuing it over a single
+ * spacing therefore describes a narrower band than the one the liquidity
+ * occupies, and understates what is quoting: on the DOZE quote pool the active
+ * L runs 237000 to 237600, three spacings, and pricing it over one reported
+ * 5.23 USDG where the pool's own seeded position holds 19.84.
+ *
+ * The bitmap answers it in one read almost always: a word covers 256 spacings
+ * each way, which at a 200 spacing is about 167 percent of price.
+ */
+export async function activeRange(
+  poolId: `0x${string}`,
+  tick: number,
+  spacing: number,
+): Promise<
+  | { kind: "found"; lower: number; upper: number }
+  | { kind: "none-nearby" }
+  | { kind: "error"; message: string }
+> {
+  const stateView = await stateViewAddress();
+  if (!stateView) return { kind: "error", message: "no state view for this chain" };
+  const pc = publicClient();
+
+  const word = async (wordPos: number) =>
+    (await pc.readContract({
+      address: stateView,
+      abi: STATE_VIEW_ABI,
+      functionName: "getTickBitmap",
+      args: [poolId, wordPos],
+    })) as bigint;
+
+  const compressed = Math.floor(tick / spacing);
+  const wordPos = Math.floor(compressed / 256);
+  const bitPos = compressed - wordPos * 256;
+
+  const highestBelow = (w: bigint, upto: number) => {
+    for (let b = upto; b >= 0; b--) if ((w >> BigInt(b)) & 1n) return b;
+    return -1;
+  };
+  const lowestAbove = (w: bigint, from: number) => {
+    for (let b = from; b < 256; b++) if ((w >> BigInt(b)) & 1n) return b;
+    return -1;
+  };
+
+  try {
+    const here = await word(wordPos);
+
+    let lowBit = highestBelow(here, bitPos);
+    let lowWord = wordPos;
+    if (lowBit < 0) {
+      lowWord = wordPos - 1;
+      lowBit = highestBelow(await word(lowWord), 255);
+    }
+
+    let upBit = lowestAbove(here, bitPos + 1);
+    let upWord = wordPos;
+    if (upBit < 0) {
+      upWord = wordPos + 1;
+      upBit = lowestAbove(await word(upWord), 0);
+    }
+
+    // Outside the two words searched, say so rather than guess a bound. This
+    // is a different fact from a failed read and must not share its answer:
+    // returning one null for both was the same mute correctness this function
+    // exists to fix, reappearing inside the fix.
+    // Distinct from a failed read, and the distinction is load bearing: it
+    // means liquidity is CONSTANT across a very wide band, which makes a
+    // narrow depth figure exact rather than unmeasurable. Collapsing the two
+    // into one answer was the same mute correctness this function fixes,
+    // reappearing inside the fix.
+    if (lowBit < 0 || upBit < 0) return { kind: "none-nearby" };
+
+    return {
+      kind: "found",
+      lower: (lowWord * 256 + lowBit) * spacing,
+      upper: (upWord * 256 + upBit) * spacing,
+    };
+  } catch (e) {
+    // Unmeasured, not zero, and it says which. The caller renders the
+    // difference and an operator can see the reason.
+    const m = e instanceof Error ? `${e.name}: ${e.message.split("\n")[0]}` : String(e);
+    return { kind: "error", message: m.slice(0, 140) };
+  }
+}
 
 export interface DepthBar {
   tick: number;
@@ -324,8 +445,27 @@ export async function lpPools(): Promise<LpPoolsResult> {
       ]);
       count = n;
       preferred = [[Number(fee), Number(spacing)]];
-    } catch {
-      continue; // not a launcher on this chain
+    } catch (e) {
+      // "Not a launcher on this chain" and "the RPC would not answer" are
+      // different facts, and this used to collapse them into a silent skip.
+      // The cost was measured, not theorised: with both launchers throttled,
+      // lpPools() returned 0 pools and 0 unreadable, the route answered 200
+      // with empty arrays, and the section removed itself from the page. About
+      // one load in three showed no liquidity pools at all, with nothing said
+      // anywhere. A feature that is absent a third of the time and silent about
+      // it is worse than one that is down.
+      //
+      // Classify on viem's error NAMES walking the cause chain, not on the
+      // prose of a message. A contract that is not a launcher reverts; a
+      // transport failure is a different type, and only that one is worth
+      // reporting.
+      if (isTransportFailure(e)) {
+        unreadable.push({
+          poolId: cf,
+          reason: `launcher ${cf.slice(0, 10)} did not answer, so its pools are unlisted rather than absent`,
+        });
+      }
+      continue; // genuinely not a launcher on this chain
     }
 
     for (let i = 0n; i < count; i++) {
