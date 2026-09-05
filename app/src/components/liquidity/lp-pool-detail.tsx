@@ -22,7 +22,7 @@ import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import styles from "./liquidity.module.css";
 import own from "./lp-pools.module.css";
-import type { LpPoolRow } from "./lp-pools-section";
+import { quoteHopOnlyReason, type LpPoolRow } from "./lp-pools-section";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { waitFor } from "@/lib/float/chain";
 import { addLiquidity, removeLiquidity, positionsIn, type OwnedPosition } from "@/lib/float/lp";
@@ -258,7 +258,9 @@ export function LpPoolDetail() {
   }, [data]);
 
   async function add() {
-    if (!data || !quote) return;
+    // The meme hop never renders the form; refusing here too means a stray call
+    // cannot open a position the page does not offer.
+    if (!data || !quote || data.pool.kind === "meme") return;
     setBusy(true);
     try {
       const account = wallet.getAccount();
@@ -335,6 +337,10 @@ export function LpPoolDetail() {
   }
 
   const p = data.pool;
+  // Deposits are taken on the quote hop only. Everything else on this page,
+  // including the exit, works the same on both: a position already in a meme
+  // pool has to stay withdrawable.
+  const canAdd = p.kind !== "meme";
   const price = priceAt(Number(BigInt(p.sqrtPriceX96)) / Q96, p.decimals0, p.decimals1);
   const rows: Array<[string, string]> = [
     ["Pair", `${p.symbol0} / ${p.symbol1}`],
@@ -382,9 +388,19 @@ export function LpPoolDetail() {
             </div>
           </div>
           <p className={styles.pageDescription}>
-            Provide across a price range and earn {p.lpFeeBps / 100}% of everything that trades
-            through it. Withdraw whenever: no lockup, no epoch, and no share in anybody
-            else&apos;s book.
+            {canAdd ? (
+              <>
+                Provide across a price range and earn {p.lpFeeBps / 100}% of everything that trades
+                through it. Withdraw whenever: no lockup, no epoch, and no share in anybody
+                else&apos;s book.
+              </>
+            ) : (
+              <>
+                This hop pays {p.lpFeeBps / 100}% to whoever holds the range a fill lands in, and a
+                position here comes back out whenever you ask: no lockup, no epoch, and no share in
+                anybody else&apos;s book.
+              </>
+            )}
           </p>
         </div>
 
@@ -399,7 +415,7 @@ export function LpPoolDetail() {
                     ).toLocaleString("en-US")} · ${fmt(
                       priceAt(sqrtAtTick(chart.bars[hover].tick), p.decimals0, p.decimals1),
                     )} ${p.symbol1} · L ${BigInt(chart.bars[hover].liquidity).toLocaleString("en-US")}`
-                  : `${chart.bars.length} ticks either side of the price${chart.logScale ? " · log scale" : ""} · click a bar to place your range`}
+                  : `${chart.bars.length} ticks either side of the price${chart.logScale ? " · log scale" : ""}${canAdd ? " · click a bar to place your range" : ""}`}
               </span>
             </div>
             <svg
@@ -438,10 +454,14 @@ export function LpPoolDetail() {
                     width={(b.w + 1.2).toFixed(2)}
                     height={(chart.floor - chart.top).toFixed(2)}
                     fill="transparent"
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: canAdd ? "pointer" : "default" }}
                     onMouseEnter={() => setHover(b.i)}
                     onMouseLeave={() => setHover((h) => (h === b.i ? null : h))}
-                    onClick={() => setCustom({ lo: b.tick, hi: b.tick + p.key.tickSpacing })}
+                    onClick={
+                      canAdd
+                        ? () => setCustom({ lo: b.tick, hi: b.tick + p.key.tickSpacing })
+                        : undefined
+                    }
                   >
                     <title>
                       {`ticks ${b.tick} to ${b.tick + p.key.tickSpacing} · liquidity ${b.liquidity}`}
@@ -492,90 +512,116 @@ export function LpPoolDetail() {
         )}
 
         <div className={own.form}>
-          <h2 className={styles.sectionTitle}>Provide liquidity</h2>
-          <label className={styles.fieldLabel} htmlFor="lp-amount">
-            {quote.side === 0 ? p.symbol0 : p.symbol1} to add
-          </label>
-          <div className={styles.amountInputWrap}>
-            <input
-              id="lp-amount"
-              className={styles.amountInput}
-              inputMode="decimal"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-            />
-            <span className={styles.tokenSelect}>{quote.side === 0 ? p.symbol0 : p.symbol1}</span>
-          </div>
+          <h2 className={styles.sectionTitle}>{canAdd ? "Provide liquidity" : "Your liquidity"}</h2>
 
-          <div className={own.rangeRow}>
-            {[1, 3, 10].map((w) => (
+          {/* The meme hop takes no deposits, so the form is absent rather than
+              present and dead, and the reason stands where it would have been:
+              standing text, in the reading order, not a tooltip on a greyed
+              button. Everything below it, the positions and the exit, is the
+              same on both hops. */}
+          {!canAdd ? <p className={own.reason}>{quoteHopOnlyReason(p)}</p> : null}
+
+          {canAdd ? (
+            <>
+              <label className={styles.fieldLabel} htmlFor="lp-amount">
+                {quote.side === 0 ? p.symbol0 : p.symbol1} to add
+              </label>
+              <div className={styles.amountInputWrap}>
+                <input
+                  id="lp-amount"
+                  className={styles.amountInput}
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                />
+                <span className={styles.tokenSelect}>{quote.side === 0 ? p.symbol0 : p.symbol1}</span>
+              </div>
+
+              <div className={own.rangeRow}>
+                {[1, 3, 10].map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className={`${own.rangePick} ${!custom && widthSteps === w ? own.rangePickOn : ""}`}
+                    onClick={() => {
+                      setCustom(null);
+                      setWidthSteps(w);
+                    }}
+                  >
+                    {w === 1 ? "Tight" : w === 3 ? "Medium" : "Wide"}
+                  </button>
+                ))}
+                {custom ? (
+                  <button type="button" className={`${own.rangePick} ${own.rangePickOn}`} onClick={() => setCustom(null)}>
+                    From chart ✕
+                  </button>
+                ) : null}
+              </div>
+              <div className={own.rangeFacts}>
+                <div className={own.rangeFact}>
+                  <span className={own.rangeFactLabel}>Earns between</span>
+                  <strong>
+                    {fmt(priceAt(sqrtAtTick(quote.tickLower), p.decimals0, p.decimals1))} and{" "}
+                    {fmt(priceAt(sqrtAtTick(quote.tickUpper), p.decimals0, p.decimals1))} {p.symbol1} per{" "}
+                    {p.symbol0}
+                  </strong>
+                </div>
+                <div className={own.rangeFact}>
+                  <span className={own.rangeFactLabel}>Around the price</span>
+                  <strong>
+                    {quote.pctLow.toFixed(2)}% below to {quote.pctHigh.toFixed(2)}% above
+                  </strong>
+                </div>
+                <div className={own.rangeFact}>
+                  <span className={own.rangeFactLabel}>Outside that range</span>
+                  <strong>earns nothing until the price comes back</strong>
+                </div>
+              </div>
+
+              {quote.liquidity > 0 ? (
+                <div className={own.pairNeed}>
+                  <span>
+                    paired with <strong>{fmt(quote.side === 0 ? quote.need1 : quote.need0)}</strong>{" "}
+                    {quote.side === 0 ? p.symbol1 : p.symbol0}
+                  </span>
+                  <span>
+                    <strong>{fmt(quote.side === 0 ? quote.need0 : quote.need1)}</strong>{" "}
+                    {quote.side === 0 ? p.symbol0 : p.symbol1} in
+                  </span>
+                </div>
+              ) : null}
+
               <button
-                key={w}
                 type="button"
-                className={`${own.rangePick} ${!custom && widthSteps === w ? own.rangePickOn : ""}`}
-                onClick={() => {
-                  setCustom(null);
-                  setWidthSteps(w);
-                }}
+                className={`${styles.primaryButton} ${own.cta}`}
+                disabled={busy || (wallet.connected && !(quote.liquidity > 0))}
+                onClick={() => (wallet.connected ? void add() : void wallet.connect())}
               >
-                {w === 1 ? "Tight" : w === 3 ? "Medium" : "Wide"}
+                {!wallet.connected
+                  ? "Connect a wallet"
+                  : busy
+                    ? "Confirm in your wallet…"
+                    : quote.liquidity > 0
+                      ? `Add ${fmt(quote.side === 0 ? quote.need0 : quote.need1)} ${quote.side === 0 ? p.symbol0 : p.symbol1}`
+                      : "Enter an amount"}
               </button>
-            ))}
-            {custom ? (
-              <button type="button" className={`${own.rangePick} ${own.rangePickOn}`} onClick={() => setCustom(null)}>
-                From chart ✕
-              </button>
-            ) : null}
-          </div>
-          <div className={own.rangeFacts}>
-            <div className={own.rangeFact}>
-              <span className={own.rangeFactLabel}>Earns between</span>
-              <strong>
-                {fmt(priceAt(sqrtAtTick(quote.tickLower), p.decimals0, p.decimals1))} and{" "}
-                {fmt(priceAt(sqrtAtTick(quote.tickUpper), p.decimals0, p.decimals1))} {p.symbol1} per{" "}
-                {p.symbol0}
-              </strong>
-            </div>
-            <div className={own.rangeFact}>
-              <span className={own.rangeFactLabel}>Around the price</span>
-              <strong>
-                {quote.pctLow.toFixed(2)}% below to {quote.pctHigh.toFixed(2)}% above
-              </strong>
-            </div>
-            <div className={own.rangeFact}>
-              <span className={own.rangeFactLabel}>Outside that range</span>
-              <strong>earns nothing until the price comes back</strong>
-            </div>
-          </div>
-
-          {quote.liquidity > 0 ? (
-            <div className={own.pairNeed}>
-              <span>
-                paired with <strong>{fmt(quote.side === 0 ? quote.need1 : quote.need0)}</strong>{" "}
-                {quote.side === 0 ? p.symbol1 : p.symbol0}
-              </span>
-              <span>
-                <strong>{fmt(quote.side === 0 ? quote.need0 : quote.need1)}</strong>{" "}
-                {quote.side === 0 ? p.symbol0 : p.symbol1} in
-              </span>
-            </div>
+            </>
           ) : null}
 
-          <button
-            type="button"
-            className={`${styles.primaryButton} ${own.cta}`}
-            disabled={busy || (wallet.connected && !(quote.liquidity > 0))}
-            onClick={() => (wallet.connected ? void add() : void wallet.connect())}
-          >
-            {!wallet.connected
-              ? "Connect a wallet"
-              : busy
-                ? "Confirm in your wallet…"
-                : quote.liquidity > 0
-                  ? `Add ${fmt(quote.side === 0 ? quote.need0 : quote.need1)} ${quote.side === 0 ? p.symbol0 : p.symbol1}`
-                  : "Enter an amount"}
-          </button>
+          {/* Without the add form there is no Connect button either, and a
+              wallet has to be connected before a position can be found or
+              withdrawn. */}
+          {!canAdd && !wallet.connected ? (
+            <button
+              type="button"
+              className={`${styles.primaryButton} ${own.cta}`}
+              onClick={() => void wallet.connect()}
+            >
+              Connect a wallet to withdraw
+            </button>
+          ) : null}
+
           {wallet.connected ? (
             <div className={own.positions}>
               <span className={own.rangeFactLabel}>Your positions</span>
@@ -609,11 +655,20 @@ export function LpPoolDetail() {
             </div>
           ) : null}
 
-          <p className={own.note}>
-            A deposit goes through Permit2 and the v4 PositionManager, both live on this chain. The
-            amounts above are what the range needs at the current price; the transaction caps what
-            can be pulled, so a price move while it is in flight cannot take more than you agreed.
-          </p>
+          {canAdd ? (
+            <p className={own.note}>
+              A deposit goes through Permit2 and the v4 PositionManager, both live on this chain.
+              The amounts above are what the range needs at the current price; the transaction caps
+              what can be pulled, so a price move while it is in flight cannot take more than you
+              agreed.
+            </p>
+          ) : (
+            <p className={own.note}>
+              A withdrawal goes through the v4 PositionManager, live on this chain. It takes
+              whatever the position is worth at the price it lands at, with no minimum, so an exit
+              cannot fail on a move.
+            </p>
+          )}
         </div>
       </section>
 
@@ -670,8 +725,8 @@ export function LpPoolDetail() {
             These pools are opened by the protocol when a launch graduates, and seeded from the
             raise itself: the Graduator opens both hops and the RangeSeeder concentrates the quote
             side at the peg. That liquidity belongs to the launch and has no withdraw path, which is
-            why it is counted separately from anything a depositor adds. What you add is yours and
-            comes back out whenever you ask.
+            why it is counted separately from anything a depositor puts in. A depositor&apos;s own
+            liquidity stays theirs and comes back out whenever they ask.
           </p>
         </section>
       ) : null}

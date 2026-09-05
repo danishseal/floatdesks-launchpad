@@ -10,6 +10,7 @@ import {
 import styles from "./liquidity.module.css";
 import { TokenPair } from "./token-pair";
 import { DeskHookSection, type HookPoolRow, type HookUnreadable } from "./desk-hook-section";
+import { LpPoolsPanel } from "./lp-pools-panel";
 
 /**
  * The liquidity board.
@@ -85,6 +86,12 @@ export function LiquidityMarket() {
           quoteDecimals={hook.quote.decimals}
         />
       ) : null}
+
+      {/* The graduated v4 pools, which are the only place an outside LP can
+          actually put money. Mounted here because the section had been built
+          and never imported, so its pool pages existed with nothing linking to
+          them. */}
+      <LpPoolsPanel />
 
       {data.indexer?.measured === false ? (
         <div className="mx-1 mb-3 rounded border border-[var(--color-border-soft)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]">

@@ -48,6 +48,27 @@ interface Props {
   onRemove?: (pool: LpPoolRow) => void;
 }
 
+/**
+ * The one line the UI owes anybody who finds Add missing on a meme hop.
+ *
+ * Exported because the board and the pool page both have to say it, and two
+ * copies of a sentence drift. It names the pool a deposit should go to instead,
+ * which is the fSHARE side of this pair: whichever currency is not the launch
+ * token. That comes off the pool key rather than an index, because v4 sorts
+ * currencies by address and the meme is not reliably currency0.
+ */
+export function quoteHopOnlyReason(
+  p: Pick<LpPoolRow, "key" | "launch" | "symbol0" | "symbol1">,
+): string {
+  const stock =
+    p.key.currency0.toLowerCase() === p.launch.token.toLowerCase() ? p.symbol1 : p.symbol0;
+  // The symbol reads "?" when the token would not answer symbol(). Do not print
+  // that as if it were a ticker; fall back to the generic noun.
+  return stock && stock !== "?"
+    ? `No deposits on this hop: they go into the ${stock} / USDG pool, which carries every launch priced in ${stock}.`
+    : "No deposits on this hop: they go into the stock's USDG pool, which carries every launch priced in that stock.";
+}
+
 /** token1 per token0, from sqrtPriceX96, corrected for decimals. */
 function priceOf(p: LpPoolRow): number {
   const sqrt = Number(BigInt(p.sqrtPriceX96)) / 2 ** 96;
@@ -100,11 +121,12 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
       <div className={styles.head}>
         <div>
           <span className={styles.eyebrow}>Liquidity pools</span>
-          <h2 className={styles.title}>Add and remove as you please</h2>
+          <h2 className={styles.title}>Deposit on the USDG hop, exit from either</h2>
           <p className={styles.blurb}>
             Every graduated launch leaves two public Uniswap v4 pools behind, one hop each along
-            the route from the meme to its stock to USDG. Provide either side, earn the fee on
-            everything that trades through, and withdraw whenever. No lockup and no epoch.
+            the route from the meme to its stock to USDG. Deposits go in on the USDG hop and earn
+            the fee on everything that trades through it. Withdraw whenever, from either hop. No
+            lockup and no epoch.
           </p>
         </div>
         <div className={styles.headStats}>
@@ -181,15 +203,20 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
             </div>
 
             <div className={styles.actions}>
-              <button
-                type="button"
-                className={styles.action}
-                onClick={() => onAdd?.(p)}
-                disabled={!onAdd}
-                title={onAdd ? undefined : "Connect a wallet to provide liquidity"}
-              >
-                Add <ArrowRight size={12} weight="bold" />
-              </button>
+              {/* Add is offered on the quote hop only. Remove stays on both:
+                  somebody already in a meme pool has to be able to leave, and a
+                  withheld exit is a trapped position, not a policy. */}
+              {p.kind === "quote" ? (
+                <button
+                  type="button"
+                  className={styles.action}
+                  onClick={() => onAdd?.(p)}
+                  disabled={!onAdd}
+                  title={onAdd ? undefined : "Connect a wallet to provide liquidity"}
+                >
+                  Add <ArrowRight size={12} weight="bold" />
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={styles.action}
@@ -200,6 +227,14 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
                 Remove
               </button>
             </div>
+
+            {/* Standing text on the row, not a tooltip on a greyed button: a
+                title attribute is reachable by neither the keyboard nor a
+                screen reader, and the absence of a control explains nothing on
+                its own. */}
+            {p.kind === "meme" ? (
+              <p className={styles.rowNote}>{quoteHopOnlyReason(p)}</p>
+            ) : null}
           </article>
         ))}
 
