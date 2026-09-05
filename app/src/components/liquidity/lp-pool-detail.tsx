@@ -16,12 +16,17 @@
  * old panel read as generic.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 import styles from "./liquidity.module.css";
 import own from "./lp-pools.module.css";
 import type { LpPoolRow } from "./lp-pools-section";
+import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
+import { waitFor } from "@/lib/float/chain";
+import { addLiquidity, removeLiquidity, positionsIn, type OwnedPosition } from "@/lib/float/lp";
+import type { LpPool } from "@/lib/float/pools";
 
 interface DepthBar {
   tick: number;
@@ -45,6 +50,12 @@ function sqrtAtTick(tick: number) {
 /** token1 per token0 at this sqrt price, decimal-corrected. */
 function priceAt(sqrt: number, d0: number, d1: number) {
   return sqrt * sqrt * 10 ** (d0 - d1);
+}
+
+/** The useful part of a wallet or revert error is rarely the first line. */
+function readable(e: unknown): string {
+  const err = e as { shortMessage?: string; details?: string; message?: string };
+  return (err?.shortMessage ?? err?.details ?? err?.message ?? String(e)).split("\n")[0].slice(0, 200);
 }
 
 function fmt(n: number, max = 6) {
@@ -74,6 +85,32 @@ export function LpPoolDetail() {
   const [err, setErr] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [widthSteps, setWidthSteps] = useState(1);
+  const wallet = useFloatWallet();
+  const [busy, setBusy] = useState(false);
+  const [positions, setPositions] = useState<OwnedPosition[] | null>(null);
+  const [posErr, setPosErr] = useState<string | null>(null);
+
+  const loadPositions = useCallback(async () => {
+    if (!data || !wallet.address) {
+      setPositions(null);
+      return;
+    }
+    try {
+      setPosErr(null);
+      setPositions(await positionsIn(data.pool as unknown as LpPool, wallet.address));
+    } catch (e) {
+      // Finding positions needs a full Transfer log scan and plenty of RPCs
+      // refuse one. That failure must NOT render as "you have none": those are
+      // different facts and only one of them means there is nothing to
+      // withdraw.
+      setPositions(null);
+      setPosErr(readable(e));
+    }
+  }, [data, wallet.address]);
+
+  useEffect(() => {
+    void loadPositions();
+  }, [loadPositions]);
 
   useEffect(() => {
     let live = true;
@@ -199,6 +236,68 @@ export function LpPoolDetail() {
       ratio: tail > 0n ? Number(peakL / tail) : null,
     };
   }, [data]);
+
+  async function add() {
+    if (!data || !quote) return;
+    setBusy(true);
+    try {
+      const account = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      const p0 = data.pool;
+      // A 1% headroom on the caps: the exact split moves with the price between
+      // signing and mining, and the pool computes the real amounts from the
+      // liquidity anyway. The caps exist so a move cannot take more than this.
+      const cap = (v: number, dec: number) => BigInt(Math.ceil(v * 1.01 * 10 ** dec));
+      toast.info("Approving and adding liquidity…");
+      const hash = await addLiquidity({
+        account,
+        pool: p0 as unknown as LpPool,
+        tickLower: quote.tickLower,
+        tickUpper: quote.tickUpper,
+        liquidity: BigInt(Math.floor(quote.liquidity)),
+        amount0Max: cap(quote.need0, p0.decimals0),
+        amount1Max: cap(quote.need1, p0.decimals1),
+      });
+      await waitFor(hash);
+      toast.success("Liquidity added.");
+      setAmount("");
+      await wallet.refreshBalance();
+      await loadPositions();
+    } catch (e) {
+      toast.error(readable(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(pos: OwnedPosition) {
+    if (!data) return;
+    setBusy(true);
+    try {
+      const account = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      toast.info("Withdrawing…");
+      // amountMin 0: this takes whatever the position is worth at the price it
+      // lands at. A minimum here would just make an exit fail on a move, and
+      // the point of the position is that you can always leave.
+      const hash = await removeLiquidity({
+        account,
+        pool: data.pool as unknown as LpPool,
+        tokenId: BigInt(pos.tokenId),
+        liquidity: BigInt(pos.liquidity),
+        amount0Min: 0n,
+        amount1Min: 0n,
+      });
+      await waitFor(hash);
+      toast.success("Withdrawn.");
+      await wallet.refreshBalance();
+      await loadPositions();
+    } catch (e) {
+      toast.error(readable(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (err) {
     return (
@@ -374,9 +473,53 @@ export function LpPoolDetail() {
             </div>
           ) : null}
 
-          <button type="button" className={`${styles.primaryButton} ${own.cta}`} disabled>
-            Connect a wallet to add liquidity
+          <button
+            type="button"
+            className={`${styles.primaryButton} ${own.cta}`}
+            disabled={busy || (wallet.connected && !(quote.liquidity > 0))}
+            onClick={() => (wallet.connected ? void add() : void wallet.connect())}
+          >
+            {!wallet.connected
+              ? "Connect a wallet"
+              : busy
+                ? "Confirm in your wallet…"
+                : quote.liquidity > 0
+                  ? `Add ${fmt(quote.side === 0 ? quote.need0 : quote.need1)} ${quote.side === 0 ? p.symbol0 : p.symbol1}`
+                  : "Enter an amount"}
           </button>
+          {wallet.connected ? (
+            <div className={own.positions}>
+              <span className={own.rangeFactLabel}>Your positions</span>
+              {posErr ? (
+                <p className={own.posEmpty}>
+                  Could not read your positions ({posErr}). That is not the same as having none, so
+                  nothing is listed rather than shown as empty.
+                </p>
+              ) : positions === null ? (
+                <p className={own.posEmpty}>Looking for your positions…</p>
+              ) : positions.length === 0 ? (
+                <p className={own.posEmpty}>None in this pool yet.</p>
+              ) : (
+                positions.map((pos) => (
+                  <div className={own.posRow} key={pos.tokenId}>
+                    <span>
+                      #{pos.tokenId} · ticks {pos.tickLower.toLocaleString("en-US")} to{" "}
+                      {pos.tickUpper.toLocaleString("en-US")}
+                    </span>
+                    <button
+                      type="button"
+                      className={own.action}
+                      disabled={busy}
+                      onClick={() => void remove(pos)}
+                    >
+                      Withdraw
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
+
           <p className={own.note}>
             A deposit goes through Permit2 and the v4 PositionManager, both live on this chain. The
             amounts above are what the range needs at the current price; the transaction caps what
