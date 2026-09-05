@@ -24,7 +24,9 @@ import {
 import {
   tokenPreviewBuy, tokenPreviewSell, deskPreviewBuy, tx, waitFor, balanceOf, getListing,
 } from "@/lib/float/chain";
-import { routeFor, quoteGraduated, type SwapRoute } from "@/lib/float/v4-router";
+import {
+  routeFor, quoteGraduated, buyGraduated, sellGraduated, type SwapRoute,
+} from "@/lib/float/v4-router";
 
 const DEFAULT_SLIPPAGE = 0.02;
 const SLIPPAGE_PRESETS = [0.005, 0.01, 0.02, 0.05];
@@ -120,7 +122,10 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
     return () => { cancelled = true; };
   }, [numeric, side, token.address]);
 
-  const needsFshare = side === "buy" && fshare !== null && numeric > fshare.balance;
+  // On a graduated token the buy leg is paid in USDG through the pools, not in
+  // the fSHARE, so the curve's "you need the fSHARE first" step does not apply.
+  const needsFshare =
+    !token.graduated && side === "buy" && fshare !== null && numeric > fshare.balance;
 
   const invalidate = useCallback(async () => {
     await Promise.all([
@@ -139,6 +144,27 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
       const minOut = quoteOut !== null
         ? BigInt(Math.floor(quoteOut * (1 - slippage) * WAD))
         : 0n;
+
+      if (token.graduated) {
+        if (!route) throw new Error("Could not resolve this token's pools.");
+        // Buy pays USDG at 6dp; sell pays the token at 18dp.
+        const inRaw = side === "buy"
+          ? BigInt(Math.round(numeric * 1e6))
+          : BigInt(Math.round(numeric * WAD));
+        const outScale = side === "buy" ? WAD : 1e6;
+        const min = quoteOut !== null
+          ? BigInt(Math.floor(quoteOut * (1 - slippage) * outScale))
+          : 0n;
+        const hash = side === "buy"
+          ? await buyGraduated(account, route, inRaw, min)
+          : await sellGraduated(account, route, inRaw, min);
+        await waitFor(hash);
+        toast.success(`${side === "buy" ? "Bought" : "Sold"} ${token.symbol ?? "token"} in its v4 pools.`);
+        setAmount("");
+        await invalidate();
+        await wallet.refreshBalance();
+        return;
+      }
 
       if (side === "buy") {
         if (!fshare) throw new Error("Could not resolve the underlying fSHARE.");
@@ -182,9 +208,13 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
     }
   }
 
-  const outLabel = side === "buy" ? token.symbol ?? "tokens" : baseLabel;
-  const inLabel = side === "buy" ? baseLabel : token.symbol ?? "tokens";
-  const balance = side === "buy" ? fshare?.balance ?? null : holdings;
+  // What the input leg actually is, per venue.
+  const payLabel = token.graduated ? "USDG" : baseLabel;
+  const outLabel = side === "buy" ? token.symbol ?? "tokens" : payLabel;
+  const inLabel = side === "buy" ? payLabel : token.symbol ?? "tokens";
+  const balance = side === "buy"
+    ? (token.graduated ? wallet.balance : fshare?.balance ?? null)
+    : holdings;
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-4">
@@ -270,13 +300,11 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
 
       {!wallet.connected ? (
         <Button className="w-full" onClick={() => void wallet.connect()}>Connect wallet</Button>
-      ) : token.graduated ? (
+      ) : token.graduated && !route ? (
         <div className="rounded-[10px] border border-[var(--color-border-soft)] px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
           {routeError
-            ? `This token has graduated and ${routeError}, so it cannot be priced here.`
-            : route
-              ? "Graduated: this price is a live quote from the two v4 pools it trades in, USDG through the fSHARE. Swapping from this panel is not wired yet, so trade it on a v4 venue for now."
-              : "Graduated. Finding its pools…"}
+            ? `This token has graduated and ${routeError}, so it cannot be traded here.`
+            : "Graduated. Finding its pools…"}
         </div>
       ) : needsFshare ? (
         <div className="space-y-2">
@@ -301,6 +329,13 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             : `${side === "buy" ? "Buy" : "Sell"} ${token.symbol ?? "token"}`}
         </Button>
       )}
+
+      {token.graduated && route ? (
+        <p className="mt-2 text-[11px] text-[var(--color-text-subtle)]">
+          Filled in this token&apos;s two Uniswap v4 pools, {payLabel} through the
+          fSHARE. The quote above is the chain&apos;s own, not an estimate.
+        </p>
+      ) : null}
     </div>
   );
 }
