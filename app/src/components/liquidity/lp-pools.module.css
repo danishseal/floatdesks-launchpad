@@ -355,3 +355,10 @@
   font-size: 12px;
   color: var(--color-text-muted);
 }
+
+/* .poolHeading and .pageDescription carry no horizontal padding, so on a card
+   with none of its own they sit directly on the border. */
+.panelTop {
+  padding: 16px 14px 14px;
+  border-bottom: 1px solid var(--color-border-soft, var(--color-border));
+}

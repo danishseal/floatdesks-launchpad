@@ -26,7 +26,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ poolId: string
       pool.tick,
       BigInt(pool.liquidity),
     );
-    const seeded = await launchSeeded(pool.poolId, depth, pool.key.tickSpacing);
+    const seeded = await launchSeeded(pool.poolId, depth, pool.key.tickSpacing, pool.tick);
     return NextResponse.json(
       {
         network: { key: net.key, chainId: net.chainId, explorer: net.explorer },

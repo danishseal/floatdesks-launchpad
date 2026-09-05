@@ -400,10 +400,37 @@ export async function lpPools(): Promise<LpPoolsResult> {
 }
 
 
+/**
+ * The token amounts a liquidity figure actually represents.
+ *
+ * `liquidity` (L) is not an amount of anything. It lives in sqrt-price space,
+ * and printing it raw is badly misleading: the DOZE quote pool reads as
+ * 104,591,698,281,867, which looks like 104 trillion of something on a protocol
+ * whose entire history is about $418. The same position is 19.51 USDG and
+ * 0.0506 fNTDO3. Always convert before showing it to anyone.
+ */
+export function amountsFor(
+  liquidity: bigint,
+  tickLower: number,
+  tickUpper: number,
+  currentTick: number,
+): { amount0: number; amount1: number } {
+  const L = Number(liquidity);
+  const sa = Math.pow(1.0001, tickLower / 2);
+  const sb = Math.pow(1.0001, tickUpper / 2);
+  const sp = Math.pow(1.0001, currentTick / 2);
+  if (currentTick <= tickLower) return { amount0: (L * (sb - sa)) / (sa * sb), amount1: 0 };
+  if (currentTick >= tickUpper) return { amount0: 0, amount1: L * (sb - sa) };
+  return { amount0: (L * (sb - sp)) / (sp * sb), amount1: L * (sp - sa) };
+}
+
 export interface SeededLiquidity {
   /** Liquidity in this pool that a launch put there, by owner. */
   byOwner: Array<{ owner: Address; label: string; liquidity: string; ranges: number }>;
   total: string;
+  /** What that liquidity is, in tokens, at the current price. */
+  amount0: number;
+  amount1: number;
 }
 
 /**
@@ -422,9 +449,10 @@ export async function launchSeeded(
   poolId: `0x${string}`,
   depth: DepthBar[],
   tickSpacing: number,
+  currentTick: number,
 ): Promise<SeededLiquidity> {
   const stateView = await stateViewAddress();
-  const empty: SeededLiquidity = { byOwner: [], total: "0" };
+  const empty: SeededLiquidity = { byOwner: [], total: "0", amount0: 0, amount1: 0 };
   if (!stateView || depth.length === 0) return empty;
 
   const owners: Array<{ owner: Address; label: string }> = [];
@@ -444,9 +472,15 @@ export async function launchSeeded(
     }
   }
 
+  // The REAL current tick, not the first ask bar's tick. Deriving it from the
+  // bars puts the price exactly on a range boundary, and amountsFor then
+  // reports the position as entirely one token: the seeded band came out as
+  // 22.08 USDG and zero fNTDO3 when it is really 19.64 and 0.0509.
   const pc = publicClient();
   const out: SeededLiquidity["byOwner"] = [];
   let total = 0n;
+  let amount0 = 0;
+  let amount1 = 0;
   for (const { owner, label } of owners) {
     let sum = 0n;
     let ranges = 0;
@@ -461,6 +495,9 @@ export async function launchSeeded(
         if (liq > 0n) {
           sum += liq;
           ranges += 1;
+          const a = amountsFor(liq, lo, hi, currentTick);
+          amount0 += a.amount0;
+          amount1 += a.amount1;
         }
       } catch {
         // one unreadable range is not a reason to misreport the rest; it can
@@ -472,5 +509,5 @@ export async function launchSeeded(
       total += sum;
     }
   }
-  return { byOwner: out, total: total.toString() };
+  return { byOwner: out, total: total.toString(), amount0, amount1 };
 }

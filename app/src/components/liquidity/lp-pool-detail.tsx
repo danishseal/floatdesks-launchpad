@@ -26,6 +26,7 @@ import type { LpPoolRow } from "./lp-pools-section";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { waitFor } from "@/lib/float/chain";
 import { addLiquidity, removeLiquidity, positionsIn, type OwnedPosition } from "@/lib/float/lp";
+import { amountsFor } from "@/lib/float/pools";
 import type { LpPool } from "@/lib/float/pools";
 
 interface DepthBar {
@@ -37,6 +38,8 @@ interface DepthBar {
 interface Seeded {
   byOwner: Array<{ owner: string; label: string; liquidity: string; ranges: number }>;
   total: string;
+  amount0: number;
+  amount1: number;
 }
 
 interface Payload {
@@ -340,7 +343,12 @@ export function LpPoolDetail() {
     ["Price", `${fmt(price)} ${p.symbol1} per ${p.symbol0}`],
     ["Current tick", p.tick.toLocaleString("en-US")],
     ["Tick spacing", String(p.key.tickSpacing)],
-    ["Active liquidity", BigInt(p.liquidity).toLocaleString("en-US")],
+    [
+      "Liquidity here now",
+      band
+        ? `${fmt(amountsFor(BigInt(p.liquidity), band.lo, band.hi, p.tick).amount0 / 10 ** p.decimals0, 2)} ${p.symbol0} + ${fmt(amountsFor(BigInt(p.liquidity), band.lo, band.hi, p.tick).amount1 / 10 ** p.decimals1, 4)} ${p.symbol1}`
+        : "not readable",
+    ],
     ["Launch", p.launch.symbol],
   ];
   // Addresses get their own rows: full, wrapping, never shortened. A truncated
@@ -363,7 +371,7 @@ export function LpPoolDetail() {
 
       <div className={styles.detailGrid}>
       <section className={styles.marketPanel}>
-        <div className={styles.poolHeading}>
+        <div className={own.panelTop}>
           <div>
             <span className={own.eyebrow}>{p.launch.symbol} · {p.kind === "meme" ? "meme hop" : "quote hop"}</span>
             <h1 className={styles.pageTitle}>{p.symbol0} / {p.symbol1} pool</h1>
@@ -373,13 +381,12 @@ export function LpPoolDetail() {
               {p.launch.retired ? <span className={`${own.badge} ${own.badgeRetired}`}>earlier launcher</span> : null}
             </div>
           </div>
+          <p className={styles.pageDescription}>
+            Provide across a price range and earn {p.lpFeeBps / 100}% of everything that trades
+            through it. Withdraw whenever: no lockup, no epoch, and no share in anybody
+            else&apos;s book.
+          </p>
         </div>
-
-        <p className={styles.pageDescription}>
-          Provide across a price range and earn {p.lpFeeBps / 100}% of everything that trades
-          through it. Withdraw whenever: no lockup, no epoch, and no share in anybody else&apos;s
-          book.
-        </p>
 
         {chart ? (
           <div className={styles.chartCard}>
@@ -635,7 +642,10 @@ export function LpPoolDetail() {
           <div className={styles.metricRows}>
             <div className={styles.metricRow}>
               <span className={styles.metricLabel}>Seeded at graduation</span>
-              <strong>{BigInt(data.seeded.total).toLocaleString("en-US")}</strong>
+              <strong>
+                {fmt(data.seeded.amount0 / 10 ** p.decimals0, 2)} {p.symbol0} +{" "}
+                {fmt(data.seeded.amount1 / 10 ** p.decimals1, 4)} {p.symbol1}
+              </strong>
             </div>
             <div className={styles.metricRow}>
               <span className={styles.metricLabel}>Share of active liquidity</span>
@@ -651,8 +661,7 @@ export function LpPoolDetail() {
               <div className={styles.metricRow} key={o.owner}>
                 <span className={styles.metricLabel}>{o.label}</span>
                 <strong>
-                  {BigInt(o.liquidity).toLocaleString("en-US")} · {o.ranges} range
-                  {o.ranges === 1 ? "" : "s"}
+                  {o.ranges} range{o.ranges === 1 ? "" : "s"}
                 </strong>
               </div>
             ))}
@@ -678,12 +687,13 @@ export function LpPoolDetail() {
               </strong>
             </div>
             <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>Liquidity in the band</span>
-              <strong>{band.peak.toLocaleString("en-US")}</strong>
-            </div>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>Liquidity in the tail</span>
-              <strong>{band.tail > 0n ? band.tail.toLocaleString("en-US") : "none"}</strong>
+              <span className={styles.metricLabel}>In the band</span>
+              <strong>
+                {fmt(amountsFor(band.peak, band.lo, band.hi, p.tick).amount0 / 10 ** p.decimals0, 2)}{" "}
+                {p.symbol0} +{" "}
+                {fmt(amountsFor(band.peak, band.lo, band.hi, p.tick).amount1 / 10 ** p.decimals1, 4)}{" "}
+                {p.symbol1}
+              </strong>
             </div>
             {band.ratio ? (
               <div className={styles.metricRow}>
