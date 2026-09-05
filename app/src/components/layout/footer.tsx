@@ -72,19 +72,6 @@ export function Footer() {
 
           <div className="float-footer__copyright">© {new Date().getFullYear()} Float. All rights reserved</div>
         </div>
-
-        <aside className="float-footer__newsletter" aria-label="Newsletter">
-          <div className="float-footer__newsletter-card">
-            <h3>Newsletter</h3>
-            <form onSubmit={(event) => event.preventDefault()}>
-              <label className="sr-only" htmlFor="float-footer-email">Email</label>
-              <input id="float-footer-email" type="email" placeholder="Your email *" required />
-              <button type="submit" aria-label="Subscribe to the newsletter">
-                <ArrowIcon />
-              </button>
-            </form>
-          </div>
-        </aside>
       </div>
 
       <FooterParticleField />
@@ -109,17 +96,6 @@ function FooterNavigation({
         ))}
       </ul>
     </nav>
-  );
-}
-
-function ArrowIcon() {
-  return (
-    <svg width="39" height="36" viewBox="0 0 39 36" fill="none" aria-hidden="true">
-      <path
-        d="M0 15.429v5.138h29.25v5.142h4.875v-5.142H39v-5.138h-4.875V10.28H29.25v5.143L0 15.429Zm24.375-10.286h4.875v5.138h-4.875V5.143Zm0 0H19.5V0h4.875v5.143Zm0 25.714h4.875V25.71h-4.875v5.148Zm0 0H19.5V36h4.875v-5.143Z"
-        fill="currentColor"
-      />
-    </svg>
   );
 }
 

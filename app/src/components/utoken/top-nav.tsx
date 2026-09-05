@@ -20,8 +20,8 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
       style={squareCorners ? { borderRadius: 0 } : undefined}
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-50 border border-[var(--color-border)]" />
-      <div className="flex h-full w-full items-stretch bg-[var(--color-bg-surface)] pr-4 xl:pr-5">
-        <Link href="/" aria-label="Floatdesk home" className="flex shrink-0 items-stretch">
+      <div className="flex h-full w-full items-stretch bg-[var(--color-bg-surface)] pr-5">
+        <Link href="/" aria-label="Floatdesk home" className="flex w-[132px] shrink-0 items-stretch">
           <span className="app-shell-logo-tile flex w-12 items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -30,12 +30,12 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
               className="h-10 w-10 object-contain"
             />
           </span>
-          <span className="hidden items-center px-4 font-mono text-[18px] font-semibold tracking-[-0.03em] text-[var(--color-text-primary)] sm:flex">
+          <span className="flex min-w-0 flex-1 items-center pl-3 pr-2 font-mono text-[14px] font-semibold uppercase leading-none tracking-[-0.04em] text-[var(--color-text-primary)]">
             Floatdesk
           </span>
         </Link>
 
-        <nav aria-label="Primary navigation" className="hidden min-w-0 flex-1 items-center justify-center gap-5 px-5 font-mono text-[12px] text-[var(--color-text-primary)] lg:flex xl:gap-7">
+        <nav aria-label="Primary navigation" className="absolute left-1/2 top-1/2 hidden h-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-10 font-mono text-[12px] text-[var(--color-text-primary)] lg:flex">
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}

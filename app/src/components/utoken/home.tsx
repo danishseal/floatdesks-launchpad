@@ -2,21 +2,16 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useTokens } from "@/hooks/use-tokens";
 import { Sparkline } from "@/components/utoken/sparkline";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
-import { fetchGraduationThreshold, type TokenListItem,
+import { type TokenListItem,
   graduationProgress,
 } from "@/lib/api";
 
 export function UtokenHome() {
   const { data: tokens, isLoading } = useTokens();
   const [previewAddress, setPreviewAddress] = useState<string | null>(null);
-  const { data: threshold = 0 } = useQuery({
-    queryKey: ["graduation-threshold"],
-    queryFn: fetchGraduationThreshold,
-  });
 
   const ranked = useMemo(
     () =>
@@ -32,7 +27,7 @@ export function UtokenHome() {
 
   return (
     <div className="space-y-8 font-sans">
-      <TokenPreviewBanner token={previewToken} thresholdMicro={threshold} />
+      <TokenPreviewBanner token={previewToken} />
 
       <section className="w-full max-w-none">
         <div className="mb-4">
@@ -52,7 +47,7 @@ export function UtokenHome() {
             ))}
           </div>
         ) : (
-          <FeaturedGrid items={featured} thresholdMicro={threshold} onPreview={setPreviewAddress} />
+          <FeaturedGrid items={featured} onPreview={setPreviewAddress} />
         )}
       </section>
 
@@ -66,10 +61,8 @@ export function UtokenHome() {
 
 function TokenPreviewBanner({
   token,
-  thresholdMicro,
 }: {
   token: TokenListItem | null;
-  thresholdMicro: number;
 }) {
   if (!token) return <StarterBanner />;
 
@@ -80,7 +73,7 @@ function TokenPreviewBanner({
   const progress = graduationProgress(token) ?? 4;
 
   return (
-    <section key={token.address} className="ansem-fade-in grid overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:h-[420px] lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.7fr)]" aria-label={`${token.name} live market preview`}>
+    <section className="grid overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:h-[420px] lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.7fr)]" aria-label={`${token.name} live market preview`} aria-live="polite">
       <div className="flex min-h-[250px] min-w-0 flex-col border-b border-[var(--color-border-soft)] p-5 lg:min-h-0 lg:border-b-0 lg:border-r">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -148,9 +141,9 @@ function TokenPreviewBanner({
           <div className="mt-2 h-1.5 bg-[var(--color-bg-raised)]">
             <div className="h-full bg-[var(--color-accent-solid)]" style={{ width: `${progress}%` }} />
           </div>
-          <Link href={`/token/${token.address}`} className="group/market mt-3 flex h-9 items-center justify-between bg-[var(--color-text-primary)] px-3 font-mono text-[11px] font-semibold text-[var(--color-bg-surface)] transition-[transform,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-accent-solid)] hover:shadow-[3px_3px_0_var(--color-border)]">
+          <Link href={`/token/${token.address}`} className="mt-3 flex h-9 items-center justify-between bg-[var(--color-text-primary)] px-3 font-mono text-[11px] font-semibold text-[var(--color-bg-surface)] hover:bg-[var(--color-accent-solid)]">
             <span>Open full market</span>
-            <span className="transition-transform duration-200 group-hover/market:translate-x-0.5 group-hover/market:-translate-y-0.5" aria-hidden="true">↗</span>
+            <span aria-hidden="true">↗</span>
           </Link>
         </div>
       </aside>
@@ -160,18 +153,18 @@ function TokenPreviewBanner({
 
 function StarterBanner() {
   return (
-    <section key="launchpad" className="ansem-fade-in flex min-h-[380px] items-center justify-center overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-5 py-8 lg:h-[420px]" aria-label="Floatdesk launchpad">
+    <section className="flex min-h-[380px] items-center justify-center overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-5 py-8 lg:h-[420px]" aria-label="Start a new coin">
       <div className="w-full max-w-[520px] text-center">
-        <h1 className="font-display text-[18px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-primary)]">
-          Floatdesk launchpad
+        <h1 className="font-neue-bit text-[clamp(3rem,6vw,5rem)] font-bold lowercase leading-[0.8] tracking-[-0.025em] text-[var(--color-text-primary)]">
+          [start a new coin]
         </h1>
         <p className="mx-auto mt-7 max-w-[430px] text-[15px] leading-6 text-[var(--color-text-secondary)]">
           Choose a name, image, and ticker. Floatdesk handles the market and bonding curve.
         </p>
 
-        <Link href="/create" className="group/launch mx-auto mt-6 flex h-11 max-w-[360px] items-center justify-between bg-[var(--color-accent-solid)] px-4 font-mono text-[12px] font-semibold text-[var(--color-on-accent)] transition-[transform,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-accent-strong)] hover:shadow-[4px_4px_0_var(--color-border)]">
+        <Link href="/create" className="mx-auto mt-6 flex h-11 max-w-[360px] items-center justify-between bg-[var(--color-accent-solid)] px-4 font-mono text-[12px] font-semibold text-[var(--color-on-accent)] hover:bg-[var(--color-accent-strong)]">
           <span>Launch your coin</span>
-          <span className="transition-transform duration-200 group-hover/launch:translate-x-1" aria-hidden="true">→</span>
+          <span aria-hidden="true">→</span>
         </Link>
         <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
           Hover over any live coin to preview its market
@@ -185,11 +178,9 @@ function StarterBanner() {
 
 function FeaturedGrid({
   items,
-  thresholdMicro,
   onPreview,
 }: {
   items: TokenListItem[];
-  thresholdMicro: number;
   onPreview: (address: string | null) => void;
 }) {
   if (items.length === 0) {
@@ -210,7 +201,7 @@ function FeaturedGrid({
       }}
     >
       {items.map((token) => (
-        <FeaturedCard key={token.address} token={token} thresholdMicro={thresholdMicro} onPreview={onPreview} />
+        <FeaturedCard key={token.address} token={token} onPreview={onPreview} />
       ))}
     </div>
   );
@@ -218,11 +209,9 @@ function FeaturedGrid({
 
 function FeaturedCard({
   token,
-  thresholdMicro,
   onPreview,
 }: {
   token: TokenListItem;
-  thresholdMicro: number;
   onPreview: (address: string | null) => void;
 }) {
   const change = token.price_change_24h;
@@ -234,12 +223,12 @@ function FeaturedCard({
       href={`/token/${token.address}`}
       onMouseEnter={() => onPreview(token.address)}
       onFocus={() => onPreview(token.address)}
-      className="group relative block min-w-0 border-b border-r border-[var(--color-border-soft)] bg-[var(--color-bg-page)] transition-[background-color,box-shadow] duration-200 ease-out hover:z-10 hover:bg-[var(--color-bg-surface)] hover:shadow-[inset_0_-3px_0_var(--color-accent-solid)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent-solid)]"
+      className="group relative flex min-w-0 flex-col border-b border-r border-[var(--color-border-soft)] bg-[var(--color-bg-page)] hover:z-10 hover:bg-[var(--color-bg-surface)] hover:shadow-[inset_0_-3px_0_var(--color-accent-solid)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent-solid)]"
     >
       <div className="relative aspect-video w-full overflow-hidden bg-[var(--color-bg-raised)]">
         {token.image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={token.image} alt={`${token.name} token artwork`} className="block h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.035]" />
+          <img src={token.image} alt={`${token.name} token artwork`} className="block h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center font-display text-[clamp(2rem,5vw,4rem)] font-semibold text-[var(--color-text-subtle)]">
             {token.symbol?.slice(0, 1) || "?"}
@@ -248,7 +237,7 @@ function FeaturedCard({
 
       </div>
 
-      <div className="px-3 pb-2.5 pt-2">
+      <div className="flex flex-1 flex-col px-3 pb-2.5 pt-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="font-display text-[13px] font-semibold uppercase leading-[1.15] tracking-[0.03em] text-[var(--color-text-primary)]">
@@ -261,11 +250,11 @@ function FeaturedCard({
           {graduated && <VenueBadge token={token} />}
         </div>
 
-        <p className="mt-1.5 line-clamp-1 min-h-[14px] text-[10px] leading-[1.3] text-[var(--color-text-secondary)] transition-colors duration-200 group-hover:text-[var(--color-text-primary)]">
+        <p className="mt-1.5 line-clamp-1 min-h-[14px] text-[10px] leading-[1.3] text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)]">
           {token.description?.trim() || `${token.name} is trading live on the Floatdesk market.`}
         </p>
 
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[9px]">
+        <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1.5 font-mono text-[9px]">
           <span className="text-[var(--color-text-muted)]">Mkt cap</span>
           <span className="font-semibold text-[var(--color-text-primary)]">{usd(capUsd(token))}</span>
           {change != null && (
@@ -307,11 +296,6 @@ const REGISTRY_FILTERS: ReadonlyArray<{ value: Filter; label: string }> = [
 
 function Registry({ tokens, loading }: { tokens: TokenListItem[]; loading: boolean }) {
   const [filter, setFilter] = useState<Filter>("all");
-  const { data: threshold = 0 } = useQuery({
-    queryKey: ["graduation-threshold"],
-    queryFn: fetchGraduationThreshold,
-    staleTime: 5 * 60_000,
-  });
   const rows = useMemo(
     () =>
       tokens.filter((t) =>
@@ -375,7 +359,7 @@ function Registry({ tokens, loading }: { tokens: TokenListItem[]; loading: boole
             ) : rows.length === 0 ? (
               <tr><td colSpan={9} className="px-4 py-10 text-center font-sans text-[13px] text-[var(--color-text-muted)]">No tokens.</td></tr>
             ) : (
-              rows.map((t, i) => <RegistryRow key={t.address} token={t} rank={i + 1} thresholdMicro={threshold} />)
+              rows.map((t, i) => <RegistryRow key={t.address} token={t} rank={i + 1} />)
             )}
           </tbody>
         </table>
@@ -384,7 +368,7 @@ function Registry({ tokens, loading }: { tokens: TokenListItem[]; loading: boole
   );
 }
 
-function RegistryRow({ token, rank, thresholdMicro }: { token: TokenListItem; rank: number; thresholdMicro: number }) {
+function RegistryRow({ token, rank }: { token: TokenListItem; rank: number }) {
   const change = token.price_change_24h;
   const priceUsd = (Number(token.current_price) / 1e6) * token.market.solUsd;
   return (
@@ -406,7 +390,7 @@ function RegistryRow({ token, rank, thresholdMicro }: { token: TokenListItem; ra
           </div>
         </Link>
       </td>
-      <td className="px-4 py-3"><StatusPill token={token} thresholdMicro={thresholdMicro} /></td>
+      <td className="px-4 py-3"><StatusPill token={token} /></td>
       <td className="px-4 py-3 text-right tabular-nums text-[13px] text-[var(--color-text-primary)]">
         {priceUsd > 0 ? (priceUsd >= 0.01 ? usd(priceUsd) : `$${Number(priceUsd.toPrecision(2))}`) : "-"}
       </td>
@@ -435,7 +419,7 @@ function VenueBadge({ token }: { token: TokenListItem }) {
 }
 
 /** Status as a progress-bar pill: bonding fill, or full green when graduated. */
-function StatusPill({ token, thresholdMicro }: { token: TokenListItem; thresholdMicro: number }) {
+function StatusPill({ token }: { token: TokenListItem }) {
   const graduated = token.graduated;
   let pct = 100;
   let label = "Pool on AMM";
