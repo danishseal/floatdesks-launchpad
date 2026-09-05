@@ -438,30 +438,23 @@ export function tradeSide(action: string, direction: string): "buy" | "sell" {
   return direction === "token_to_base" || direction === "sell" ? "sell" : "buy";
 }
 
-export async function fetchTokenTrades(
-  address: string,
-  limit = 50,
-): Promise<TokenTrade[]> {
-  // The Float indexer keys Desk trades by asset, and launched-token trades live
-  // in token_trades, which /candles reads. There is no per-token trade endpoint
-  // yet, so this returns the Desk trades for the token's UNDERLYING, which is
-  // the flow that actually moves its quote asset.
-  const t = await request<IndexerToken | null>(`/tokens?token=${address}`).catch(() => null);
-  if (!t?.underlying_ticker) return [];
-  const rows = await request<IndexerTrade[]>(
-    `/trades?asset=${t.underlying_ticker}&limit=${limit}`,
-  ).catch(() => []);
-  return rows.map((r) => ({
-    time: r.ts ? new Date(r.ts * 1000).toISOString() : String(r.block),
-    tx_hash: r.tx,
-    action: r.side === "sell" ? "sell" : "buy",
-    trader: r.who,
-    hodl_amount: r.quote,
-    token_amount: r.base,
-    fee: String(Math.round((Number(r.quote) * (r.fee_bps ?? 0)) / 10_000)),
-    phase: "curve",
-    price_sol: Number(r.px) / 1e8,
-  }));
+/**
+ * Per-token trades. Empty until the indexer exposes them.
+ *
+ * This used to return the Desk trades for the token's UNDERLYING, on the
+ * reasoning that they are the flow moving its quote asset. That was wrong in
+ * the way that is hardest to see: the rows were real, accurate and about a
+ * different subject, and the page rendered them as this token's transactions.
+ * A token with one curve buy showed "Transactions (2)" and "1 buys, $9.92K vol"
+ * from somebody else's fMOUTAI purchases.
+ *
+ * The indexer holds the right rows in its token_trades table, which /candles
+ * reads, but exposes no endpoint returning them individually. Until it does,
+ * this returns nothing and the panel shows its own empty state, which is the
+ * same call already made for holders. Wrong data is worse than none.
+ */
+export async function fetchTokenTrades(): Promise<TokenTrade[]> {
+  return [];
 }
 
 export interface RecentTrade {

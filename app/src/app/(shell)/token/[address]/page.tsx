@@ -46,17 +46,19 @@ export default function TokenDetailPage() {
   const resizeStart = useRef({ y: 0, height: 700 });
   const { data: token, isLoading, error } = useTokenDetail(address);
   const { data: trades } = useTokenTrades(address, 2_000);
-  const stableTrades = useRef<{ address: string; data: TokenTrade[] }>({
-    address,
-    data: [],
-  });
-  if (stableTrades.current.address !== address) {
-    stableTrades.current = { address, data: [] };
+  // Hold the last non-empty result so a transient empty refetch does not blank
+  // the table, reset when the token changes. This was a ref mutated during
+  // render, which is not render-pure and breaks under concurrent rendering;
+  // adjusting state during render is the sanctioned form of the same thing.
+  const [tradesFor, setTradesFor] = useState(address);
+  const [lastTrades, setLastTrades] = useState<TokenTrade[]>([]);
+  if (tradesFor !== address) {
+    setTradesFor(address);
+    setLastTrades([]);
+  } else if (trades?.length && trades !== lastTrades) {
+    setLastTrades(trades);
   }
-  if (trades?.length) {
-    stableTrades.current.data = trades;
-  }
-  const visibleTrades = trades?.length ? trades : stableTrades.current.data;
+  const visibleTrades = trades?.length ? trades : lastTrades;
   const candles = useCandles(address, timeframe);
   const holdersQuery = useTokenHolders(address);
   // The single-token detail fetch does not carry a 24h change, so derive it from
@@ -257,19 +259,16 @@ function TokenInformationPanel({
 }) {
   const [tab, setTab] = useState<InformationTab>("holders");
   const holders = useTokenHolders(token.address);
-  const stableHolders = useRef<{
-    address: string;
-    data: Array<{ address: string; balance: string }>;
-  }>({ address: token.address, data: [] });
-  if (stableHolders.current.address !== token.address) {
-    stableHolders.current = { address: token.address, data: [] };
+  // Same pattern as the trades above, and the same reason.
+  const [holdersFor, setHoldersFor] = useState(token.address);
+  const [lastHolders, setLastHolders] = useState<Array<{ address: string; balance: string }>>([]);
+  if (holdersFor !== token.address) {
+    setHoldersFor(token.address);
+    setLastHolders([]);
+  } else if (holders.data?.length && holders.data !== lastHolders) {
+    setLastHolders(holders.data);
   }
-  if (holders.data?.length) {
-    stableHolders.current.data = holders.data;
-  }
-  const visibleHolders = holders.data?.length
-    ? holders.data
-    : stableHolders.current.data;
+  const visibleHolders = holders.data?.length ? holders.data : lastHolders;
 
   return (
     <div

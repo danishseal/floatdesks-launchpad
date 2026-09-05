@@ -14,10 +14,8 @@ import { useTokens } from "@/hooks/use-tokens";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import type { TokenListItem } from "@/lib/api";
 
-type ProfileHit = { address: string; username?: string; displayName?: string; avatar?: string };
 type TopUser = { address: string; image: string | null; launchedValue: number };
 type Item =
-  | { kind: "profile"; key: string; profile: ProfileHit }
   | { kind: "token"; key: string; token: TokenListItem }
   | { kind: "creator"; key: string; creator: TopUser };
 
@@ -66,31 +64,9 @@ function SearchModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
 
-  const [profiles, setProfiles] = useState<ProfileHit[]>([]);
-
-  // Debounced people search against the social backend.
-  useEffect(() => {
-    const q = query.trim();
-    if (!q) {
-      setProfiles([]);
-      return;
-    }
-    let cancelled = false;
-    const id = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/social/search?q=${encodeURIComponent(q)}`);
-        if (!res.ok) return;
-        const data = (await res.json()) as { profiles?: ProfileHit[] };
-        if (!cancelled) setProfiles(Array.isArray(data.profiles) ? data.profiles : []);
-      } catch {
-        /* ignore search errors */
-      }
-    }, 180);
-    return () => {
-      cancelled = true;
-      clearTimeout(id);
-    };
-  }, [query]);
+  // The people search that lived here queried /api/social/search, which went
+  // with the ansem-1 SocialFi strip. It was firing a 404 on every keystroke and
+  // silently swallowing it, so it is gone rather than left looking functional.
 
   const tokenResults = useMemo(() => {
     const src = tokens ?? [];
@@ -135,19 +111,24 @@ function SearchModal({ onClose }: { onClose: () => void }) {
       ];
     }
     return [
-      ...profiles.map((p) => ({ kind: "profile" as const, key: `p-${p.address}`, profile: p })),
       ...tokenResults.map((t) => ({ kind: "token" as const, key: `t-${t.address}`, token: t })),
     ];
-  }, [profiles, tokenResults, topUsers, query]);
+  }, [tokenResults, topUsers, query]);
 
-  useEffect(() => setActive(0), [query]);
+  // Reset the highlighted row when the query changes. This was an effect, which
+  // renders once with a stale index before correcting it; adjusting during
+  // render is the sanctioned form.
+  const [activeFor, setActiveFor] = useState(query);
+  if (activeFor !== query) {
+    setActiveFor(query);
+    setActive(0);
+  }
 
   const go = useCallback(
     (item?: Item) => {
       if (!item) return;
       onClose();
-      if (item.kind === "profile") router.push(`/creator/${item.profile.address}`);
-      else if (item.kind === "creator") router.push(`/creator/${item.creator.address}`);
+      if (item.kind === "creator") router.push(`/creator/${item.creator.address}`);
       else router.push(`/token/${item.token.address}`);
     },
     [onClose, router],
@@ -203,43 +184,6 @@ function SearchModal({ onClose }: { onClose: () => void }) {
             </p>
           ) : (
             <>
-              {profiles.length > 0 && (
-                <div className="flex items-center gap-1.5 px-2 py-2 font-mono text-[11px] uppercase tracking-wider text-[var(--color-text-subtle)]">
-                  <User size={12} /> People
-                </div>
-              )}
-              {profiles.map((p, i) => {
-                const idx = i;
-                const label = p.displayName || (p.username ? `@${p.username}` : shortAddr(p.address));
-                return (
-                  <button
-                    key={`p-${p.address}`}
-                    type="button"
-                    onMouseEnter={() => setActive(idx)}
-                    onClick={() => go(items[idx])}
-                    className={`flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors ${
-                      idx === active ? "bg-[var(--color-bg-raised)]" : "hover:bg-[var(--color-bg-raised)]"
-                    }`}
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--hairline)] bg-[var(--color-bg-raised)]">
-                      {p.avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.avatar} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <User size={16} weight="fill" className="text-[var(--color-text-subtle)]" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="font-display text-[14px] font-semibold text-[var(--color-text-primary)]">{label}</span>
-                      {p.username && (
-                        <span className="ml-2 font-mono text-[12px] text-[var(--color-text-muted)]">@{p.username}</span>
-                      )}
-                    </div>
-                    <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--color-text-subtle)]">Profile</span>
-                  </button>
-                );
-              })}
-
               {tokenResults.length > 0 && (
                 <div className="flex items-center gap-1.5 px-2 py-2 font-mono text-[11px] uppercase tracking-wider text-[var(--color-text-subtle)]">
                   <TrendUp size={12} />
@@ -247,7 +191,7 @@ function SearchModal({ onClose }: { onClose: () => void }) {
                 </div>
               )}
               {tokenResults.map((t, i) => {
-                const idx = profiles.length + i;
+                const idx = i;
                 const cap =
                   (Number(t.current_price) / 1e6) * t.market.solUsd * DEFAULT_TOKEN_SUPPLY;
                 const change = t.price_change_24h;
