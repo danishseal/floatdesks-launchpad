@@ -145,7 +145,16 @@ export async function GET() {
 
     const sumQuote = (rows: TradeRow[]) =>
       rows.reduce((a, r) => a + Number(BigInt(r.quote ?? "0")), 0);
-    const sumFees = (rows: TradeRow[]) =>
+    // What TRADERS PAID, which is not what the vault kept. Desk.buy charges
+    // spread + impact + txFee, then carves protocolFeeBps, txFeeBps,
+    // launcherFeeBps and stakerFeeBps out of quoteIn, and availableLiquidity()
+    // subtracts all four, so vault equity gains roughly quoteIn * (feeBps - 60bps)
+    // at today's settings. On a daytime MOUTAI buy that is 70bps charged against
+    // ~10bps kept: this number is about 7x the vault's take, and 1.46x at night.
+    // Named for the subject it measures rather than netted here, because netting
+    // would put Desk.buy's split in a second place that has to agree with it
+    // forever. What the vault actually earned is the realized share price.
+    const sumTraderFees = (rows: TradeRow[]) =>
       rows.reduce((a, r) => a + Number(BigInt(r.quote ?? "0")) * (r.fee_bps ?? 0) / 10_000, 0);
 
     // Each market row fails on its own. getListing reverts UnknownAsset on a
@@ -190,7 +199,7 @@ export async function GET() {
         totalStaked: pool ? pool.totalStaked.toString() : null,
         volume24h: sumQuote(mine(windowed(DAY))),
         volume7d: sumQuote(mine(windowed(7 * DAY))),
-        fees7d: sumFees(mine(windowed(7 * DAY))),
+        traderFees7d: sumTraderFees(mine(windowed(7 * DAY))),
         trades: mine(trades).length,
       };
       } catch (e) {
@@ -327,7 +336,7 @@ export async function GET() {
       totals: {
         volume24h: sumQuote(windowed(DAY)),
         volume7d: sumQuote(windowed(7 * DAY)),
-        fees7d: sumFees(windowed(7 * DAY)),
+        traderFees7d: sumTraderFees(windowed(7 * DAY)),
         tradeCount: trades.length,
       },
       asOf: now,

@@ -184,7 +184,7 @@ function DeskVaultCard({ data }: { data: PoolsResponse }) {
   const dp = data.quote.decimals;
   const equity = fromUnits(data.desk.equity, dp);
   const shares = fromUnits(data.desk.totalShares, dp);
-  const fees7d = fromUnits(String(Math.round(data.totals.fees7d)), dp);
+  const traderFees7d = fromUnits(String(Math.round(data.totals.traderFees7d)), dp);
 
   return (
     <section className={styles.tableShell} aria-label="Desk vault">
@@ -216,10 +216,11 @@ function DeskVaultCard({ data }: { data: PoolsResponse }) {
           <span className={styles.cellSubtle}>realized, not projected</span>
         </div>
         <div>
-          <span className={styles.mobileLabel}>7d fees</span>
+          <span className={styles.mobileLabel}>7d trader fees</span>
           <span className={styles.cellValue}>
-            {data.indexer?.measured === false ? "unmeasured" : usd(fees7d, { max: 2 })}
+            {data.indexer?.measured === false ? "unmeasured" : usd(traderFees7d, { max: 2 })}
           </span>
+          <span className={styles.cellSubtle}>paid by traders, not kept by the vault</span>
         </div>
         <div>
           <span className={styles.mobileLabel}>Backs</span>
@@ -396,9 +397,9 @@ function MarketRow({ m, dp, symbol, feedOk }: { m: PoolsMarket; dp: number; symb
         </span>
       </div>
       <div>
-        <span className={styles.mobileLabel}>7d fees</span>
+        <span className={styles.mobileLabel}>7d trader fees</span>
         <span className={styles.cellValue}>
-          {!feedOk ? "unmeasured" : m.trades > 0 ? usd(fromUnits(String(Math.round(m.fees7d)), dp), { max: 2 }) : "no trades yet"}
+          {!feedOk ? "unmeasured" : m.trades > 0 ? usd(fromUnits(String(Math.round(m.traderFees7d)), dp), { max: 2 }) : "no trades yet"}
         </span>
       </div>
       <div>

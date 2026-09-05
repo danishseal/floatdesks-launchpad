@@ -22,7 +22,7 @@ export interface PoolsMarket {
   totalStaked: string | null;
   volume24h: number;
   volume7d: number;
-  fees7d: number;
+  traderFees7d: number;
   trades: number;
 }
 
@@ -71,7 +71,7 @@ export interface PoolsResponse {
   /** Markets that could not be read, with the reason. Normally empty. */
   unreadable: Array<{ assetId: string; reason: string }>;
   tokens: PoolsToken[];
-  totals: { volume24h: number; volume7d: number; fees7d: number; tradeCount: number };
+  totals: { volume24h: number; volume7d: number; traderFees7d: number; tradeCount: number };
   asOf: number;
 }
 
