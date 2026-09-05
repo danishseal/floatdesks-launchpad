@@ -89,6 +89,9 @@ export function LpPoolDetail() {
   const [busy, setBusy] = useState(false);
   const [positions, setPositions] = useState<OwnedPosition[] | null>(null);
   const [posErr, setPosErr] = useState<string | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  /** Set by clicking the chart; overrides the width presets until cleared. */
+  const [custom, setCustom] = useState<{ lo: number; hi: number } | null>(null);
 
   const loadPositions = useCallback(async () => {
     if (!data || !wallet.address) {
@@ -147,19 +150,27 @@ export function LpPoolDetail() {
     const logMin = Math.log(minNonZero);
     const span = logMax - logMin || 1;
 
+    // Inset the plot. Drawing from 0 to W puts grid lines and the outermost
+    // bars flush against the card border, which reads as an overflow rather
+    // than a chart. The floor sits near the bottom for the same reason: a band
+    // of empty space under the bars detaches them from the frame.
     const W = 600;
-    const H = 330;
-    const floor = 288;
-    const top = 26;
+    const H = 300;
+    const PAD = 14;
+    const floor = 282;
+    const top = 24;
     const plot = floor - top;
-    const bw = W / bars.length;
+    const inner = W - PAD * 2;
+    const bw = inner / bars.length;
     return {
       W,
       H,
       floor,
       top,
+      PAD,
+      inner,
       logScale: max / minNonZero > 20,
-      mid: (bars.filter((b) => b.side === "bid").length / bars.length) * W,
+      mid: PAD + (bars.filter((b) => b.side === "bid").length / bars.length) * inner,
       bars: bars.map((b, i) => {
         const v = Number(BigInt(b.liquidity));
         let frac = 0;
@@ -172,7 +183,7 @@ export function LpPoolDetail() {
         // separate mini bars: one per tick, so the reader can see the pool is
         // a series of discrete ranges rather than one poured shape
         const gap = Math.min(2.5, bw * 0.28);
-        return { ...b, x: i * bw + gap / 2, w: Math.max(1.2, bw - gap), y: floor - h, h };
+        return { ...b, i, x: PAD + i * bw + gap / 2, w: Math.max(1.2, bw - gap), y: floor - h, h, value: v };
       }),
     };
   }, [data]);
@@ -187,8 +198,8 @@ export function LpPoolDetail() {
     const sqrtP = Number(BigInt(p.sqrtPriceX96)) / Q96;
     const spacing = p.key.tickSpacing;
     const base = Math.floor(p.tick / spacing) * spacing;
-    const tickLower = base - widthSteps * spacing;
-    const tickUpper = base + (widthSteps + 1) * spacing;
+    const tickLower = custom ? custom.lo : base - widthSteps * spacing;
+    const tickUpper = custom ? custom.hi : base + (widthSteps + 1) * spacing;
     const { per0, per1 } = amountsPerLiquidity(sqrtP, sqrtAtTick(tickLower), sqrtAtTick(tickUpper));
     const amt = Number(amount || "0");
     const dec = side === 0 ? p.decimals0 : p.decimals1;
@@ -213,7 +224,7 @@ export function LpPoolDetail() {
       pctLow,
       pctHigh,
     };
-  }, [data, amount, widthSteps]);
+  }, [data, amount, widthSteps, custom]);
 
   // Where the depth actually is. The seeder concentrates at the peg and thins
   // outward, so the useful summary is the band carrying the peak and how much
@@ -369,8 +380,13 @@ export function LpPoolDetail() {
             <div className={styles.chartHeader}>
               <span>Liquidity by price</span>
               <span className={own.sub}>
-                {chart.bars.length} ticks either side of the price
-                {chart.logScale ? " · log scale" : ""}
+                {hover !== null && chart.bars[hover]
+                  ? `ticks ${chart.bars[hover].tick.toLocaleString("en-US")} to ${(
+                      chart.bars[hover].tick + p.key.tickSpacing
+                    ).toLocaleString("en-US")} · ${fmt(
+                      priceAt(sqrtAtTick(chart.bars[hover].tick), p.decimals0, p.decimals1),
+                    )} ${p.symbol1} · L ${BigInt(chart.bars[hover].liquidity).toLocaleString("en-US")}`
+                  : `${chart.bars.length} ticks either side of the price${chart.logScale ? " · log scale" : ""} · click a bar to place your range`}
               </span>
             </div>
             <svg
@@ -380,20 +396,72 @@ export function LpPoolDetail() {
               role="img"
               aria-label={`Liquidity distribution for the ${p.symbol0} ${p.symbol1} pool, read from the pool's own ticks`}
             >
-              <line className={styles.chartGridLine} x1="0" y1="80" x2={chart.W} y2="80" />
-              <line className={styles.chartGridLine} x1="0" y1="165" x2={chart.W} y2="165" />
-              <line className={styles.chartGridLine} x1="0" y1="250" x2={chart.W} y2="250" />
-              <line className={styles.chartGridLine} x1="0" y1={chart.floor} x2={chart.W} y2={chart.floor} />
+              {[0.25, 0.5, 0.75].map((f) => {
+                const y = chart.top + (chart.floor - chart.top) * f;
+                return (
+                  <line
+                    key={f}
+                    className={styles.chartGridLine}
+                    x1={chart.PAD}
+                    y1={y}
+                    x2={chart.W - chart.PAD}
+                    y2={y}
+                  />
+                );
+              })}
+              <line
+                className={styles.chartGridLine}
+                x1={chart.PAD}
+                y1={chart.floor}
+                x2={chart.W - chart.PAD}
+                y2={chart.floor}
+              />
               {chart.bars.map((b) => (
-                <rect
-                  key={b.tick}
-                  className={b.side === "bid" ? styles.chartBid : styles.chartAsk}
-                  x={b.x.toFixed(2)}
-                  y={b.y.toFixed(2)}
-                  width={b.w.toFixed(2)}
-                  height={Math.max(0, b.h).toFixed(2)}
-                />
+                <g key={b.tick}>
+                  {/* full-height hit area, so a 2px tail bar is still clickable */}
+                  <rect
+                    x={(b.x - 0.6).toFixed(2)}
+                    y={chart.top}
+                    width={(b.w + 1.2).toFixed(2)}
+                    height={(chart.floor - chart.top).toFixed(2)}
+                    fill="transparent"
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={() => setHover(b.i)}
+                    onMouseLeave={() => setHover((h) => (h === b.i ? null : h))}
+                    onClick={() => setCustom({ lo: b.tick, hi: b.tick + p.key.tickSpacing })}
+                  >
+                    <title>
+                      {`ticks ${b.tick} to ${b.tick + p.key.tickSpacing} · liquidity ${b.liquidity}`}
+                    </title>
+                  </rect>
+                  <rect
+                    className={b.side === "bid" ? styles.chartBid : styles.chartAsk}
+                    x={b.x.toFixed(2)}
+                    y={b.y.toFixed(2)}
+                    width={b.w.toFixed(2)}
+                    height={Math.max(0, b.h).toFixed(2)}
+                    opacity={hover === null || hover === b.i ? 1 : 0.45}
+                    pointerEvents="none"
+                  />
+                </g>
               ))}
+              {custom
+                ? (() => {
+                    const sel = chart.bars.find((b) => b.tick === custom.lo);
+                    return sel ? (
+                      <rect
+                        x={(sel.x - 0.6).toFixed(2)}
+                        y={chart.top}
+                        width={(sel.w + 1.2).toFixed(2)}
+                        height={(chart.floor - chart.top).toFixed(2)}
+                        fill="none"
+                        stroke="var(--color-accent-solid)"
+                        strokeWidth="1.5"
+                        pointerEvents="none"
+                      />
+                    ) : null;
+                  })()
+                : null}
               <line
                 className={styles.chartMid}
                 x1={chart.mid.toFixed(2)}
@@ -432,12 +500,20 @@ export function LpPoolDetail() {
               <button
                 key={w}
                 type="button"
-                className={`${own.rangePick} ${widthSteps === w ? own.rangePickOn : ""}`}
-                onClick={() => setWidthSteps(w)}
+                className={`${own.rangePick} ${!custom && widthSteps === w ? own.rangePickOn : ""}`}
+                onClick={() => {
+                  setCustom(null);
+                  setWidthSteps(w);
+                }}
               >
                 {w === 1 ? "Tight" : w === 3 ? "Medium" : "Wide"}
               </button>
             ))}
+            {custom ? (
+              <button type="button" className={`${own.rangePick} ${own.rangePickOn}`} onClick={() => setCustom(null)}>
+                From chart ✕
+              </button>
+            ) : null}
           </div>
           <div className={own.rangeFacts}>
             <div className={own.rangeFact}>
