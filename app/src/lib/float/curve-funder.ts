@@ -12,6 +12,7 @@
  */
 
 import type { Address } from "viem";
+import { withRetry, mapLimited } from "./retry";
 import { publicClient, ERC20_ABI, ensureAllowance, walletClient, floatChain } from "./chain";
 import { CURVEFUNDER_ABI } from "./abi";
 import { resolve } from "./registry";
@@ -95,15 +96,29 @@ export async function cfAllTokensDetailed(): Promise<
   const pc = publicClient();
   const out: Array<{ token: Address; launcher: Address; superseded: boolean }> = [];
   for (const { address, superseded } of await launchers()) {
-    const n = (await pc.readContract({
-      address, abi: CURVEFUNDER_ABI, functionName: "tokenCount",
-    }).catch(() => 0n)) as bigint;
-    const tokens = await Promise.all(
-      Array.from({ length: Number(n) }, (_, i) =>
-        pc.readContract({
-          address, abi: CURVEFUNDER_ABI, functionName: "allTokens", args: [BigInt(i)],
-        }).then((t) => t as Address).catch(() => null),
-      ),
+    // THROWS rather than counting zero. `.catch(() => 0n)` here meant a refused
+    // call reported a launcher with no tokens, and the caller cannot tell that
+    // apart from a launcher that really has none: fetchToken then threw "no
+    // token <addr>" and the page rendered "Token not found" over a live token.
+    // The public RPC answers 429 under load, which viem reports as "An unknown
+    // RPC error occurred", so this fired often enough to see.
+    const n = (await withRetry(
+      () => pc.readContract({ address, abi: CURVEFUNDER_ABI, functionName: "tokenCount" }),
+      `tokenCount on ${address}`,
+    )) as bigint;
+    // Bounded concurrency, and an index that will not answer after retries is
+    // an error, not a token that quietly does not exist. Dropping one silently
+    // returned a SHORT list that looked complete.
+    const tokens = await mapLimited(
+      Array.from({ length: Number(n) }, (_, i) => i),
+      (i) =>
+        withRetry(
+          () =>
+            pc.readContract({
+              address, abi: CURVEFUNDER_ABI, functionName: "allTokens", args: [BigInt(i)],
+            }),
+          `allTokens(${i}) on ${address}`,
+        ).then((t) => t as Address),
     );
     for (const t of tokens) if (t) out.push({ token: t, launcher: address, superseded });
   }

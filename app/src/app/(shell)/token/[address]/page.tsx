@@ -130,7 +130,16 @@ export default function TokenDetailPage() {
   return (
     <div className="terminal-page mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-[1440px] min-w-0 flex-col gap-4 bg-[var(--color-bg-page)] p-4 text-[var(--color-text-primary)] xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:grid-rows-[auto_auto] 2xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* TOP-LEFT: chart card */}
-        <div className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-[var(--color-bg-page)]">
+        {/* minHeight, not height: the row is as tall as the TALLER of this card
+            and the rail beside it, and the rail grew past it when the contracts
+            grid landed. With a fixed height the chart kept its 567px and the
+            extra 235px became a dead band above the Holders panel, which is
+            also why dragging the resize handle appeared to do nothing. The
+            chart flexes into whatever the row turns out to be instead. */}
+        <div
+          className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-[var(--color-bg-page)]"
+          style={{ minHeight: chartHeight }}
+        >
         <div className="flex h-[70px] shrink-0 items-center justify-between gap-6 overflow-x-auto border-b border-[var(--color-border-soft)] px-4 py-2">
           <div className="flex shrink-0 items-center gap-2.5">
             {token.image ? (
@@ -215,10 +224,7 @@ export default function TokenDetailPage() {
             </button>
           ))}
         </div>
-        <div
-          className="terminal-chart shrink-0 overflow-hidden px-2 pt-1"
-          style={{ height: chartHeight }}
-        >
+        <div className="terminal-chart min-h-0 flex-1 overflow-hidden px-2 pt-1">
           <TradingChart
             tokenAddress={address}
             terminal
