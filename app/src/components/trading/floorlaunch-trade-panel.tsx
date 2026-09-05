@@ -24,6 +24,7 @@ import {
 import {
   tokenPreviewBuy, tokenPreviewSell, deskPreviewBuy, tx, waitFor, balanceOf, getListing,
 } from "@/lib/float/chain";
+import { routeFor, quoteGraduated, type SwapRoute } from "@/lib/float/v4-router";
 
 const DEFAULT_SLIPPAGE = 0.02;
 const SLIPPAGE_PRESETS = [0.005, 0.01, 0.02, 0.05];
@@ -46,6 +47,11 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   const [showSlippage, setShowSlippage] = useState(false);
   const [holdings, setHoldings] = useState<number | null>(null);
   const [fshare, setFshare] = useState<{ address: `0x${string}`; balance: number } | null>(null);
+  // A graduated token no longer has a curve: it lives in two v4 pools. Quote it
+  // from the chain's own quoter so the page shows a real price even though
+  // execution is not wired yet.
+  const [route, setRoute] = useState<SwapRoute | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   const assetId = token.base_denom as `0x${string}`;
   const baseLabel = token.base_label || "fSHARE";
@@ -77,10 +83,34 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
     return () => { cancelled = true; };
   }, [assetId, wallet.address, busy]);
 
-  // Live quote off the curve's own preview functions.
+  useEffect(() => {
+    let cancelled = false;
+    if (!token.graduated) { setRoute(null); setRouteError(null); return; }
+    void routeFor(token.address as `0x${string}`).then((r) => {
+      if (cancelled) return;
+      if ("error" in r) { setRoute(null); setRouteError(r.error); }
+      else { setRoute(r); setRouteError(null); }
+    }).catch((e) => { if (!cancelled) setRouteError(String(e).slice(0, 120)); });
+    return () => { cancelled = true; };
+  }, [token.graduated, token.address]);
+
+  // Live quote off the curve's own preview functions, or the v4 quoter once the
+  // curve is spent.
   useEffect(() => {
     let cancelled = false;
     if (numeric <= 0) { setQuoteOut(null); return; }
+    if (token.graduated) {
+      if (!route) { setQuoteOut(null); return; }
+      // Buys are priced in USDG (6dp) on the pool route; sells are token in.
+      const rawIn = side === "buy"
+        ? BigInt(Math.round(numeric * 1e6))
+        : BigInt(Math.round(numeric * WAD));
+      void quoteGraduated(route, rawIn, side).then((out) => {
+        if (cancelled) return;
+        setQuoteOut(out === null ? null : Number(out) / (side === "buy" ? WAD : 1e6));
+      });
+      return;
+    }
     const raw = BigInt(Math.round(numeric * WAD));
     const p = side === "buy"
       ? tokenPreviewBuy(token.address as `0x${string}`, raw)
@@ -242,8 +272,11 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         <Button className="w-full" onClick={() => void wallet.connect()}>Connect wallet</Button>
       ) : token.graduated ? (
         <div className="rounded-[10px] border border-[var(--color-border-soft)] px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
-          This token has graduated. Its curve is spent and it now trades in a Uniswap v4
-          pool, which this panel does not route to yet.
+          {routeError
+            ? `This token has graduated and ${routeError}, so it cannot be priced here.`
+            : route
+              ? "Graduated: this price is a live quote from the two v4 pools it trades in, USDG through the fSHARE. Swapping from this panel is not wired yet, so trade it on a v4 venue for now."
+              : "Graduated. Finding its pools…"}
         </div>
       ) : needsFshare ? (
         <div className="space-y-2">
