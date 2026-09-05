@@ -70,8 +70,8 @@ export function quoteHopOnlyReason(
   // The symbol reads "?" when the token would not answer symbol(). Do not print
   // that as if it were a ticker; fall back to the generic noun.
   return stock && stock !== "?"
-    ? `No deposits on this hop: they go into the ${stock} / USDG pool, which carries every launch priced in ${stock}.`
-    : "No deposits on this hop: they go into the stock's USDG pool, which carries every launch priced in that stock.";
+    ? `Deposits go into the ${stock} / USDG pool instead, which carries every launch priced in ${stock}.`
+    : "Deposits go into the stock's USDG pool instead, which carries every launch priced in that stock.";
 }
 
 /** token1 per token0, from sqrtPriceX96, corrected for decimals. */
@@ -133,12 +133,13 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
       <div className={styles.head}>
         <div>
           <span className={styles.eyebrow}>Liquidity pools</span>
-          <h2 className={styles.title}>Deposit on the USDG hop, exit from either</h2>
+          <h2 className={styles.title}>Supply USDG, earn a cut of every trade</h2>
           <p className={styles.blurb}>
-            Every graduated launch leaves two public Uniswap v4 pools behind, one hop each along
-            the route from the meme to its stock to USDG. Deposits go in on the USDG hop and earn
-            the fee on everything that trades through it. Withdraw whenever, from either hop. No
-            lockup and no epoch.
+            A launch that graduates leaves two public Uniswap v4 pools: one between the meme and
+            the stock it is priced in, one between that stock and USDG. Every trade crosses both.
+            You put USDG into the stock pool, which is shared by every launch priced in that
+            stock, so it earns on all of them rather than on one. Take it out whenever you want.
+            No lockup and no epochs.
           </p>
         </div>
         <div className={styles.headStats}>
@@ -192,7 +193,7 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
             </div>
 
             <div>
-              <span className={styles.value}>{p.kind === "meme" ? "meme hop" : "quote hop"}</span>
+              <span className={styles.value}>{p.kind === "meme" ? "meme to stock" : "stock to USDG"}</span>
               <span className={styles.sub}>
                 {p.kind === "meme" ? "meme priced in its stock" : "stock priced in USDG"}
               </span>

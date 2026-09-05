@@ -124,8 +124,13 @@ export default function TokenDetailPage() {
     // volume_24h is a literal "0" on this venue, so the candle sum is the only
     // real figure. Unmeasured prints as "-" rather than as $0, which would be a
     // stated measurement of no trading.
-    vol:
-      day.data?.volumeUsd == null
+    // A read still in flight is not a read that came back empty. The candle
+    // scan is a cold log query and takes seconds, so "-" here announced "no
+    // volume" on tokens that had traded minutes earlier. Say we are still
+    // asking until we have an answer.
+    vol: day.isPending
+      ? "\u2026"
+      : day.data?.volumeUsd == null
         ? "-"
         : currencyCompact((day.data.volumeUsd / 1_000_000) * solUsd),
     // Liquidity in collectible value - the whole point of a collectible market.
@@ -221,7 +226,11 @@ export default function TokenDetailPage() {
           <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
             <StatTile label="Market cap" value={stats.marketCap} />
             <StatTile label="Price" value={stats.price} />
-            <StatTile label="24h change" value={formatChange(stats.change)} tone={stats.change} />
+            <StatTile
+              label="24h change"
+              value={stats.change == null && day.isPending ? "\u2026" : formatChange(stats.change)}
+              tone={stats.change}
+            />
             <StatTile label="24h vol." value={stats.vol} />
             <StatTile label="Liquidity" value={stats.liquidityUsd} />
             <StatTile label="Holders" value={stats.holders} />

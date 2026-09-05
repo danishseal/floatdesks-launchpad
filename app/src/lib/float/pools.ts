@@ -33,6 +33,7 @@ import { withRetry } from "./retry";
 import { publicClient, ERC20_ABI } from "./chain";
 import { resolve, tryResolve } from "./registry";
 import { activeNetwork } from "./networks";
+import { isHiddenLaunch } from "./hidden-launches";
 
 /// Launchers that no registry key points at any more but whose graduated pools
 /// still hold liquidity. These are HISTORICAL and immutable: a superseded
@@ -504,6 +505,9 @@ export async function lpPools(): Promise<LpPoolsResult> {
           `curves(${token})`,
         )) as { share: Address; underlying: `0x${string}`; graduated: boolean; poolId: `0x${string}` };
         if (!curve.graduated) continue; // no pools until it graduates
+        // Bring-up tokens stay off the board. Their pools are real and still
+        // reachable by address; they are just not what this page is for.
+        if (isHiddenLaunch(token)) continue;
 
         const quotePoolId = (await withRetry(
           () => pc.readContract({ address: cf, abi: CURVE_FUNDER_ABI, functionName: "stockPoolOf", args: [curve.underlying] }),

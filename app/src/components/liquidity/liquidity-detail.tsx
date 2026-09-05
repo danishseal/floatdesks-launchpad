@@ -443,7 +443,7 @@ function VaultMetrics({ data }: { data: PoolsResponse }) {
 
   return (
     <div className={styles.metrics}>
-      <h2 className={styles.metricsTitle}>Vault</h2>
+      <h2 className={styles.metricsTitle}>Desk vault</h2>
       <div className={styles.metricRows}>
         {rows.map(([label, value]) => (
           <div className={styles.metricRow} key={label}>
@@ -452,7 +452,16 @@ function VaultMetrics({ data }: { data: PoolsResponse }) {
           </div>
         ))}
       </div>
+      {/* Every figure above is the Desk's, protocol wide. It sits beside a
+          single market's stake form, and "Vault" over "markets backed 40" read
+          as though 40 markets stood behind THIS one. Name whose numbers these
+          are, or the page invites exactly that misreading. */}
       <p className={styles.cellSubtle} style={{ marginTop: 12 }}>
+        These are the Desk&rsquo;s own figures, across every market it quotes, not this
+        market alone. Share price is equity per share and moves with the Desk&rsquo;s
+        inventory as well as its fees.
+      </p>
+      <p className={styles.cellSubtle} style={{ marginTop: 8 }}>
         Registry {data.network.registry.slice(0, 10)}… on {data.network.label}. Every
         address on this page resolves from it at runtime.
       </p>

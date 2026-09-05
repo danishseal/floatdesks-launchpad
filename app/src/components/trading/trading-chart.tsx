@@ -102,9 +102,20 @@ export function TradingChart({
   const moved = candles.length > 0 && high > low;
   const chartData = moved ? data : null;
 
+  // Loading is not emptiness. The skeleton above is skipped whenever a
+  // fallbackPrice is passed, and the token page always passes one, so without
+  // this branch a page that already knows its price renders "has not printed a
+  // price" for as long as the log scan takes. That is seconds on a cold read,
+  // and it is a stated measurement of no trading rather than an absence of one.
+  // Only a read that has finished is allowed to report an absence.
   const vacant = moved
     ? null
-    : candles.length === 0 || printed === 0
+    : isLoading || !data
+      ? {
+          head: "Loading price history",
+          note: "Reading this market's trades from the chain",
+        }
+      : candles.length === 0 || printed === 0
       ? {
           head: "No trades yet",
           note: "This market has not printed a price",

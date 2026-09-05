@@ -160,7 +160,11 @@ function Summary({ data }: { data: PoolsResponse }) {
   const stats: Array<[string, string, string?]> = [
     ["Desk vault", usd(tvl), `${data.quote.symbol} available to quote`],
     ["Vault equity", usd(equity), `${shares.toLocaleString()} shares outstanding`],
-    ["Share price", equity && shares ? (equity / shares).toFixed(5) : "-", `${pct(growth)} since inception`],
+    // "since inception" read as a yield. It is not one: it is cumulative NAV
+    // per share against the 1.0000 every vault starts at, with no time attached,
+    // and on a book this size it is driven by marks on the Desk's inventory
+    // rather than by fee income. Say what it is measured against.
+    ["Share price", equity && shares ? (equity / shares).toFixed(5) : "-", `${pct(growth)} vs 1.00000 at launch`],
     data.indexer?.measured === false
       ? ["7d volume", "unmeasured",
           data.indexer.status === "wrong-chain"
