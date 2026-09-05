@@ -16,13 +16,13 @@
 import { NextResponse } from "next/server";
 import { publicClient } from "@/lib/float/chain";
 import { resolve } from "@/lib/float/registry";
-import { activeNetwork, indexerOrigin} from "@/lib/float/networks";
+import { activeNetwork } from "@/lib/float/networks";
+import { withRetry, isRateLimited } from "@/lib/float/retry";
 import { parseAbiItem, type Address } from "viem";
 
 const TRANSFER = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
 const ZERO = "0x0000000000000000000000000000000000000000";
 const CHUNK = 50_000n;
-const MAX_BLOCKS = 500_000n; // beyond this, say so rather than scan forever
 const CACHE_MS = 30_000;
 
 const cache = new Map<string, { at: number; body: unknown }>();
@@ -45,33 +45,39 @@ export async function GET(req: Request) {
     const pc = publicClient();
     const tip = await pc.getBlockNumber();
 
-    // Start at the token's own first block where we know it, so a fresh launch
-    // costs one small scan instead of a chain-wide one.
-    const origin = indexerOrigin();
-    let from = 0n;
-    try {
-      const r = await fetch(`${origin}/tokens?token=${token}`, { cache: "no-store" });
-      if (r.ok) {
-        const t = await r.json();
-        if (t?.block) from = BigInt(t.block);
-      }
-    } catch { /* fall through to the window below */ }
-    if (from === 0n) from = tip > MAX_BLOCKS ? tip - MAX_BLOCKS : 0n;
+    // The whole history, from genesis.
+    //
+    // This used to ask the indexer for the token's first block and, failing
+    // that, start a fixed 500k blocks back. The indexer on this deployment
+    // serves no /tokens, so the fallback always won, and it lands AFTER these
+    // tokens' first transfers: the reconcile then failed and the panel showed
+    // "No holders found" on every token with a live pool. A window that is too
+    // short does not report less, it reports WRONG, which is why the reconcile
+    // below exists at all.
+    //
+    // Measured on this chain: one address-filtered getLogs over block 0 to
+    // latest answers in about 250ms, so the window was never buying anything.
+    // Chunking stays as the fallback for a node that refuses a wide range, and
+    // is skipped on a rate limit, where splitting one refused call into
+    // hundreds only deepens the hole.
+    const from = 0n;
+    const scan = (a: bigint, b: bigint) =>
+      pc.getLogs({ address: token as Address, event: TRANSFER, fromBlock: a, toBlock: b });
 
-    if (tip - from > MAX_BLOCKS) {
-      return NextResponse.json({
-        token, holders: [], scanned: null,
-        truncated: true,
-        note: "history is wider than this route will scan; holders are unknown, not zero",
-      }, { headers: { "cache-control": "no-store" } });
+    let logs: Awaited<ReturnType<typeof scan>>;
+    try {
+      logs = await withRetry(() => scan(from, tip), "Transfer logs");
+    } catch (e) {
+      if (isRateLimited(e)) throw e;
+      logs = [];
+      for (let start = from; start <= tip; start += CHUNK) {
+        const end = start + CHUNK - 1n > tip ? tip : start + CHUNK - 1n;
+        logs.push(...(await withRetry(() => scan(start, end), `Transfer ${start}-${end}`)));
+      }
     }
 
     const balances = new Map<string, bigint>();
-    for (let start = from; start <= tip; start += CHUNK) {
-      const end = start + CHUNK - 1n > tip ? tip : start + CHUNK - 1n;
-      const logs = await pc.getLogs({
-        address: token as Address, event: TRANSFER, fromBlock: start, toBlock: end,
-      });
+    {
       for (const l of logs) {
         const { from: f, to: t, value } = l.args as { from: Address; to: Address; value: bigint };
         if (f && f.toLowerCase() !== ZERO) {

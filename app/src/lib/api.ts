@@ -282,6 +282,21 @@ function toToken(t: IndexerToken, underlyingUsdPx: number, curve?: {
   };
 }
 
+/**
+ * The price of each launched token from the market that trades it now.
+ *
+ * Kept separate from the curve read because it answers a different question:
+ * the curve formula prices a curve, and a graduated token no longer has one.
+ * A token missing from this map has no prints, which is not the same as being
+ * worth nothing, so callers fall back to the curve rather than to zero.
+ */
+interface LivePrice { priceUsd: number; source: "curve" | "pool"; ts: number }
+
+async function livePrices(): Promise<Map<string, LivePrice>> {
+  const rows = await request<Record<string, LivePrice>>("/prices").catch(() => ({}));
+  return new Map(Object.entries(rows).map(([k, v]) => [k.toLowerCase(), v]));
+}
+
 // ── token data ──────────────────────────────────────────────────────────────
 
 /**
@@ -374,7 +389,22 @@ async function fetchCurveFunderTokens(): Promise<TokenListItem[]> {
     };
     return t;
   }));
-  return rows.filter(Boolean) as TokenListItem[];
+  const tokens = rows.filter(Boolean) as TokenListItem[];
+
+  // Overlay the price of the market that actually trades each token. The curve
+  // formula above is correct until graduation and meaningless after it, since a
+  // graduated curve is spent. Left alone it read SLEEPY at $2.03K of market cap
+  // against a pool trading it at $24.62. A token with no prints keeps the curve
+  // price rather than being zeroed: absent is not worthless.
+  const live = await livePrices();
+  for (const t of tokens) {
+    const p = live.get(t.address.toLowerCase());
+    if (!p || !(p.priceUsd > 0)) continue;
+    if (p.source !== "pool" && t.graduated) continue;
+    t.current_price = String(p.priceUsd * 1e6);
+    t.market.markPerToken = p.priceUsd;
+  }
+  return tokens;
 }
 
 export async function fetchTokens(): Promise<TokenListItem[]> {
@@ -450,21 +480,47 @@ export const fetchAggregator = async (): Promise<AggregatorRow[]> => [];
 // ── 24h change, derived from candles ────────────────────────────────────────
 const CHANGE_WINDOW_S = 24 * 60 * 60;
 
-export async function fetchTokenChange24h(tokenAddress: string): Promise<number | null> {
+/**
+ * The 24h change AND the 24h volume, from one candle read.
+ *
+ * Volume comes from the same buckets rather than a second source, because it is
+ * already in them: the candle route sums the quote leg of every trade in a
+ * bucket. `volume_24h` was a literal "0" on this venue, so the header's 24h vol
+ * read $0 on tokens that had traded that day, which is a stated measurement of
+ * no activity rather than an absence of one.
+ *
+ * Null, not zero, when there are no candles. Those are different claims and the
+ * caller has to be able to tell them apart.
+ */
+export async function fetchToken24h(
+  tokenAddress: string,
+): Promise<{ change: number | null; volumeUsd: number | null }> {
   try {
-    const candles = await request<Array<{ t: number; o: number; c: number }>>(
+    const candles = await request<Array<{ t: number; o: number; c: number; v?: number }>>(
       `/candles?token=${tokenAddress}&bucket=3600&limit=200`,
     );
-    if (candles.length < 1) return null;
-    const now = candles[candles.length - 1].c;
-    const cutoff = candles[candles.length - 1].t - CHANGE_WINDOW_S;
+    if (candles.length < 1) return { change: null, volumeUsd: null };
+    const last = candles[candles.length - 1];
+    const cutoff = last.t - CHANGE_WINDOW_S;
+
     const before = [...candles].reverse().find((c) => c.t <= cutoff);
     const ref = before ? before.c : candles[0].o;
-    if (!(now > 0 && ref > 0)) return null;
-    return ((now - ref) / ref) * 100;
+    const change = last.c > 0 && ref > 0 ? ((last.c - ref) / ref) * 100 : null;
+
+    // The route's `v` is already USD in micro-units, the same scale the header
+    // divides by 1e6, so it is summed as-is rather than rescaled.
+    const volumeUsd = candles
+      .filter((c) => c.t > cutoff)
+      .reduce((sum, c) => sum + (c.v ?? 0), 0);
+
+    return { change, volumeUsd };
   } catch {
-    return null;
+    return { change: null, volumeUsd: null };
   }
+}
+
+export async function fetchTokenChange24h(tokenAddress: string): Promise<number | null> {
+  return (await fetchToken24h(tokenAddress)).change;
 }
 
 export async function fetchTokenChanges(
@@ -561,8 +617,16 @@ export function tradeSide(action: string, direction: string): "buy" | "sell" {
  * this returns nothing and the panel shows its own empty state, which is the
  * same call already made for holders. Wrong data is worse than none.
  */
-export async function fetchTokenTrades(): Promise<TokenTrade[]> {
-  return [];
+/**
+ * Trades for one token, from this app's own route.
+ *
+ * This was `return []` with no address parameter, so the About panel's windows,
+ * its buys/sells, volume and buyers/sellers bars, and the Transactions tab were
+ * all measurements of an empty array. They could not have shown anything else.
+ */
+export async function fetchTokenTrades(tokenAddress?: string): Promise<TokenTrade[]> {
+  if (!tokenAddress) return [];
+  return request<TokenTrade[]>(`/token-trades?token=${tokenAddress}&limit=500`);
 }
 
 export interface RecentTrade {

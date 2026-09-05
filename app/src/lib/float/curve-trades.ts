@@ -42,6 +42,17 @@ export interface PricePoint {
   side: "buy" | "sell";
   /** Which market the print came from. */
   venue: "curve" | "pool";
+  txHash: `0x${string}`;
+  /**
+   * Who traded. On the curve this is the event's own `who`. In a v4 pool the
+   * Swap event's `sender` is the ROUTER, not the person, so the transaction's
+   * sender is read instead: naming the router as the trader would be a real
+   * address about the wrong subject, and every holder row would say the same
+   * thing.
+   */
+  trader: `0x${string}`;
+  /** Tokens moved, whole units. */
+  tokens: number;
 }
 
 export interface PriceHistory {
@@ -61,6 +72,9 @@ export interface PriceHistory {
 /** USDG is 6dp, the launched token is 18dp. */
 const USDG_UNIT = 1e6;
 const TOKEN_UNIT = 1e18;
+
+const ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+const ZERO_ADDR = "0x0000000000000000000000000000000000000000" as const;
 
 /**
  * All history for one address-and-topic filter.
@@ -171,7 +185,7 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
   const points: PricePoint[] = [];
 
   for (const log of buys) {
-    const a = log.args as { usdgIn?: bigint; tokensOut?: bigint };
+    const a = log.args as { usdgIn?: bigint; tokensOut?: bigint; who?: `0x${string}` };
     const ts = times.get(log.blockNumber ?? 0n);
     if (!ts || !a.usdgIn || !a.tokensOut) continue;
     const usd = Number(a.usdgIn) / USDG_UNIT;
@@ -184,11 +198,14 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
       volumeUsd: usd,
       side: "buy",
       venue: "curve",
+      txHash: log.transactionHash ?? ZERO_HASH,
+      trader: a.who ?? ZERO_ADDR,
+      tokens,
     });
   }
 
   for (const log of sells) {
-    const a = log.args as { tokensIn?: bigint; usdgOut?: bigint };
+    const a = log.args as { tokensIn?: bigint; usdgOut?: bigint; who?: `0x${string}` };
     const ts = times.get(log.blockNumber ?? 0n);
     if (!ts || !a.tokensIn) continue;
     const tokens = Number(a.tokensIn) / TOKEN_UNIT;
@@ -204,6 +221,9 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
       volumeUsd: usd,
       side: "sell",
       venue: "curve",
+      txHash: log.transactionHash ?? ZERO_HASH,
+      trader: a.who ?? ZERO_ADDR,
+      tokens,
     });
   }
 
@@ -364,7 +384,21 @@ async function poolPriceHistory(
 
   const tokenIsCurrency0 = meme.currency0.toLowerCase() === token.toLowerCase();
   const shareDecimals = tokenIsCurrency0 ? meme.decimals1 : meme.decimals0;
+  const tokenDecimals = tokenIsCurrency0 ? meme.decimals0 : meme.decimals1;
   const points: PricePoint[] = [];
+
+  // Who actually traded. The Swap event's `sender` is whatever contract called
+  // the PoolManager, which for every routed swap is the UniversalRouter, so it
+  // is the same address on every row and is not the trader. The transaction's
+  // own sender is.
+  const senders = new Map<string, `0x${string}`>();
+  const hashes = [...new Set(memeSwaps.map((l) => l.transactionHash).filter(Boolean))];
+  await mapLimited(hashes as `0x${string}`[], async (h) => {
+    const tx = await withRetry(() => pc.getTransaction({ hash: h }), `getTransaction(${h})`).catch(
+      () => null,
+    );
+    if (tx) senders.set(h.toLowerCase(), tx.from);
+  });
 
   for (const log of memeSwaps) {
     const a = log.args as { sqrtPriceX96?: bigint; amount0?: bigint; amount1?: bigint };
@@ -381,6 +415,7 @@ async function poolPriceHistory(
 
     // Volume in dollars, from the fSHARE leg, which is the side with a price.
     const shareLeg = tokenIsCurrency0 ? a.amount1 : a.amount0;
+    const tokenLeg = tokenIsCurrency0 ? a.amount0 : a.amount1;
     const shares = shareLeg === undefined ? 0 : Math.abs(Number(shareLeg)) / 10 ** shareDecimals;
 
     points.push({
@@ -391,6 +426,9 @@ async function poolPriceHistory(
       // A swap that took the token out of the pool is a buy of the token.
       side: (tokenIsCurrency0 ? (a.amount0 ?? 0n) < 0n : (a.amount1 ?? 0n) < 0n) ? "buy" : "sell",
       venue: "pool",
+      txHash: log.transactionHash ?? ZERO_HASH,
+      trader: senders.get((log.transactionHash ?? "").toLowerCase()) ?? ZERO_ADDR,
+      tokens: Math.abs(Number(tokenLeg ?? 0n)) / 10 ** tokenDecimals,
     });
   }
 
