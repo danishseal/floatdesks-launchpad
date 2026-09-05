@@ -1,3 +1,4 @@
+import { indexerOrigin } from "@/lib/float/networks";
 /**
  * Chain-wide analytics, assembled here rather than in the indexer.
  *
@@ -23,7 +24,7 @@
 
 import { NextResponse } from "next/server";
 
-const ORIGIN = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
+const ORIGIN = indexerOrigin();
 const WINDOWS: Record<string, number> = {
   "24h": 86_400, "7d": 604_800, "30d": 2_592_000, all: Number.MAX_SAFE_INTEGER,
 };

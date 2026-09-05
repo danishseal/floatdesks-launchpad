@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { lpPools, poolDepth } from "@/lib/float/pools";
+import { lpPools, poolDepth, launchSeeded } from "@/lib/float/pools";
 import { activeNetwork } from "@/lib/float/networks";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ poolId: string }> }) {
@@ -26,11 +26,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ poolId: string
       pool.tick,
       BigInt(pool.liquidity),
     );
+    const seeded = await launchSeeded(pool.poolId, depth, pool.key.tickSpacing);
     return NextResponse.json(
       {
         network: { key: net.key, chainId: net.chainId, explorer: net.explorer },
         pool,
         depth,
+        seeded,
         asOf: Math.floor(Date.now() / 1000),
       },
       { headers: { "cache-control": "no-store" } },

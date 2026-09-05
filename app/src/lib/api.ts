@@ -306,7 +306,10 @@ async function fetchCurveFunderTokens(): Promise<TokenListItem[]> {
     if (!c) return null;
     const remaining = Number(c.vToken - c.sold);
     const q = Number(c.vQuote + c.rQuote);
-    const px = remaining > 0 ? q / remaining : 0; // USDG per token, 6dp/18dp mixed
+    // The quote side is USDG at 6dp and the token side is 18dp, so the raw
+    // ratio is USDG-micro per wei and reads 1e12 too small: a real 2.05e-8
+    // rendered as $2.05e-20. Convert both to whole units before dividing.
+    const px = remaining > 0 ? (q / 1e6) / (remaining / 1e18) : 0;
     const t: TokenListItem = {
       address: token,
       mint: token,

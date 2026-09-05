@@ -16,7 +16,7 @@
 import { NextResponse } from "next/server";
 import { publicClient } from "@/lib/float/chain";
 import { resolve } from "@/lib/float/registry";
-import { activeNetwork } from "@/lib/float/networks";
+import { activeNetwork, indexerOrigin} from "@/lib/float/networks";
 import { parseAbiItem, type Address } from "viem";
 
 const TRANSFER = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 
     // Start at the token's own first block where we know it, so a fresh launch
     // costs one small scan instead of a chain-wide one.
-    const origin = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
+    const origin = indexerOrigin();
     let from = 0n;
     try {
       const r = await fetch(`${origin}/tokens?token=${token}`, { cache: "no-store" });

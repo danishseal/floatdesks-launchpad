@@ -22,8 +22,14 @@ export interface FloatNetwork {
   explorer: string;
   /** The only hardcoded contract. Everything else comes from it. */
   registry: `0x${string}`;
-  /** Float indexer base URL. */
+  /** Float indexer base URL as the BROWSER sees it (always this app's proxy). */
   indexer: string;
+  /**
+   * Where the SERVER reaches that indexer. Per network, because each
+   * deployment needs its own indexer instance: one process indexes one
+   * registry. Overridable with FLOAT_INDEXER_ORIGIN.
+   */
+  indexerOrigin: string;
   /** Quote asset display. Decimals are read from the token itself. */
   quoteSymbol: string;
   /**
@@ -46,6 +52,7 @@ export const NETWORKS: Record<string, FloatNetwork> = {
     explorer: "https://explorer.testnet.chain.robinhood.com",
     registry: "0xc300f9B7903FaF66dAC973884965652c61AD05Ae",
     indexer: "/api/float",
+    indexerOrigin: "http://localhost:8462",
     quoteSymbol: "USDG",
     venue: "token-launchpad",
     testnet: true,
@@ -66,6 +73,7 @@ export const NETWORKS: Record<string, FloatNetwork> = {
     explorer: "https://explorer.chain.robinhood.com",
     registry: "0x7134d98596490838FC16e8CA16bC2FDd57aD3202",
     indexer: "/api/float",
+    indexerOrigin: "http://localhost:8463",
     quoteSymbol: "USDG",
     venue: "curve-funder",
     testnet: false,
@@ -144,5 +152,11 @@ export function activeNetwork(): FloatNetwork {
     explorer: env("NEXT_PUBLIC_FLOAT_EXPLORER") ?? base.explorer,
     registry: (registry as `0x${string}` | undefined) ?? base.registry,
     indexer: env("NEXT_PUBLIC_FLOAT_INDEXER") ?? base.indexer,
+    indexerOrigin: process.env.FLOAT_INDEXER_ORIGIN?.trim() || base.indexerOrigin,
   };
+}
+
+/** Server-side only: where to reach this network's indexer. */
+export function indexerOrigin(): string {
+  return activeNetwork().indexerOrigin;
 }

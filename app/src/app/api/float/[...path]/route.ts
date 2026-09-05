@@ -11,9 +11,9 @@
 
 import { NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
-import { activeNetwork } from "@/lib/float/networks";
+import { activeNetwork, indexerOrigin} from "@/lib/float/networks";
 
-const ORIGIN = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
+const ORIGIN = indexerOrigin();
 
 const blockTimes = new Map<string, number>();
 

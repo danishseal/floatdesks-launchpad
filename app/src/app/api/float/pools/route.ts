@@ -20,7 +20,7 @@ import {
 } from "@/lib/float/chain";
 import { resolve, detectVenue } from "@/lib/float/registry";
 import { cfAllTokensDetailed, cfCurve, cfTokenMeta } from "@/lib/float/curve-funder";
-import { activeNetwork } from "@/lib/float/networks";
+import { activeNetwork, indexerOrigin} from "@/lib/float/networks";
 
 const DAY = 86_400;
 
@@ -54,7 +54,7 @@ interface TradeRow { block: number; asset_id: string; side: string; quote: strin
  * Call it and handle the 404.
  */
 async function indexerDesk(): Promise<{ desk: string | null; exposed: boolean }> {
-  const origin = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
+  const origin = indexerOrigin();
   try {
     const r = await fetch(`${origin}/addresses`, { cache: "no-store" });
     if (!r.ok) return { desk: null, exposed: false };
@@ -66,7 +66,7 @@ async function indexerDesk(): Promise<{ desk: string | null; exposed: boolean }>
 }
 
 async function indexerTrades(): Promise<{ rows: TradeRow[]; ok: boolean; error?: string }> {
-  const origin = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
+  const origin = indexerOrigin();
   try {
     const r = await fetch(`${origin}/trades?limit=500`, { cache: "no-store" });
     if (!r.ok) return { rows: [], ok: false, error: `indexer HTTP ${r.status}` };
@@ -243,7 +243,7 @@ export async function GET() {
         graduationUsd: params.graduationUsd.toString(),
         tokenCount: params.tokenCount.toString(),
       };
-      const origin = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
+      const origin = indexerOrigin();
       let rows: Array<{ token: string; name: string; symbol: string; underlying_ticker: string }> = [];
       try {
         const r = await fetch(`${origin}/tokens?limit=100`, { cache: "no-store" });

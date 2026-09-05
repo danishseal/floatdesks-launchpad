@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { activeNetworkKey } from "@/lib/float/networks";
 import { PixelFrame } from "@/components/layout/pixel-frame";
 import "./globals.css";
 
@@ -13,7 +14,7 @@ const geist = Geist({
 
 const SITE_TITLE = "Floatdesk";
 const SITE_DESCRIPTION =
-  "Launch and trade tokens on the Floatdesk bonding curve. Attach Horns, split fees, stake the Horn Vault. On-chain, no presale.";
+  "Launch tokens whose curve is settled in a real stock, and provide the liquidity that quotes them. On chain, no presale.";
 
 export const metadata: Metadata = {
   title: SITE_TITLE,
@@ -43,7 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={geist.variable}>
       <body className="antialiased">
-        <Providers>
+        <Providers networkKey={activeNetworkKey()}>
           <PixelFrame>{children}</PixelFrame>
         </Providers>
       </body>

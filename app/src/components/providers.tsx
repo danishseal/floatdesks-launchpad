@@ -22,26 +22,31 @@ function makeQueryClient() {
  * service; `privy` swaps in the embedded/email backend, which satisfies the
  * same context, so nothing downstream changes. See float-wallet-provider.tsx.
  */
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  networkKey,
+}: {
+  children: React.ReactNode;
+  /** The network the SERVER is on, handed down at render time. */
+  networkKey?: string;
+}) {
+  // Adopt it BEFORE the first render rather than in an effect. NEXT_PUBLIC_* is
+  // baked into the client bundle at build time, so without this the client
+  // reads a different chain than the server serves. Doing it in an effect was
+  // not enough: queries mount and fire first, so a token page could ask the
+  // wrong chain, get nothing, and cache "Token not found" before the correction
+  // landed.
+  if (networkKey) setRuntimeNetwork(networkKey);
+
   const [queryClient] = useState(() => makeQueryClient());
 
-  // Adopt the server's network before doing any chain reads. Without this the
-  // client uses whatever NEXT_PUBLIC_FLOAT_NETWORK was baked into its bundle,
-  // which is not necessarily what the server is serving.
+  // Belt and braces for a client-side network switch.
   useEffect(() => {
-    let live = true;
-    fetch("/api/float/config", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((cfg: { key?: string }) => {
-        if (!live || !cfg?.key) return;
-        setRuntimeNetwork(cfg.key);
-        clearRegistryCache();
-        resetClients();
-        void queryClient.invalidateQueries();
-      })
-      .catch(() => { /* keep the bundle's own value */ });
-    return () => { live = false; };
-  }, [queryClient]);
+    if (!networkKey) return;
+    setRuntimeNetwork(networkKey);
+    clearRegistryCache();
+    resetClients();
+  }, [networkKey]);
 
   return (
     <FloatWalletProvider>
