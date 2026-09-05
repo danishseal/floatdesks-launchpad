@@ -33,7 +33,7 @@ export interface FloatWallet {
   /** True when the wallet is on a different chain than the active network. */
   wrongChain: boolean;
   connect: () => Promise<void>;
-  disconnect: () => void;
+  disconnect: () => Promise<void>;
   switchChain: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   /** Throws with a readable message when not connected. */
@@ -134,11 +134,32 @@ export function FloatWalletProvider({ children }: { children: ReactNode }) {
     }
   }, [readChain]);
 
-  const disconnect = useCallback(() => {
+  /**
+   * Disconnect, and actually mean it.
+   *
+   * Clearing our own state is only half of it. The SITE stays authorised in
+   * the wallet, so eth_requestAccounts returns the same account immediately
+   * and without a prompt: pressing Disconnect then Connect reconnects you to
+   * the wallet you were trying to leave, which reads as a broken button.
+   *
+   * wallet_revokePermissions drops that authorisation, so the next connect
+   * shows the account picker. It is MetaMask 11.11+ and not in EIP-1193, so a
+   * wallet without it throws and we fall through: state is still cleared,
+   * which is the old behaviour rather than a regression.
+   */
+  const disconnect = useCallback(async () => {
+    const eth = injected();
     setAddress(null);
     setBalance(null);
     setNativeBalance(null);
     try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* private mode */ }
+    if (!eth) return;
+    try {
+      await eth.request({
+        method: "wallet_revokePermissions",
+        params: [{ eth_accounts: {} }],
+      });
+    } catch { /* wallet does not support it; local state is already cleared */ }
   }, []);
 
   const getAccount = useCallback((): Address => {
