@@ -95,23 +95,45 @@ export function LpPoolDetail() {
   const chart = useMemo(() => {
     if (!data?.depth?.length) return null;
     const bars = data.depth;
-    const max = bars.reduce((m, b) => Math.max(m, Number(BigInt(b.liquidity))), 0);
+    const vals = bars.map((b) => Number(BigInt(b.liquidity)));
+    const max = Math.max(...vals);
     if (max <= 0) return null;
+    const minNonZero = Math.min(...vals.filter((v) => v > 0));
+
+    // LOG scale, deliberately. This pool holds 149x more liquidity at the peg
+    // than in its tail, and on a linear axis that is three spikes in an empty
+    // box with the tail flattened into what looks like a dashed rule. A log
+    // axis shows both the band and the shape of the tail, which is the whole
+    // point of a distribution. The header says it is log so the reader is not
+    // invited to compare bar heights as if they were linear.
+    const logMax = Math.log(max);
+    const logMin = Math.log(minNonZero);
+    const span = logMax - logMin || 1;
+
     const W = 600;
     const H = 330;
-    const floor = 294;
-    const top = 28;
+    const floor = 288;
+    const top = 26;
+    const plot = floor - top;
     const bw = W / bars.length;
     return {
       W,
       H,
       floor,
       top,
-      // the current tick sits between the last bid bar and the first ask bar
+      logScale: max / minNonZero > 20,
       mid: (bars.filter((b) => b.side === "bid").length / bars.length) * W,
       bars: bars.map((b, i) => {
-        const h = (Number(BigInt(b.liquidity)) / max) * (floor - top);
-        return { ...b, x: i * bw + 1, w: Math.max(1, bw - 2), y: floor - h, h };
+        const v = Number(BigInt(b.liquidity));
+        let frac = 0;
+        if (v > 0) {
+          const t = (Math.log(v) - logMin) / span;
+          // a visible floor, so the tail reads as low depth and not as absence
+          frac = max / minNonZero > 20 ? 0.1 + 0.9 * t : v / max;
+        }
+        const h = frac * plot;
+        // contiguous: a distribution is a shape, not a row of stripes
+        return { ...b, x: i * bw, w: bw + 0.5, y: floor - h, h };
       }),
     };
   }, [data]);
@@ -221,9 +243,9 @@ export function LpPoolDetail() {
         </div>
 
         <p className={styles.pageDescription}>
-          A public Uniswap v4 pool. Add {p.symbol1} or {p.symbol0} across a price range, earn{" "}
-          {p.lpFeeBps / 100}% of everything that trades through that range, and withdraw whenever you
-          like. Your position is yours: no lockup, no epoch, and no share in anybody else&apos;s book.
+          Provide across a price range and earn {p.lpFeeBps / 100}% of everything that trades
+          through it. Withdraw whenever: no lockup, no epoch, and no share in anybody else&apos;s
+          book.
         </p>
 
         {chart ? (
@@ -231,7 +253,8 @@ export function LpPoolDetail() {
             <div className={styles.chartHeader}>
               <span>Liquidity by price</span>
               <span className={own.sub}>
-                depth across {chart.bars.length} ticks either side of the current price
+                {chart.bars.length} ticks either side of the price
+                {chart.logScale ? " · log scale" : ""}
               </span>
             </div>
             <svg
@@ -244,6 +267,7 @@ export function LpPoolDetail() {
               <line className={styles.chartGridLine} x1="0" y1="80" x2={chart.W} y2="80" />
               <line className={styles.chartGridLine} x1="0" y1="165" x2={chart.W} y2="165" />
               <line className={styles.chartGridLine} x1="0" y1="250" x2={chart.W} y2="250" />
+              <line className={styles.chartGridLine} x1="0" y1={chart.floor} x2={chart.W} y2={chart.floor} />
               {chart.bars.map((b) => (
                 <rect
                   key={b.tick}
@@ -287,37 +311,41 @@ export function LpPoolDetail() {
             <span className={styles.tokenSelect}>{quote.side === 0 ? p.symbol0 : p.symbol1}</span>
           </div>
 
-          <div className={styles.rangeOptions}>
+          <div className={own.rangeRow}>
             {[1, 3, 10].map((w) => (
               <button
                 key={w}
                 type="button"
-                className={`${styles.rangeButton} ${widthSteps === w ? styles.rangeButtonActive : ""}`}
+                className={`${own.rangePick} ${widthSteps === w ? own.rangePickOn : ""}`}
                 onClick={() => setWidthSteps(w)}
               >
                 {w === 1 ? "Tight" : w === 3 ? "Medium" : "Wide"}
               </button>
             ))}
           </div>
-
-          <div className={styles.metricRows}>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>Range</span>
-              <strong>
-                ticks {quote.tickLower.toLocaleString("en-US")} to {quote.tickUpper.toLocaleString("en-US")}
-              </strong>
-            </div>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>{quote.side === 0 ? p.symbol0 : p.symbol1} used</span>
-              <strong>{fmt(quote.side === 0 ? quote.need0 : quote.need1)}</strong>
-            </div>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>{quote.side === 0 ? p.symbol1 : p.symbol0} also required</span>
-              <strong>{fmt(quote.side === 0 ? quote.need1 : quote.need0)}</strong>
-            </div>
+          <div className={own.rangeHint}>
+            <span>
+              ticks {quote.tickLower.toLocaleString("en-US")} to {quote.tickUpper.toLocaleString("en-US")}
+            </span>
+            <span>
+              {widthSteps === 1 ? "most fees, most exposure to the peg moving" : "wider, earns less per dollar"}
+            </span>
           </div>
 
-          <button type="button" className={styles.primaryButton} disabled>
+          {quote.liquidity > 0 ? (
+            <div className={own.pairNeed}>
+              <span>
+                paired with <strong>{fmt(quote.side === 0 ? quote.need1 : quote.need0)}</strong>{" "}
+                {quote.side === 0 ? p.symbol1 : p.symbol0}
+              </span>
+              <span>
+                <strong>{fmt(quote.side === 0 ? quote.need0 : quote.need1)}</strong>{" "}
+                {quote.side === 0 ? p.symbol0 : p.symbol1} in
+              </span>
+            </div>
+          ) : null}
+
+          <button type="button" className={`${styles.primaryButton} ${own.cta}`} disabled>
             Connect a wallet to add liquidity
           </button>
           <p className={own.note}>

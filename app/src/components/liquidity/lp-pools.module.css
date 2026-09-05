@@ -220,3 +220,69 @@
   line-height: 1.5;
   color: var(--color-text-secondary);
 }
+
+/* --- the provide-liquidity form ---------------------------------------- */
+/* The shared .rangeButton is sized for a page that gives it a whole column;
+   here three of them side by side became three big empty boxes. */
+.rangeRow {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+.rangePick {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.rangePick:hover {
+  background: var(--color-bg-hover);
+}
+
+.rangePickOn {
+  background: var(--color-text-primary);
+  border-color: var(--color-text-primary);
+  color: var(--color-bg-surface);
+}
+
+.rangeHint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0 0;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.pairNeed {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--color-border-soft, var(--color-border));
+  background: var(--color-bg-raised);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.pairNeed strong {
+  color: var(--color-text-primary);
+}
+
+/* The shared .primaryButton is inline-sized; as the only action on this form it
+   should be the full width of it. */
+.cta {
+  width: 100%;
+  margin-top: 12px;
+  justify-content: center;
+}
