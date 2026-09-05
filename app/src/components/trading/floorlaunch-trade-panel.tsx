@@ -22,7 +22,8 @@ import {
   type TokenListItem,
 } from "@/lib/api";
 import {
-  tokenPreviewBuy, tokenPreviewSell, deskPreviewBuy, tx, waitFor, balanceOf, getListing,
+  tokenPreviewBuy, tokenPreviewSell, deskPreviewBuy, deskBuyRefusal,
+  tx, waitFor, balanceOf, getListing,
 } from "@/lib/float/chain";
 import {
   routeFor, quoteGraduated, buyGraduated, sellGraduated, type SwapRoute,
@@ -52,6 +53,11 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   // A graduated token no longer has a curve: it lives in two v4 pools. Quote it
   // from the chain's own quoter so the page shows a real price even though
   // execution is not wired yet.
+  // Whether the Desk would actually accept the fSHARE leg. previewBuy prices a
+  // trade without checking Halted, settle-only or the OI cap, all of which
+  // buy() enforces, so quoting from the preview alone advertises trades the
+  // chain refuses.
+  const [deskRefusal, setDeskRefusal] = useState<string | null>(null);
   const [route, setRoute] = useState<SwapRoute | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
 
@@ -126,6 +132,16 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   // the fSHARE, so the curve's "you need the fSHARE first" step does not apply.
   const needsFshare =
     !token.graduated && side === "buy" && fshare !== null && numeric > fshare.balance;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!needsFshare || !assetId) { setDeskRefusal(null); return; }
+    const shortfall = Math.max(0, numeric - (fshare?.balance ?? 0));
+    const usdgGuess = BigInt(Math.round(shortfall * (token.market.solUsd || 1) * 1.05 * 1e6));
+    if (usdgGuess <= 0n) { setDeskRefusal(null); return; }
+    void deskBuyRefusal(assetId, usdgGuess).then((r) => { if (!cancelled) setDeskRefusal(r); });
+    return () => { cancelled = true; };
+  }, [needsFshare, assetId, numeric, fshare?.balance, token.market.solUsd]);
 
   const invalidate = useCallback(async () => {
     await Promise.all([
@@ -312,8 +328,19 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             This curve settles in {baseLabel}, and you hold {(fshare?.balance ?? 0).toFixed(4)}.
             Buy the rest from the Desk first.
           </p>
-          <Button className="w-full" disabled={busy} onClick={getUnderlying}>
-            {busy ? "Confirming…" : `Buy ${baseLabel} with USDG`}
+          {deskRefusal ? (
+            <p className="text-[12px] text-[var(--color-accent-strong)]">
+              The Desk will not fill that right now: {deskRefusal}.
+            </p>
+          ) : null}
+          <Button
+            className="w-full"
+            disabled={busy || deskRefusal !== null}
+            onClick={getUnderlying}
+          >
+            {busy ? "Confirming…"
+              : deskRefusal ? `${baseLabel} not available`
+              : `Buy ${baseLabel} with USDG`}
           </Button>
         </div>
       ) : (

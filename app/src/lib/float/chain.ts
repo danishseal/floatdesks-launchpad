@@ -444,3 +444,62 @@ export async function funderAcceptsContribution(assetId: `0x${string}`): Promise
   ]);
   return idx > 0n && !poured;
 }
+
+/**
+ * Would the Desk actually accept this buy?
+ *
+ * previewBuy reverts on Halted, because _market() does, but it applies NEITHER
+ * of the other two guards buy() enforces: settle-only, and the OI cap. So it
+ * prices trades the chain then refuses, and both halves are individually
+ * correct, which is why nothing complains. Measured on the live testnet:
+ * previewBuy quotes 29.1211 fMOUTAI for $6,000 against a $5,000 cap, which
+ * buy() reverts OiCapExceeded. The settle-only case is not hypothetical either;
+ * for three days this month every market read stale, so every preview would
+ * have quoted and every buy would have reverted.
+ *
+ * This mirrors buy()'s own conditions so the offer and the transaction agree:
+ * Halted, then settleOnly (status SettleOnly OR a stale oracle) for a
+ * skew-increasing trade, then the listed OI cap.
+ *
+ * Returns null when the trade would go through, or a reason when it would not.
+ */
+export async function deskBuyRefusal(
+  assetId: `0x${string}`, quoteIn: bigint,
+): Promise<string | null> {
+  try {
+    const [l, oracle, oi, mark] = await Promise.all([
+      getListing(assetId),
+      oracleQuote(assetId),
+      netOI(assetId),
+      markPx(assetId),
+    ]);
+    if (l.status === 2) return "this market is halted";
+
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const fresh = now <= oracle.updatedAt + l.maxStaleness;
+    const settleOnly = l.status === 1 || !fresh;
+
+    const [baseOut] = await deskPreviewBuy(assetId, quoteIn);
+    const after = oi + baseOut;
+    const abs = (v: bigint) => (v < 0n ? -v : v);
+    const increasing = abs(after) > abs(oi);
+
+    if (settleOnly && increasing) {
+      return fresh
+        ? "this market is settle-only, so it can only be traded down"
+        : "its price feed is stale, so it can only be traded down until the oracle catches up";
+    }
+    if (increasing) {
+      // Notional at the mark against the LISTED cap. StakeVaults can raise the
+      // real cap, so this only reports a refusal it is sure of.
+      const notional = (abs(after) * mark) / (10n ** 18n) / 100n;
+      if (notional > l.oiCapQuote) {
+        return "this trade would push the market past its open-interest cap";
+      }
+    }
+    return null;
+  } catch (e) {
+    // Not knowing is not the same as refusing.
+    return e instanceof Error ? `could not check: ${e.message.split("\n")[0].slice(0, 80)}` : null;
+  }
+}
