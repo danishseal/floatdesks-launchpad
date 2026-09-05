@@ -53,8 +53,14 @@ export interface PoolsResponse {
   } | null;
   launchpad: Record<string, string> | null;
   markets: PoolsMarket[];
-  /** When reachable is false, every volume and fee below is unmeasured, not zero. */
-  indexer: { reachable: boolean; error: string | null };
+  /** When measured is false, every volume and fee below is unmeasured, not zero. */
+  indexer: {
+    reachable: boolean;
+    error: string | null;
+    status: "unreachable" | "wrong-chain" | "unverified" | "ok";
+    desk: string | null;
+    measured: boolean;
+  };
   /** Markets that could not be read, with the reason. Normally empty. */
   unreadable: Array<{ assetId: string; reason: string }>;
   tokens: PoolsToken[];

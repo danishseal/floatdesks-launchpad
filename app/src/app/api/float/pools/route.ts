@@ -39,6 +39,31 @@ interface TradeRow { block: number; asset_id: string; side: string; quote: strin
  * a market with no trades reads. The caller needs to be able to say "we could
  * not ask" instead of publishing a zero it did not measure.
  */
+/**
+ * Which deployment is the indexer actually watching?
+ *
+ * Reachable is not the same as correct. Pointing the app at 4663 while :8462
+ * indexes 46630 gave a live indexer answering happily about a different chain,
+ * and every market read "no trades yet" when the truth was "not watching this
+ * chain". /addresses exposes its resolved contracts, so comparing its DESK
+ * against ours is a direct test.
+ *
+ * Note /addresses is NOT listed in the indexer's own root endpoint array even
+ * though it works, so feature-detecting from that list reports it absent.
+ * Call it and handle the 404.
+ */
+async function indexerDesk(): Promise<{ desk: string | null; exposed: boolean }> {
+  const origin = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
+  try {
+    const r = await fetch(`${origin}/addresses`, { cache: "no-store" });
+    if (!r.ok) return { desk: null, exposed: false };
+    const d = (await r.json()) as Record<string, string>;
+    return { desk: d.DESK?.toLowerCase() ?? null, exposed: Boolean(d.DESK) };
+  } catch {
+    return { desk: null, exposed: false };
+  }
+}
+
 async function indexerTrades(): Promise<{ rows: TradeRow[]; ok: boolean; error?: string }> {
   const origin = process.env.FLOAT_INDEXER_ORIGIN ?? "http://localhost:8462";
   try {
@@ -102,8 +127,19 @@ export async function GET() {
     const usdg = await erc20(usdgAddr);
 
     const now = Math.floor(Date.now() / 1000);
-    const feed = await indexerTrades();
-    const trades = await withTimes(feed.rows);
+    const [feed, ident] = await Promise.all([indexerTrades(), indexerDesk()]);
+    // Three distinct states, not two. Only the last may render a zero as a
+    // measurement: unreachable, reachable but watching another deployment, and
+    // reachable and confirmed to be on ours.
+    const sameChain =
+      ident.desk === null ? null : ident.desk === vault.address.toLowerCase();
+    const indexerStatus: "unreachable" | "wrong-chain" | "unverified" | "ok" =
+      !feed.ok ? "unreachable"
+      : sameChain === false ? "wrong-chain"
+      : sameChain === null ? "unverified"
+      : "ok";
+    const measured = indexerStatus === "ok" || indexerStatus === "unverified";
+    const trades = await withTimes(measured ? feed.rows : []);
     const windowed = (secs: number) => trades.filter((t) => t.ts && now - t.ts <= secs);
 
     const sumQuote = (rows: TradeRow[]) =>
@@ -236,7 +272,15 @@ export async function GET() {
        * Whether the trade history could be read at all. When false, every
        * volume and fee figure below is unmeasured rather than zero.
        */
-      indexer: { reachable: feed.ok, error: feed.error ?? null },
+      indexer: {
+        reachable: feed.ok,
+        error: feed.error ?? null,
+        status: indexerStatus,
+        /** The Desk the indexer resolved, when it exposes /addresses. */
+        desk: ident.desk,
+        /** False when volume and fee figures below are unmeasured, not zero. */
+        measured,
+      },
       /** Markets the chain refused to read, with why. Empty is the normal case. */
       unreadable,
       tokens,

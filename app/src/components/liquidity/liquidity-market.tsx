@@ -86,11 +86,22 @@ export function LiquidityMarket() {
         />
       ) : null}
 
-      {data.indexer?.reachable === false ? (
+      {data.indexer?.measured === false ? (
         <div className="mx-1 mb-3 rounded border border-[var(--color-border-soft)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]">
-          Trade history is unavailable, so every volume and fee figure below is
-          unmeasured rather than zero. Vault and market state are read from chain
-          and are unaffected.{" "}
+          {data.indexer.status === "wrong-chain" ? (
+            <>
+              The indexer is running, but it is watching a different deployment
+              (its Desk is {data.indexer.desk?.slice(0, 10)}…, ours is{" "}
+              {data.desk.address.slice(0, 10)}…), so every volume and fee figure
+              below is unmeasured rather than zero.
+            </>
+          ) : (
+            <>
+              Trade history is unavailable, so every volume and fee figure below is
+              unmeasured rather than zero.
+            </>
+          )}{" "}
+          Vault and market state are read from chain and are unaffected.{" "}
           {data.indexer.error ? <span>({data.indexer.error})</span> : null}
         </div>
       ) : null}
@@ -140,8 +151,11 @@ function Summary({ data }: { data: PoolsResponse }) {
     ["Desk vault", usd(tvl), `${data.quote.symbol} available to quote`],
     ["Vault equity", usd(equity), `${shares.toLocaleString()} shares outstanding`],
     ["Share price", equity && shares ? (equity / shares).toFixed(5) : "-", `${pct(growth)} since inception`],
-    data.indexer?.reachable === false
-      ? ["7d volume", "unmeasured", "the indexer is unreachable"]
+    data.indexer?.measured === false
+      ? ["7d volume", "unmeasured",
+          data.indexer.status === "wrong-chain"
+            ? "the indexer is on another deployment"
+            : "the indexer is unreachable"]
       : ["7d volume", usd(fromUnits(String(Math.round(data.totals.volume7d)), dp)), `${data.totals.tradeCount} trades indexed`],
   ];
 
@@ -204,7 +218,7 @@ function DeskVaultCard({ data }: { data: PoolsResponse }) {
         <div>
           <span className={styles.mobileLabel}>7d fees</span>
           <span className={styles.cellValue}>
-            {data.indexer?.reachable === false ? "unmeasured" : usd(fees7d, { max: 2 })}
+            {data.indexer?.measured === false ? "unmeasured" : usd(fees7d, { max: 2 })}
           </span>
         </div>
         <div>
@@ -302,7 +316,7 @@ function MarketTable({ data, query, filter }: { data: PoolsResponse; query: stri
 
       <div>
         {rows.map((m) => (
-          <MarketRow key={m.assetId} m={m} dp={dp} symbol={data.quote.symbol} feedOk={data.indexer?.reachable !== false} />
+          <MarketRow key={m.assetId} m={m} dp={dp} symbol={data.quote.symbol} feedOk={data.indexer?.measured !== false} />
         ))}
         {rows.length === 0 ? (
           <div className="px-5 py-14 text-center text-sm text-[var(--color-text-muted)]">
