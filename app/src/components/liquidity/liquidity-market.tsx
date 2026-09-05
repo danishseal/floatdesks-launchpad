@@ -137,8 +137,11 @@ export function LiquidityMarket() {
         </Link>
       </div>
 
+      {/* Launched tokens are not liquidity. They belong on the board and the
+          token pages, where their curve and pool are the subject; here they
+          sat under a caption written for the OTHER venue, claiming curves
+          settle in an fSHARE while every row read "/ USDG". */}
       <MarketTable data={data} query={query} filter={filter} />
-      {data.tokens.length > 0 ? <LaunchedTokens data={data} /> : null}
     </div>
   );
 }
@@ -240,7 +243,14 @@ function DeskVaultCard({ data }: { data: PoolsResponse }) {
         </div>
       </div>
 
-      {data.funder ? <FunderRow data={data} funder={data.funder} /> : null}
+      {/* The launch line only means something when a market is actually waiting in
+          it. On the curve-funder venue nothing is ever enqueued: a market is
+          funded by the first buy on its curve, not by contributions to a queue.
+          So this rendered a permanent row of zeroes advertising a mechanism
+          that is not the one in use. */}
+      {data.funder && data.funder.queueLength > 0
+        ? <FunderRow data={data} funder={data.funder} />
+        : null}
     </section>
   );
 }
@@ -425,80 +435,6 @@ function MarketRow({ m, dp, symbol, feedOk }: { m: PoolsMarket; dp: number; symb
         )}
       </div>
     </article>
-  );
-}
-
-/* ---------------------------------------------------------- launched tokens */
-
-function LaunchedTokens({ data }: { data: PoolsResponse }) {
-  return (
-    <section className={styles.tableShell} aria-label="Launched tokens">
-      <div className={styles.sectionTitleRow} style={{ padding: "14px 20px 0" }}>
-        <h2 className={styles.sectionTitle}>Launched tokens</h2>
-        <span className={styles.cellSubtle}>
-          curves settled in an fSHARE, so their volume is demand for the equity underneath
-        </span>
-      </div>
-      <div>
-        {data.tokens.map((t) => {
-          // Scale follows the venue: CurveFunder quotes in USDG at 6dp,
-          // TokenLaunchpad in the underlying fSHARE at 18dp. Reading one with
-          // the other's divisor is off by twelve orders of magnitude.
-          const dp = t.quoteIsUsdg ? 1e6 : 1e18;
-          const raised = Number(BigInt(t.raised)) / dp;
-          const target = Number(BigInt(t.gradTarget)) / dp;
-          const progress = target > 0 ? (raised / target) * 100 : 0;
-          const quoteLabel = t.quoteIsUsdg ? data.quote.symbol : `f${t.underlyingTicker}`;
-          return (
-            <article className={styles.poolRow} key={t.token}>
-              <div className={styles.poolIdentity}>
-                <TokenPair tokenA={t.symbol} tokenB={quoteLabel} />
-                <div>
-                  <Link className={styles.poolName} href={`/token/${t.token}`}>
-                    {t.symbol}
-                    <span className={styles.tokenMeta}> / </span>
-                    {quoteLabel}
-                  </Link>
-                  <div className={styles.poolBadges}>
-                    <span className={styles.poolBadge}>{t.graduated ? "graduated" : "on curve"}</span>
-                    <span className={styles.poolBadge}>{t.name}</span>
-                    {t.superseded ? <span className={styles.poolBadge}>earlier launcher</span> : null}
-                  </div>
-                </div>
-              </div>
-              <div>
-                <span className={styles.mobileLabel}>Raised</span>
-                <span className={styles.cellValue}>
-                  {t.quoteIsUsdg ? usd(raised, { max: 2 }) : `${raised.toFixed(3)} ${quoteLabel}`}
-                </span>
-              </div>
-              <div>
-                <span className={styles.mobileLabel}>To graduation</span>
-                <span className={`${styles.cellValue} ${styles.accentValue}`}>{pct(progress, 1)}</span>
-                <span className={styles.cellSubtle}>
-                  target {t.quoteIsUsdg ? usd(target) : target.toFixed(2)}
-                </span>
-              </div>
-              <div>
-                <span className={styles.mobileLabel}>Sold</span>
-                <span className={styles.cellValue}>
-                  {(Number(BigInt(t.sold)) / 1e18 / 1e6).toFixed(1)}M
-                </span>
-              </div>
-              <div>
-                <span className={styles.mobileLabel}>Venue</span>
-                <span className={styles.cellValue}>{t.graduated ? "v4 pool" : "curve"}</span>
-              </div>
-              <div>
-                <Link className={styles.depositLink} href={`/token/${t.token}`}>
-                  Trade <ArrowRight size={13} weight="bold" />
-                </Link>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
