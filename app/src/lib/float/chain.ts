@@ -43,6 +43,12 @@ export function floatChain() {
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: [net.rpc] } },
     blockExplorers: { default: { name: "Explorer", url: net.explorer } },
+    // Canonical Multicall3, verified deployed on 4663. Declaring it is what
+    // lets viem aggregate eth_calls; without it the client falls back to one
+    // request per read.
+    contracts: {
+      multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" as const },
+    },
     testnet: net.testnet,
   });
 }
@@ -54,6 +60,15 @@ export function publicClient(): PublicClient {
   if (_public && _public.rpc === net.rpc) return _public.client;
   const client = createPublicClient({
     chain: floatChain(),
+    // Aggregate reads through Multicall3, not just JSON-RPC batching.
+    //
+    // The pools route reads five things per market inside one Promise.all. At
+    // ten markets that was ~50 calls and fine; at forty it is ~200 in a burst
+    // and the public RPC rejected every one, so the board came back with all
+    // forty rows unreadable and no error visible anywhere. Transport batching
+    // does not help, it still sends one eth_call per read, just wrapped in an
+    // array. Multicall collapses them into a handful of contract calls.
+    batch: { multicall: { wait: 16, batchSize: 1024 } },
     transport: http(net.rpc, { batch: true }),
   }) as PublicClient;
   _public = { rpc: net.rpc, client };
