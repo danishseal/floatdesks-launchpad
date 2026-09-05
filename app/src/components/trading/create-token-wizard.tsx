@@ -24,6 +24,7 @@ import { usePools, usd, px8, type PoolsResponse } from "@/components/liquidity/u
 import { tx, waitFor, launchpadParams } from "@/lib/float/chain";
 import { readableError } from "@/lib/float/errors";
 import { cfTx, cfLaunchParams, tokenMetaOwner, setTokenMeta } from "@/lib/float/curve-funder";
+import { launchableCandidates, type Candidate } from "@/lib/float/catalogue";
 
 const wizSans = localFont({
   src: "../../../83afe278b6a6bb3c-s.p.3a6ba036.woff2",
@@ -72,6 +73,10 @@ export function CreateTokenWizard() {
 
   const [step, setStep] = useState<StepKey>("underlying");
   const [underlying, setUnderlying] = useState<`0x${string}` | null>(null);
+  // A company with no market yet. Mutually exclusive with `underlying`:
+  // launchNew creates the listing, launchToken needs one to exist.
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [image, setImage] = useState("");
@@ -85,6 +90,14 @@ export function CreateTokenWizard() {
   // image and links is a fact about the deployment, not a preference.
   const [metaOwner, setMetaOwner] = useState<string | null>(null);
   const [metaChecked, setMetaChecked] = useState(false);
+
+  // Only CurveFunder can list a stock nobody has listed, so this is the only
+  // venue where an unlisted company is offerable at all.
+  useEffect(() => {
+    if (data?.venue !== "curve-funder") { setCandidates([]); return; }
+    const listed = new Set((data.markets ?? []).map((m) => m.assetId.toLowerCase()));
+    void launchableCandidates(listed).then(setCandidates).catch(() => setCandidates([]));
+  }, [data?.venue, data?.markets]);
 
   useEffect(() => {
     if (data?.venue !== "curve-funder") return;
@@ -149,7 +162,7 @@ export function CreateTokenWizard() {
   const identityValid = name.trim().length > 1 && /^[A-Za-z0-9]{2,12}$/.test(symbol.trim());
 
   async function launch() {
-    if (!chosen || !data) return;
+    if ((!chosen && !candidate) || !data) return;
     setBusy(true);
     try {
       const account = wallet.getAccount();
@@ -158,13 +171,26 @@ export function CreateTokenWizard() {
       // Both venues launch; they differ in what the curve settles in and
       // whether on-chain metadata exists. CurveFunder stores no TokenMeta, so
       // image and socials are dropped there rather than silently discarded.
-      const hash = data.venue === "curve-funder"
-        ? await cfTx.launchToken(account, name.trim(), symbol.trim().toUpperCase(), chosen.assetId)
-        : await tx.launchToken(account, name.trim(), symbol.trim().toUpperCase(), chosen.assetId, {
-            image: image.trim(), website: website.trim(), twitter: twitter.trim(), telegram: telegram.trim(),
-          });
+      // Three cases, not two. A catalogue pick has no market yet, so it goes
+      // through launchNew, which lists the stock and launches the token in one
+      // transaction and costs the list fee on top of the launch fee.
+      const nm = name.trim();
+      const sym = symbol.trim().toUpperCase();
+      let hash: `0x${string}`;
+      if (candidate) {
+        hash = await cfTx.launchNew(account, nm, sym, candidate.ticker, candidate.displayName);
+      } else if (!chosen) {
+        return; // the guard above already covers this; written out so the two
+                // branches below narrow instead of asserting non-null
+      } else if (data.venue === "curve-funder") {
+        hash = await cfTx.launchToken(account, nm, sym, chosen.assetId);
+      } else {
+        hash = await tx.launchToken(account, nm, sym, chosen.assetId, {
+          image: image.trim(), website: website.trim(), twitter: twitter.trim(), telegram: telegram.trim(),
+        });
+      }
       const receipt = await waitFor(hash);
-      toast.success(`${symbol.toUpperCase()} launched on f${chosen.ticker}.`);
+      toast.success(`${sym} launched on f${candidate?.ticker ?? chosen?.ticker}.`);
 
       // CurveFunder's token carries no image or links, so attach them in a
       // second transaction against TokenMetadata. Only its owner may write, so
@@ -241,14 +267,21 @@ export function CreateTokenWizard() {
   return (
     <Shell>
       <Progress step={step} onJump={setStep} canJump={(s) =>
-        s === "underlying" || (s === "identity" ? Boolean(underlying) : Boolean(underlying) && identityValid)} />
+        s === "underlying"
+          ? true
+          : s === "identity"
+            ? Boolean(underlying || candidate)
+            : Boolean(underlying || candidate) && identityValid} />
 
       {step === "underlying" ? (
         <UnderlyingStep
           data={data}
           live={live}
+          candidates={candidates}
           selected={underlying}
-          onSelect={(id) => { setUnderlying(id); setStep("identity"); }}
+          selectedNew={candidate}
+          onSelect={(id) => { setCandidate(null); setUnderlying(id); setStep("identity"); }}
+          onSelectNew={(c) => { setUnderlying(null); setCandidate(c); setStep("identity"); }}
         />
       ) : step === "identity" ? (
         <IdentityStep
@@ -333,11 +366,14 @@ function Notice({ title, body, action }: { title: string; body: string; action?:
 
 /* ---------------------------------------------------------------- step one */
 
-function UnderlyingStep({ data, live, selected, onSelect }: {
+function UnderlyingStep({ data, live, candidates, selected, selectedNew, onSelect, onSelectNew }: {
   data: PoolsResponse;
   live: PoolsResponse["markets"];
+  candidates: Candidate[];
   selected: `0x${string}` | null;
+  selectedNew: Candidate | null;
   onSelect: (id: `0x${string}`) => void;
+  onSelectNew: (c: Candidate) => void;
 }) {
   return (
     <div className="mx-auto w-full max-w-[600px]">
@@ -392,6 +428,49 @@ function UnderlyingStep({ data, live, selected, onSelect }: {
           </button>
         ))}
       </div>
+
+      {candidates.length > 0 ? (
+        <div className="mt-10">
+          <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">
+            Not listed yet
+          </h3>
+          <p style={BODY} className="mt-2 text-[13px] text-[var(--color-text-secondary)]">
+            Nobody has opened a market for these. Picking one lists the stock and
+            launches your token in the same transaction, for the list fee on top
+            of the launch fee. Only companies the oracle already prices are shown,
+            because a market it cannot price would open halted and stay dark.
+          </p>
+          <div className="mt-4 space-y-2">
+            {candidates.map((c) => (
+              <button
+                key={c.ticker}
+                type="button"
+                onClick={() => onSelectNew(c)}
+                className={`flex w-full items-center justify-between rounded-[12px] border px-4 py-4 text-left transition ${
+                  selectedNew?.ticker === c.ticker
+                    ? "border-[var(--color-text-primary)] bg-[var(--color-bg-surface)]"
+                    : "border-dashed border-[var(--color-border-soft)] hover:border-[var(--color-text-subtle)]"
+                }`}
+              >
+                <div className="min-w-0">
+                  <span className="block text-[16px] font-semibold text-[var(--color-text-primary)]">
+                    f{c.ticker}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[13px] text-[var(--color-text-secondary)]">
+                    {c.displayName}
+                  </span>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className="block text-[13px] text-[var(--color-text-subtle)]">{c.line}</span>
+                  <span className="mt-0.5 block text-[12px] text-[var(--color-text-subtle)]">
+                    opens with your launch
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {data.venue !== "curve-funder" && data.markets.length > live.length ? (
         <p style={BODY} className="mt-6 text-center text-[13px] text-[var(--color-text-subtle)]">

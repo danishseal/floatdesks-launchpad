@@ -55,7 +55,7 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
 
         <div className="ml-auto flex shrink-0 items-center gap-2 pl-3">
           <a
-            href="https://docs.ansemchain.fun"
+            href="https://github.com/cocainebit/float-docs"
             target="_blank"
             rel="noreferrer"
             aria-label="Floatdesk docs"
@@ -66,7 +66,7 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
           </a>
 
           <a
-            href="https://x.com/ansemchainfun/"
+            href="https://x.com/"
             target="_blank"
             rel="noreferrer"
             aria-label="Floatdesk on X"
