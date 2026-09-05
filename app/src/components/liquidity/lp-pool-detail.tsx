@@ -34,9 +34,15 @@ interface DepthBar {
   side: "bid" | "ask";
 }
 
+interface Seeded {
+  byOwner: Array<{ owner: string; label: string; liquidity: string; ranges: number }>;
+  total: string;
+}
+
 interface Payload {
   pool: LpPoolRow;
   depth: DepthBar[];
+  seeded?: Seeded;
   network: { explorer: string };
   error?: string;
 }
@@ -622,6 +628,44 @@ export function LpPoolDetail() {
           ))}
         </div>
       </section>
+
+      {data.seeded && BigInt(data.seeded.total) > 0n ? (
+        <section className={styles.metrics}>
+          <h2 className={styles.metricsTitle}>Put there by the launch</h2>
+          <div className={styles.metricRows}>
+            <div className={styles.metricRow}>
+              <span className={styles.metricLabel}>Seeded at graduation</span>
+              <strong>{BigInt(data.seeded.total).toLocaleString("en-US")}</strong>
+            </div>
+            <div className={styles.metricRow}>
+              <span className={styles.metricLabel}>Share of active liquidity</span>
+              <strong className={own.accent}>
+                {(
+                  (Number(BigInt(data.seeded.total)) / Number(BigInt(p.liquidity) || 1n)) *
+                  100
+                ).toFixed(1)}
+                %
+              </strong>
+            </div>
+            {data.seeded.byOwner.map((o) => (
+              <div className={styles.metricRow} key={o.owner}>
+                <span className={styles.metricLabel}>{o.label}</span>
+                <strong>
+                  {BigInt(o.liquidity).toLocaleString("en-US")} · {o.ranges} range
+                  {o.ranges === 1 ? "" : "s"}
+                </strong>
+              </div>
+            ))}
+          </div>
+          <p className={own.note}>
+            These pools are opened by the protocol when a launch graduates, and seeded from the
+            raise itself: the Graduator opens both hops and the RangeSeeder concentrates the quote
+            side at the peg. That liquidity belongs to the launch and has no withdraw path, which is
+            why it is counted separately from anything a depositor adds. What you add is yours and
+            comes back out whenever you ask.
+          </p>
+        </section>
+      ) : null}
 
       {band ? (
         <section className={styles.metrics}>

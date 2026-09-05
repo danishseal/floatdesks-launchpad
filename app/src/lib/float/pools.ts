@@ -51,6 +51,13 @@ const CANONICAL_STATE_VIEW: Record<number, Address> = {
   4663: "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
 };
 
+/// The contracts that seed a pool when a launch graduates. Their positions ARE
+/// the liquidity a launch generated, as distinct from anything a person later
+/// added, which is the number worth showing separately.
+const SEEDERS: Record<number, Address[]> = {
+  4663: ["0xDA87e3EBD03Ba51748bF5056A5cc204078083087"], // RangeSeeder
+};
+
 async function stateViewAddress(): Promise<Address | null> {
   return (await tryResolve("V4_STATE_VIEW")) ?? CANONICAL_STATE_VIEW[activeNetwork().chainId] ?? null;
 }
@@ -96,6 +103,13 @@ const STATE_VIEW_ABI = [
     outputs: [{ type: "uint160" }, { type: "int24" }, { type: "uint24" }, { type: "uint24" }],
   },
   { type: "function", name: "getLiquidity", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint128" }] },
+  {
+    type: "function",
+    name: "getPositionInfo",
+    stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "address" }, { type: "int24" }, { type: "int24" }, { type: "bytes32" }],
+    outputs: [{ type: "uint128" }, { type: "uint256" }, { type: "uint256" }],
+  },
   {
     type: "function",
     name: "getTickLiquidity",
@@ -383,4 +397,80 @@ export async function lpPools(): Promise<LpPoolsResult> {
   }
   listings; // reserved: per-market naming once the board groups by stock
   return { pools, unreadable };
+}
+
+
+export interface SeededLiquidity {
+  /** Liquidity in this pool that a launch put there, by owner. */
+  byOwner: Array<{ owner: Address; label: string; liquidity: string; ranges: number }>;
+  total: string;
+}
+
+/**
+ * How much of a pool's liquidity came from the launch itself.
+ *
+ * A graduated launch seeds its own pools: the Graduator opens them and the
+ * RangeSeeder concentrates the quote side at the peg. Those positions are the
+ * protocol's, not a depositor's, and telling the two apart is the difference
+ * between "this pool is deep" and "this pool is deep because we put it there".
+ *
+ * Read by asking the pool what each seeding contract owns across the ranges the
+ * depth profile already found, rather than by scanning events, because a public
+ * RPC will refuse a full-history log scan and a position read will not.
+ */
+export async function launchSeeded(
+  poolId: `0x${string}`,
+  depth: DepthBar[],
+  tickSpacing: number,
+): Promise<SeededLiquidity> {
+  const stateView = await stateViewAddress();
+  const empty: SeededLiquidity = { byOwner: [], total: "0" };
+  if (!stateView || depth.length === 0) return empty;
+
+  const owners: Array<{ owner: Address; label: string }> = [];
+  const grad = await tryResolve("GRADUATOR" as never).catch(() => null);
+  if (grad) owners.push({ owner: grad as Address, label: "Graduator" });
+  for (const a of SEEDERS[activeNetwork().chainId] ?? []) owners.push({ owner: a, label: "RangeSeeder" });
+  if (owners.length === 0) return empty;
+
+  // contiguous runs of equal liquidity are the position boundaries
+  const runs: Array<[number, number]> = [];
+  let start = depth[0].tick;
+  for (let i = 1; i <= depth.length; i++) {
+    const changed = i === depth.length || depth[i].liquidity !== depth[i - 1].liquidity;
+    if (changed) {
+      runs.push([start, depth[i - 1].tick + tickSpacing]);
+      if (i < depth.length) start = depth[i].tick;
+    }
+  }
+
+  const pc = publicClient();
+  const out: SeededLiquidity["byOwner"] = [];
+  let total = 0n;
+  for (const { owner, label } of owners) {
+    let sum = 0n;
+    let ranges = 0;
+    for (const [lo, hi] of runs) {
+      try {
+        const [liq] = (await pc.readContract({
+          address: stateView,
+          abi: STATE_VIEW_ABI,
+          functionName: "getPositionInfo",
+          args: [poolId, owner, lo, hi, "0x0000000000000000000000000000000000000000000000000000000000000000"],
+        })) as [bigint, bigint, bigint];
+        if (liq > 0n) {
+          sum += liq;
+          ranges += 1;
+        }
+      } catch {
+        // one unreadable range is not a reason to misreport the rest; it can
+        // only understate, which is the safe direction for this number
+      }
+    }
+    if (sum > 0n) {
+      out.push({ owner, label, liquidity: sum.toString(), ranges });
+      total += sum;
+    }
+  }
+  return { byOwner: out, total: total.toString() };
 }
