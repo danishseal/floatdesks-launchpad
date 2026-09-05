@@ -163,25 +163,21 @@ export function CreateTokenWizard() {
   const chosen = live.find((m) => m.assetId === underlying) ?? null;
 
   // What actually happens to the image and links, stated per deployment.
-  const canSetMeta =
-    data?.venue !== "curve-funder" ||
-    (metaOwner !== null && wallet.address?.toLowerCase() === metaOwner.toLowerCase());
+  // TokenMetadata.setUri used to be onlyOwner, so a launcher could not give
+  // their own token an image or a link and the wizard quietly discarded both.
+  // The contract now lets a token's creator describe it, read from the launch
+  // venue, so the only question left is whether this deployment has the
+  // contract at all.
+  const canSetMeta = data?.venue !== "curve-funder" || metaOwner !== null;
   const metaNote =
     data?.venue !== "curve-funder"
       ? null
-      : canSetMeta
-        ? "Stored in this deployment's TokenMetadata contract as a second transaction right after the launch."
-        : metaOwner
-          // This used to say the values were "saved with the launch for that
-          // admin to set". Nothing saved them. TokenMetadata.setUri is
-          // onlyOwner and the launch path only writes when the connected
-          // wallet IS the owner, so everything typed here was discarded. Say
-          // that, rather than offering reassurance for something that does not
-          // happen.
-          ? `Only ${metaOwner.slice(0, 8)}… can write token metadata on this deployment, so anything entered here is NOT saved anywhere. Leave it blank and ask that admin to set it after the launch.`
-          : metaChecked
-            ? "This deployment has no metadata contract, so these cannot be stored on chain."
-            : "Checking where this deployment stores token metadata…";
+      : metaOwner
+        ? "Written to this deployment's TokenMetadata contract as a second transaction right after the launch."
+        : metaChecked
+          ? "This deployment has no metadata contract, so these cannot be stored on chain."
+          : "Checking where this deployment stores token metadata…";
+
   const identityValid = name.trim().length > 1 && /^[A-Za-z0-9]{2,12}$/.test(symbol.trim());
 
   async function launch() {
@@ -496,36 +492,39 @@ function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, sele
       {data.venue === "curve-funder" ? (
         <div className="mx-auto mt-7 max-w-[520px] rounded-[12px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]/50 p-5">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-subtle)]">
-            What your token is quoted in
+            Quoted in
           </h3>
-          <p style={BODY} className="mt-3 text-[var(--color-text-secondary)]">
-            It changes once, and both halves are worth knowing before you launch.
-          </p>
-          <div className="mt-4 space-y-4">
-            <div className="flex gap-3">
-              <span className="mt-[3px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">
+          <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-start gap-4">
+            <div>
+              <span className="block text-[11px] uppercase tracking-[0.07em] text-[var(--color-text-subtle)]">
                 On the curve
               </span>
-              <p style={BODY} className="text-[var(--color-text-secondary)]">
-                Priced in <strong className="text-[var(--color-text-primary)]">{data.quote.symbol}</strong>,
-                so a buyer needs none of the fSHARE to get in. Their money still
-                becomes the stock: every buy is split, part into this
-                market&apos;s cash cushion and part into buying its fSHARE
-                reserve. That is why the raise IS the underlying even though
-                nobody touches the fSHARE directly.
-              </p>
+              <strong
+                className="mt-1.5 block text-[18px] text-[var(--color-text-primary)]"
+                style={{ fontFamily: "var(--font-display)", fontWeight: 600, letterSpacing: "-0.01em" }}
+              >
+                {data.quote.symbol}
+              </strong>
+              <span className="mt-1.5 block text-[13px] leading-[1.45] text-[var(--color-text-secondary)]">
+                No fSHARE needed to buy in. Each buy still splits into the
+                stock&apos;s cushion and its fSHARE reserve.
+              </span>
             </div>
-            <div className="flex gap-3">
-              <span className="mt-[3px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">
+            <span aria-hidden className="pt-6 text-[var(--color-text-subtle)]">→</span>
+            <div>
+              <span className="block text-[11px] uppercase tracking-[0.07em] text-[var(--color-text-subtle)]">
                 After graduation
               </span>
-              <p style={BODY} className="text-[var(--color-text-secondary)]">
-                The curve closes and the leftover supply opens a{" "}
-                <strong className="text-[var(--color-text-primary)]">token / fSHARE</strong> pool,
-                with an fSHARE / {data.quote.symbol} pool underneath it. From
-                then on your token is quoted in the company, not in dollars, so
-                its price moves with the stock as well as with its own demand.
-              </p>
+              <strong
+                className="mt-1.5 block text-[18px] text-[var(--color-text-primary)]"
+                style={{ fontFamily: "var(--font-display)", fontWeight: 600, letterSpacing: "-0.01em" }}
+              >
+                the fSHARE
+              </strong>
+              <span className="mt-1.5 block text-[13px] leading-[1.45] text-[var(--color-text-secondary)]">
+                The pool becomes token / fSHARE. Your price then moves with the
+                company, not just its own demand.
+              </span>
             </div>
           </div>
         </div>

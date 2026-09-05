@@ -178,12 +178,6 @@ function Summary({ data }: { data: PoolsResponse }) {
           {sub ? <span className={styles.cellSubtle}>{sub}</span> : null}
         </div>
       ))}
-      <div className={styles.summarySignal}>
-        <span className={styles.signalCopy}>
-          {data.network.label.toUpperCase()} · {data.network.testnet ? "TESTNET" : "MAINNET"} ·{" "}
-          {data.markets.filter((m) => m.status === 0).length}/{data.markets.length} LIVE
-        </span>
-      </div>
     </section>
   );
 }

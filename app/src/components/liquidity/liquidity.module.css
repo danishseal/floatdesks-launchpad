@@ -61,7 +61,10 @@
 .summary {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(240px, 1.25fr);
+  /* Four equal stats across the full width. The fifth column held a network
+     badge that repeated what the header already says and spent a quarter of
+     the strip doing it. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   min-height: 92px;
   border: 1px solid var(--color-border);
   background: var(--color-bg-surface);
