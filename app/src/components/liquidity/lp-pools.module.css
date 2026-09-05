@@ -286,3 +286,46 @@
   margin-top: 12px;
   justify-content: center;
 }
+
+/* The shared .formSection has `padding: 16px 0`, so anything full width in it
+   runs flush to the card border while the inset input floats away from it.
+   Give the form its own horizontal padding instead of letting elements escape. */
+.form {
+  padding: 16px 14px 18px;
+  border-bottom: 1px solid var(--color-border-soft, var(--color-border));
+}
+
+/* An address is an identifier: truncating it makes it unusable for the one
+   thing anyone wants it for, which is checking or copying it. */
+.addr {
+  font-size: 11px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  word-break: break-all;
+  color: var(--color-text-primary);
+}
+
+.rangeFacts {
+  margin-top: 10px;
+  border-top: 1px solid var(--color-border-soft, var(--color-border));
+}
+
+.rangeFact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 38px;
+  border-bottom: 1px solid var(--color-border-soft, var(--color-border));
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rangeFactLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}

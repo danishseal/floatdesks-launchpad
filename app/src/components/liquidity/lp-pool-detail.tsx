@@ -132,8 +132,10 @@ export function LpPoolDetail() {
           frac = max / minNonZero > 20 ? 0.1 + 0.9 * t : v / max;
         }
         const h = frac * plot;
-        // contiguous: a distribution is a shape, not a row of stripes
-        return { ...b, x: i * bw, w: bw + 0.5, y: floor - h, h };
+        // separate mini bars: one per tick, so the reader can see the pool is
+        // a series of discrete ranges rather than one poured shape
+        const gap = Math.min(2.5, bw * 0.28);
+        return { ...b, x: i * bw + gap / 2, w: Math.max(1.2, bw - gap), y: floor - h, h };
       }),
     };
   }, [data]);
@@ -154,8 +156,13 @@ export function LpPoolDetail() {
     const amt = Number(amount || "0");
     const dec = side === 0 ? p.decimals0 : p.decimals1;
     const per = side === 0 ? per0 : per1;
+    const pLow = priceAt(sqrtAtTick(tickLower), p.decimals0, p.decimals1);
+    const pHigh = priceAt(sqrtAtTick(tickUpper), p.decimals0, p.decimals1);
+    const pNow = priceAt(sqrtP, p.decimals0, p.decimals1);
+    const pctLow = pNow > 0 ? ((pNow - pLow) / pNow) * 100 : 0;
+    const pctHigh = pNow > 0 ? ((pHigh - pNow) / pNow) * 100 : 0;
     if (!(amt > 0) || !(per > 0)) {
-      return { side, tickLower, tickUpper, need0: 0, need1: 0, liquidity: 0, oneSided: per <= 0 };
+      return { side, tickLower, tickUpper, need0: 0, need1: 0, liquidity: 0, oneSided: per <= 0, pctLow, pctHigh };
     }
     const liquidity = (amt * 10 ** dec) / per;
     return {
@@ -166,6 +173,8 @@ export function LpPoolDetail() {
       need0: (liquidity * per0) / 10 ** p.decimals0,
       need1: (liquidity * per1) / 10 ** p.decimals1,
       oneSided: false,
+      pctLow,
+      pctHigh,
     };
   }, [data, amount, widthSteps]);
 
@@ -217,9 +226,17 @@ export function LpPoolDetail() {
     ["Tick spacing", String(p.key.tickSpacing)],
     ["Active liquidity", BigInt(p.liquidity).toLocaleString("en-US")],
     ["Launch", p.launch.symbol],
-    ["Launcher", `${p.launch.launcher.slice(0, 10)}…${p.launch.retired ? " (superseded)" : ""}`],
+  ];
+  // Addresses get their own rows: full, wrapping, never shortened. A truncated
+  // identifier cannot be checked against anything or pasted anywhere, which is
+  // the only reason to put one on a page.
+  const addrRows: Array<[string, string]> = [
+    ["Pool id", p.poolId],
+    [`${p.symbol0} address`, p.key.currency0],
+    [`${p.symbol1} address`, p.key.currency1],
     ["Hook", p.key.hooks === "0x0000000000000000000000000000000000000000" ? "none" : p.key.hooks],
-    ["Pool id", `${p.poolId.slice(0, 12)}…`],
+    [`Launcher${p.launch.retired ? " (superseded)" : ""}`, p.launch.launcher],
+    [`${p.launch.symbol} token`, p.launch.token],
   ];
 
   return (
@@ -294,7 +311,7 @@ export function LpPoolDetail() {
           </p>
         )}
 
-        <div className={styles.formSection}>
+        <div className={own.form}>
           <h2 className={styles.sectionTitle}>Provide liquidity</h2>
           <label className={styles.fieldLabel} htmlFor="lp-amount">
             {quote.side === 0 ? p.symbol0 : p.symbol1} to add
@@ -323,13 +340,25 @@ export function LpPoolDetail() {
               </button>
             ))}
           </div>
-          <div className={own.rangeHint}>
-            <span>
-              ticks {quote.tickLower.toLocaleString("en-US")} to {quote.tickUpper.toLocaleString("en-US")}
-            </span>
-            <span>
-              {widthSteps === 1 ? "most fees, most exposure to the peg moving" : "wider, earns less per dollar"}
-            </span>
+          <div className={own.rangeFacts}>
+            <div className={own.rangeFact}>
+              <span className={own.rangeFactLabel}>Earns between</span>
+              <strong>
+                {fmt(priceAt(sqrtAtTick(quote.tickLower), p.decimals0, p.decimals1))} and{" "}
+                {fmt(priceAt(sqrtAtTick(quote.tickUpper), p.decimals0, p.decimals1))} {p.symbol1} per{" "}
+                {p.symbol0}
+              </strong>
+            </div>
+            <div className={own.rangeFact}>
+              <span className={own.rangeFactLabel}>Around the price</span>
+              <strong>
+                {quote.pctLow.toFixed(2)}% below to {quote.pctHigh.toFixed(2)}% above
+              </strong>
+            </div>
+            <div className={own.rangeFact}>
+              <span className={own.rangeFactLabel}>Outside that range</span>
+              <strong>earns nothing until the price comes back</strong>
+            </div>
           </div>
 
           {quote.liquidity > 0 ? (
@@ -364,6 +393,12 @@ export function LpPoolDetail() {
             <div className={styles.metricRow} key={label}>
               <span className={styles.metricLabel}>{label}</span>
               <strong>{value}</strong>
+            </div>
+          ))}
+          {addrRows.map(([label, value]) => (
+            <div className={styles.metricRow} key={label}>
+              <span className={styles.metricLabel}>{label}</span>
+              <span className={own.addr}>{value}</span>
             </div>
           ))}
         </div>
