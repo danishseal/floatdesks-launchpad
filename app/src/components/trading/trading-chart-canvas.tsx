@@ -31,24 +31,56 @@ interface TradingChartCanvasProps {
   indicators: ActiveIndicators;
   showMCap: boolean;
   chartHeight?: number;
+  /**
+   * Accepted because the token page passes it. The legend used to fork its
+   * colours on it, one branch on design tokens and one on raw Tailwind greys
+   * and blues that belong to no palette here. There is one theme, so there is
+   * one legend now, and the flag no longer changes anything.
+   */
   terminal?: boolean;
   solUsd?: number;
 }
 
-// Indicator color palette
-const COLORS: Record<string, string> = {
-  sma7: "#4367d8",
-  sma25: "#5b7ae0",
-  sma99: "#3556be",
-  ema7: "#8aa0ec",
-  ema25: "#2747a7",
-  bollUpper: "rgba(67, 103, 216, 0.35)",
-  bollMiddle: "#4367d8",
-  bollLower: "rgba(67, 103, 216, 0.35)",
-};
-
-const PRICE_UP_COLOR = "#39d98a";
-const PRICE_DOWN_COLOR = "#ff646b";
+/**
+ * The chart paints to a canvas, so it needs resolved colour strings and cannot
+ * be handed `var(--token)`. The tokens are read off the document once rather
+ * than the palette being written out again in hex here, which is how the price
+ * candles ended up neon green and neon red on a cream page.
+ *
+ * `CanvasText` is the last resort for a stylesheet that never arrived, not a
+ * design choice: if it ever shows, the whole page is unstyled anyway.
+ */
+function readPalette() {
+  const root =
+    typeof document === "undefined"
+      ? null
+      : getComputedStyle(document.documentElement);
+  const token = (name: string, fallback = "CanvasText") =>
+    root?.getPropertyValue(name).trim() || fallback;
+  return {
+    up: token("--color-positive"),
+    down: token("--color-negative"),
+    /** Buckets with no print in them. See the carried-forward note below. */
+    quiet: token("--color-text-subtle"),
+    text: token("--color-text-muted"),
+    grid: token("--color-border-soft"),
+    border: token("--color-border-muted"),
+    crosshair: token("--color-text-subtle"),
+    /** A bucket that closed where it opened. See the doji note below. */
+    flat: token("--color-text-primary"),
+    // Resolved, not `var(--font-sans)`: the axis labels are drawn with the
+    // canvas `font` property, which does not do custom-property substitution.
+    font: token("--font-sans", "sans-serif"),
+    indicator: {
+      sma7: token("--color-accent-solid"),
+      sma25: token("--color-accent-strong"),
+      sma99: token("--color-text-secondary"),
+      ema7: token("--color-accent-solid"),
+      ema25: token("--color-text-muted"),
+      band: token("--color-border-muted"),
+    },
+  };
+}
 
 function formatChartPrice(v: number): string {
   if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
@@ -86,10 +118,14 @@ export function TradingChartCanvas({
   indicators,
   showMCap,
   chartHeight = 400,
-  terminal = false,
   solUsd = 0,
 }: TradingChartCanvasProps) {
   const [legend, setLegend] = useState<LegendData | null>(null);
+
+  // Read once and held, so the mount effect and the data effect cannot end up
+  // drawing against two different palettes. State rather than a ref because the
+  // identity has to be stable enough to sit in a dependency array.
+  const [palette] = useState(readPalette);
 
   // Main chart refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -111,9 +147,12 @@ export function TradingChartCanvas({
     const volumeData: HistogramData<UTCTimestamp>[] = [];
 
     for (const candle of data.candles) {
-      const ts = Math.floor(
-        new Date(candle.time).getTime() / 1000,
-      ) as UTCTimestamp;
+      // `candle.time` is already unix SECONDS, which is the unit the chart
+      // wants. It used to go through `new Date(number)`, which reads a number
+      // as milliseconds: every bucket landed in January 1970 and the hourly
+      // spacing collapsed to 3.6 seconds, so the time axis printed the same
+      // minute under every candle on the page.
+      const ts = candle.time as UTCTimestamp;
       timestamps.push(ts);
 
       const rawOpen = (Number(candle.open) / 1e6) * priceMul;
@@ -135,23 +174,83 @@ export function TradingChartCanvas({
       const high = Math.max(rawHigh, open, close);
       const low = Math.min(rawLow, open, close);
 
+      // Did anything actually trade in this bucket, or is this one of the flat
+      // ticks `toCandles` carries across a gap so the series has no holes? The
+      // fill is right, but it is not a print, and drawing it in the same green
+      // states a trade that did not happen. DOZE is 7 trades across 3 of its
+      // 428 one-minute buckets; the other 425 are this.
+      const traded = Number(candle.trades ?? 0) > 0;
+      const rising = close > open;
+      // A bucket that opened and closed at the same price went nowhere. Most
+      // buckets on this venue hold a single print, and a single print is
+      // exactly that, so painting them green put a rise on the chart that the
+      // trade did not contain. They take the neutral ink instead.
+      const flat = close === open;
+
       closes.push(close);
-      candleData.push({ time: ts, open, high, low, close });
+      candleData.push(
+        !traded
+          ? {
+              time: ts,
+              open,
+              high,
+              low,
+              close,
+              color: palette.quiet,
+              wickColor: palette.quiet,
+              borderColor: palette.quiet,
+            }
+          : flat
+          ? {
+              time: ts,
+              open,
+              high,
+              low,
+              close,
+              color: palette.flat,
+              wickColor: palette.flat,
+              borderColor: palette.flat,
+            }
+          : { time: ts, open, high, low, close },
+      );
       volumeData.push({
         time: ts,
         value: (Number(candle.volume) / 1e6) * volMul,
-        color:
-          close >= open
-            ? "rgba(52, 211, 153, 0.55)"
-            : "rgba(255, 255, 255, 0.5)",
+        // The volume bar takes the muted ink on an unchanged bucket rather
+        // than the candle's near-black, which at bar size reads as emphasis
+        // on the quietest hour of the series.
+        color: !traded
+          ? palette.quiet
+          : flat
+            ? palette.text
+            : rising
+              ? palette.up
+              : palette.down,
       });
     }
 
     const rsi = calculateRSI(closes, 14);
     const macd = calculateMACD(closes, 12, 26, 9);
 
-    return { timestamps, closes, candleData, volumeData, rsi, macd };
-  }, [data, solUsd, multiplier]);
+    const printed = data.candles.reduce(
+      (sum, c) => sum + Number(c.trades ?? 0),
+      0,
+    );
+    const tradedBuckets = data.candles.filter(
+      (c) => Number(c.trades ?? 0) > 0,
+    ).length;
+
+    return {
+      timestamps,
+      closes,
+      candleData,
+      volumeData,
+      rsi,
+      macd,
+      printed,
+      tradedBuckets,
+    };
+  }, [data, solUsd, multiplier, palette]);
 
   const initialLegend = useMemo<LegendData | null>(() => {
     const last = computed.candleData[computed.candleData.length - 1];
@@ -175,23 +274,24 @@ export function TradingChartCanvas({
       height: initialChartHeightRef.current,
       layout: {
         background: { color: "transparent" },
-        textColor: "#9ca3af",
+        textColor: palette.text,
+        fontFamily: palette.font,
       },
       grid: {
-        vertLines: { color: "rgba(156, 163, 175, 0.1)" },
-        horzLines: { color: "rgba(156, 163, 175, 0.1)" },
+        vertLines: { color: palette.grid },
+        horzLines: { color: palette.grid },
       },
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
-        borderColor: "rgba(156, 163, 175, 0.2)",
+        borderColor: palette.border,
       },
       rightPriceScale: {
-        borderColor: "rgba(156, 163, 175, 0.2)",
+        borderColor: palette.border,
       },
       crosshair: {
-        vertLine: { color: "rgba(156, 163, 175, 0.3)" },
-        horzLine: { color: "rgba(156, 163, 175, 0.3)" },
+        vertLine: { color: palette.crosshair },
+        horzLine: { color: palette.crosshair },
       },
       localization: {
         priceFormatter: formatChartPrice,
@@ -200,12 +300,12 @@ export function TradingChartCanvas({
     chartRef.current = chart;
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: PRICE_UP_COLOR,
-      downColor: PRICE_DOWN_COLOR,
+      upColor: palette.up,
+      downColor: palette.down,
       borderVisible: false,
-      wickUpColor: PRICE_UP_COLOR,
-      wickDownColor: PRICE_DOWN_COLOR,
-      priceLineColor: PRICE_DOWN_COLOR,
+      wickUpColor: palette.up,
+      wickDownColor: palette.down,
+      priceLineColor: palette.down,
       priceLineVisible: true,
       lastValueVisible: true,
     });
@@ -281,7 +381,9 @@ export function TradingChartCanvas({
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
     };
-  }, []);
+    // `palette` is read once into a ref, so it is stable and this still mounts
+    // the chart exactly once.
+  }, [palette]);
 
   useEffect(() => {
     chartRef.current?.applyOptions({ height: chartHeight });
@@ -302,7 +404,11 @@ export function TradingChartCanvas({
     if (lastCandle) {
       candleSeriesRef.current.applyOptions({
         priceLineColor:
-          lastCandle.close >= lastCandle.open ? PRICE_UP_COLOR : PRICE_DOWN_COLOR,
+          lastCandle.close === lastCandle.open
+            ? palette.flat
+            : lastCandle.close > lastCandle.open
+              ? palette.up
+              : palette.down,
       });
     }
 
@@ -323,7 +429,7 @@ export function TradingChartCanvas({
           computed.timestamps,
           calculateSMA(computed.closes, 7),
         ),
-        color: COLORS.sma7,
+        color: palette.indicator.sma7,
         width: 2,
       });
     }
@@ -333,7 +439,7 @@ export function TradingChartCanvas({
           computed.timestamps,
           calculateSMA(computed.closes, 25),
         ),
-        color: COLORS.sma25,
+        color: palette.indicator.sma25,
         width: 2,
       });
     }
@@ -343,7 +449,7 @@ export function TradingChartCanvas({
           computed.timestamps,
           calculateSMA(computed.closes, 99),
         ),
-        color: COLORS.sma99,
+        color: palette.indicator.sma99,
         width: 2,
       });
     }
@@ -353,7 +459,7 @@ export function TradingChartCanvas({
           computed.timestamps,
           calculateEMA(computed.closes, 7),
         ),
-        color: COLORS.ema7,
+        color: palette.indicator.ema7,
         width: 2,
       });
     }
@@ -363,7 +469,7 @@ export function TradingChartCanvas({
           computed.timestamps,
           calculateEMA(computed.closes, 25),
         ),
-        color: COLORS.ema25,
+        color: palette.indicator.ema25,
         width: 2,
       });
     }
@@ -371,17 +477,17 @@ export function TradingChartCanvas({
       const bb = calculateBollingerBands(computed.closes, 20, 2);
       wanted.set("bollUpper", {
         data: toLineData(computed.timestamps, bb.upper),
-        color: COLORS.bollUpper,
+        color: palette.indicator.band,
         width: 1,
       });
       wanted.set("bollMiddle", {
         data: toLineData(computed.timestamps, bb.middle),
-        color: COLORS.bollMiddle,
+        color: palette.indicator.sma25,
         width: 1,
       });
       wanted.set("bollLower", {
         data: toLineData(computed.timestamps, bb.lower),
-        color: COLORS.bollLower,
+        color: palette.indicator.band,
         width: 1,
       });
     }
@@ -411,66 +517,86 @@ export function TradingChartCanvas({
     }
 
     chart.timeScale().fitContent();
-  }, [computed, indicators]);
+  }, [computed, indicators, palette]);
 
   const displayedLegend = legend ?? initialLegend;
-  const up = displayedLegend ? displayedLegend.close >= displayedLegend.open : true;
+  const up = displayedLegend ? displayedLegend.close > displayedLegend.open : true;
+  const unchanged = displayedLegend
+    ? displayedLegend.close === displayedLegend.open
+    : false;
   const change = displayedLegend ? displayedLegend.close - displayedLegend.open : 0;
   const changePct =
     displayedLegend && displayedLegend.open !== 0
       ? ((displayedLegend.close - displayedLegend.open) / displayedLegend.open) * 100
       : 0;
 
+  // What the drawn series is made of, said in the header rather than left for
+  // the reader to infer from a long grey stretch. A bucket with no print in it
+  // is carried forward so the series has no holes; that is the right fill and
+  // the wrong thing to count as activity, so both numbers are shown.
+  const provenance =
+    computed.candleData.length > 0
+      ? `${computed.printed} ${computed.printed === 1 ? "trade" : "trades"} across ` +
+        `${computed.tradedBuckets} of ${computed.candleData.length} candles` +
+        (computed.candleData.length > computed.tradedBuckets
+          ? `, ${computed.candleData.length - computed.tradedBuckets} carried forward`
+          : "")
+      : null;
+
   return (
     <div>
-      {/* OHLCV Legend */}
-      <div className="flex min-h-[28px] flex-wrap items-center gap-x-3 gap-y-0.5 px-3 pt-2 pb-0.5 font-mono text-xs">
-        <span className={terminal ? "font-sans text-[11px] font-medium text-[var(--color-text-muted)]" : "text-muted-foreground font-sans text-[11px] font-medium"}>
+      {/* OHLCV legend. Sans throughout, tabular figures so the numbers do not
+          shuffle sideways as the crosshair moves across the series. */}
+      <div className="flex min-h-[28px] flex-wrap items-center gap-x-3 gap-y-0.5 px-3 pt-2 pb-0.5 text-[11px] tabular-nums">
+        <span className="text-[11px] font-medium text-[var(--color-text-muted)]">
           {showMCap ? "Market Cap" : "Price"} (USD)
         </span>
         {displayedLegend && (
           <>
-            <span>
-              <span className="text-muted-foreground">O</span>
-              <span className={terminal ? "text-[var(--color-text-primary)]" : up ? "text-blue-600" : "text-zinc-700"}>
-                {formatChartPrice(displayedLegend.open)}
+            {(
+              [
+                ["O", displayedLegend.open],
+                ["H", displayedLegend.high],
+                ["L", displayedLegend.low],
+                ["C", displayedLegend.close],
+              ] as const
+            ).map(([key, value]) => (
+              <span key={key}>
+                <span className="text-[var(--color-text-muted)]">{key} </span>
+                <span className="font-medium text-[var(--color-text-primary)]">
+                  {formatChartPrice(value)}
+                </span>
               </span>
+            ))}
+            {/* A bucket that closed where it opened did not rise, so it is
+                not reported in the rise colour with a plus in front of it. */}
+            <span
+              className={
+                unchanged
+                  ? "font-medium text-[var(--color-text-secondary)]"
+                  : up
+                    ? "font-medium text-[var(--color-positive)]"
+                    : "font-medium text-[var(--color-negative)]"
+              }
+            >
+              {unchanged
+                ? "unchanged"
+                : `${up ? "+" : "-"}${formatChartPrice(Math.abs(change))} (${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%)`}
             </span>
-            <span>
-              <span className="text-muted-foreground">H</span>
-              <span className={terminal ? "text-[var(--color-text-primary)]" : "text-blue-600"}>
-                {formatChartPrice(displayedLegend.high)}
+            {indicators.volume && (
+              <span>
+                <span className="text-[var(--color-text-muted)]">Volume </span>
+                <span className="text-[var(--color-text-secondary)]">
+                  {formatChartPrice(displayedLegend.volume)}
+                </span>
               </span>
-            </span>
-            <span>
-              <span className="text-muted-foreground">L</span>
-              <span className={terminal ? "text-[var(--color-text-primary)]" : "text-zinc-700"}>
-                {formatChartPrice(displayedLegend.low)}
-              </span>
-            </span>
-            <span>
-              <span className="text-muted-foreground">C</span>
-              <span className={terminal ? "text-[var(--color-text-primary)]" : up ? "text-blue-600" : "text-zinc-700"}>
-                {formatChartPrice(displayedLegend.close)}
-              </span>
-            </span>
-            <span className={up ? "text-emerald-400" : "text-red-400"}>
-              {up ? "+" : "-"}
-              {formatChartPrice(Math.abs(change))} (
-              {changePct >= 0 ? "+" : ""}
-              {changePct.toFixed(2)}%)
-            </span>
+            )}
           </>
         )}
       </div>
-      {displayedLegend && indicators.volume && (
-        <div className="px-3 pb-1 text-xs font-mono">
-          <span className={terminal ? "font-sans text-[11px] text-[var(--color-text-muted)]" : "text-muted-foreground font-sans text-[11px]"}>
-            Volume
-          </span>{" "}
-          <span className={terminal ? "text-[var(--color-text-secondary)]" : "text-blue-500"}>
-            {formatChartPrice(displayedLegend.volume)}
-          </span>
+      {provenance && (
+        <div className="px-3 pb-1.5 text-[10px] text-[var(--color-text-muted)]">
+          {provenance}
         </div>
       )}
 

@@ -62,16 +62,15 @@ export function TradingChart({
   if (error && !(fallbackPrice && fallbackPrice > 0)) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-zinc-900">Price Chart</h2>
-        </div>
-        <div className="flex h-[400px] items-center justify-center rounded-2xl border border-destructive/40 bg-destructive/15">
-          <div className="text-center space-y-2">
-            <p className="font-medium text-destructive">
-              Failed to load chart
+        <div
+          className="flex h-[400px] items-center justify-center border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]"
+        >
+          <div className="space-y-2 text-center">
+            <p className="font-medium text-[var(--color-negative)]">
+              Price history unavailable
             </p>
             <p className="text-sm text-[var(--color-text-muted)]">
-              {error instanceof Error ? error.message : "Unknown error"}
+              {error instanceof Error ? error.message : "The chain's trade logs could not be read"}
             </p>
             <Button variant="outline" size="sm" onClick={onRetry}>
               Retry
@@ -82,10 +81,41 @@ export function TradingChart({
     );
   }
 
-  const hasData = data && data.candles.length > 0;
-  // No synthetic candle before the first trade: the chart stays empty until
-  // there's real activity, so nothing misleading shows on a fresh market.
-  const chartData = hasData ? data : null;
+  // What is actually in the series, before anything is drawn from it.
+  //
+  // `trades` is the count of prints in a bucket. `toCandles` fills gaps with
+  // the previous close so the series has no holes, and those filled buckets
+  // carry trades: 0. Counting them would turn one trade into a chart of
+  // hundreds, which is the shape this whole gate exists to refuse.
+  const candles = data?.candles ?? [];
+  let printed = 0;
+  let low = Number.POSITIVE_INFINITY;
+  let high = Number.NEGATIVE_INFINITY;
+  for (const candle of candles) {
+    printed += Number(candle.trades ?? 0);
+    if (Number(candle.low) < low) low = Number(candle.low);
+    if (Number(candle.high) > high) high = Number(candle.high);
+  }
+  // A range of exactly zero is one price repeated, not a trend. Drawing it
+  // gives a confident flat line across the pane, which states a market holding
+  // its level through a session. What it is, is a single number.
+  const moved = candles.length > 0 && high > low;
+  const chartData = moved ? data : null;
+
+  const vacant = moved
+    ? null
+    : candles.length === 0 || printed === 0
+      ? {
+          head: "No trades yet",
+          note: "This market has not printed a price",
+        }
+      : {
+          head:
+            printed === 1
+              ? "One trade, no price movement yet"
+              : `${printed} trades, all at one price`,
+          note: "There is a single price here, so there is no series to draw",
+        };
 
   return (
     <div
@@ -128,12 +158,12 @@ export function TradingChart({
           className={terminal ? "flex items-center justify-center bg-[var(--color-bg-page)]" : "flex h-[400px] items-center justify-center rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] shadow-sm"}
           style={terminal ? { height: terminalChartHeight } : undefined}
         >
-          <div className="text-center space-y-2">
-            <p className={terminal ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-muted)]"}>
-              No trading data available yet
+          <div className="space-y-1.5 text-center">
+            <p className="font-medium text-[var(--color-text-secondary)]">
+              {vacant?.head}
             </p>
-            <p className={terminal ? "text-sm text-[var(--color-text-muted)]" : "text-sm text-[var(--color-text-subtle)]"}>
-              Chart will appear after first trade
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {vacant?.note}
             </p>
           </div>
         </div>
