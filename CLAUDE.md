@@ -52,7 +52,11 @@ Switch with `NEXT_PUBLIC_FLOAT_NETWORK`, or the in-app switcher.
 | `float-testnet` (default) | 46630 | `0xc300f9B7903FaF66dAC973884965652c61AD05Ae` | TokenLaunchpad |
 | `float-mainnet` | 4663 | `0x7134d98596490838FC16e8CA16bC2FDd57aD3202` | CurveFunder (reads only) |
 
-Depends on the Float indexer on **:8462** from `~/float` (`scripts/soak-up.sh`).
+Each network needs its OWN indexer process, since one process indexes one
+registry: testnet on **:8462** (`~/float/scripts/soak-up.sh`), mainnet on
+**:8463** (same `indexer.js`, `REGISTRY=0x7134d985…`, `DB=mainnet-7134d985.db`).
+The origin is part of the network preset, overridable with `FLOAT_INDEXER_ORIGIN`.
+The public mainnet RPC throttles `eth_getLogs`, so backfill in small chunks.
 Do not pattern-kill node; that machine runs other sessions' validators and keepers.
 
 ## Who is working on what
