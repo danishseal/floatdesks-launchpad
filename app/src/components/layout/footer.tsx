@@ -1,11 +1,5 @@
 "use client";
 
-import {
-  DiscordLogo,
-  GithubLogo,
-  LinkedinLogo,
-  XLogo,
-} from "@phosphor-icons/react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,31 +10,12 @@ const FLOAT_SAIL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAAEsCAYAAAB5fY51AAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAAAAAAAAPlDu38AAAAHdElNRQfqCQMNCCyWdypjAAADYklEQVR42u3d4UrDMABG0U58/1eeL7BBtbPJTc75L44hl/AZ2uMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAdPUZ/APqez+fzrz/7eDz8DXLa1+gPAHCWYAEZggVkCBaQYfDkX1wZ4u9g7G9ywgIyBAvIECwgQ7CAjO/RH4B93DF0vxr7DezrcMICMgQLyBAsIEOwgAxjJP9i1E13A/vanLCADMECMgQLyBAsIMNNd25jEOcqJywgQ7CADMECMgQLyDCCcpkXqXIXJywgQ7CADMECMgQLyDB48it3PDbGEM87TlhAhmABGYIFZAgWkGHc5K2zA/urkfzsC02v/A7244QFZAgWkCFYQIZgARme6c6vfHr8vjLEsx8nLCBDsIAMwQIyBAvIMLpzHMf8Q/fZm/OszQkLyBAsIEOwgAzBAjKM7rw1atR2+513nLCADMECMgQLyBAsIMPovqFVBmy33/fjhAVkCBaQIVhAhmABGQbKxY16Uekdg7iXsO7HCQvIECwgQ7CADMECMtx05ziOa7ffr4zaq9y65x5OWECGYAEZggVkCBaQ4QbwQma6+T3q0S8zfQd8nhMWkCFYQIZgARmCBWS46b643cZlL2FdmxMWkCFYQIZgARmCBWRsNciuZKYh+ezQPfsgvts/KIqcsIAMwQIyBAvIECwgw8gYUHxkyqjHy1z5fK/M9JlxwgJCBAvIECwgQ7CADINiwEy3wXdjdJ+LExaQIVhAhmABGYIFZBgUBzKmr8M4fw8nLCBDsIAMwQIyBAvI8CLVAIPuOP4xMhcnLCBDsIAMwQIyBAvIMOZOxrPGx/Hdz88JC8gQLCBDsIAMwQIyjIcBxuDP8502OWEBGYIFZAgWkCFYQIZBMcpjTz7PwD4/JywgQ7CADMECMgQLAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApvYD2+yY/Gnb1qsAAAAASUVORK5CYII=";
 
 const PRIMARY_LINKS = [
-  { label: "Solutions" },
-  {
-    label: "Documentation",
-    href: "https://github.com/cocainebit/float-docs",
-  },
-  { label: "Blog" },
-  { label: "Book Meeting" },
-  { label: "Open Source" },
-  { label: "Careers" },
-  { label: "About Us" },
-  { label: "contact@dottxt.co" },
-] as const;
-
-const LEGAL_LINKS = [
-  { label: "Privacy Policy" },
-  { label: "Cookie Policy" },
-  { label: "Your Privacy Choices" },
-  { label: "Notice at Collection" },
-] as const;
-
-const SOCIAL_LINKS = [
-  { label: "LinkedIn", href: undefined, icon: LinkedinLogo },
-  { label: "X (Twitter)", href: "https://x.com/floatdesks", icon: XLogo },
-  { label: "Discord", href: undefined, icon: DiscordLogo },
-  { label: "GitHub", href: undefined, icon: GithubLogo },
+  { label: "Docs", href: "http://docs.floatdesks.com/" },
+  { label: "Market", href: "https://floatdesks.com/market" },
+  { label: "Top 200", href: "https://floatdesks.com/top200" },
+  { label: "Launchpad", href: "https://app.floatdesks.com/" },
+  { label: "Announcements", href: "https://floatdesks.com/announcements" },
+  { label: "Liquidity Aggregator", href: "https://app.floatdesks.com/liquidity" },
 ] as const;
 
 export function Footer() {
@@ -54,28 +29,14 @@ export function Footer() {
         </Link>
 
         <div className="float-footer__bottom">
-          <FooterNavigation label="Site navigation" links={PRIMARY_LINKS} />
-          <FooterNavigation label="Legal links and policies" links={LEGAL_LINKS} />
-
-          <nav aria-label="Social media">
-            <ul className="float-footer__social-list">
-              {SOCIAL_LINKS.map(({ label, href, icon: Icon }) => (
-                <li key={label}>
-                  {href ? (
-                    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Follow us on ${label}`}>
-                      <Icon size={25} weight="fill" aria-hidden="true" />
-                    </a>
-                  ) : (
-                    <span aria-label={label}>
-                      <Icon size={25} weight="fill" aria-hidden="true" />
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          <div className="float-footer__copyright">© {new Date().getFullYear()} Float. All rights reserved</div>
+          <div className="float-footer__links">
+            <FooterNavigation label="Site navigation" links={PRIMARY_LINKS} />
+            <FooterNavigation
+              label="Social media"
+              links={[{ label: "Twitter", href: "https://x.com/floatdesks" }]}
+            />
+          </div>
+          <div className="float-footer__copyright">© 2026 Float. All rights reserved</div>
         </div>
       </div>
 

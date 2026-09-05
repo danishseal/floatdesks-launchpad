@@ -29,7 +29,7 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-50 border border-[var(--color-border)]" />
       <div className="flex h-full w-full items-stretch bg-[var(--color-bg-surface)]">
-        <Link href="/" aria-label="DESKS home" className="flex w-[176px] shrink-0 items-stretch">
+        <Link href="/" aria-label="FLOAT DESKS home" className="flex shrink-0 items-stretch">
           <span className="app-shell-logo-tile flex w-12 items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -39,20 +39,20 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
             />
           </span>
           <span
-            className="flex min-w-0 flex-1 items-center pl-3 pr-2 font-neue-bit text-[32px] font-bold leading-none text-[var(--color-text-primary)]"
+            className="flex min-w-0 flex-1 items-center whitespace-nowrap pl-3 pr-2 font-neue-bit text-[32px] font-bold leading-none text-[var(--color-text-primary)]"
             style={{ WebkitTextStroke: "0.35px currentColor" }}
           >
-            DESKS
+            FLOAT DESKS
           </span>
         </Link>
 
-        <nav aria-label="Primary navigation" className="absolute left-1/2 top-1/2 hidden h-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-10 font-float-header text-[12px] font-normal leading-none text-[var(--color-text-primary)] lg:flex">
+        <nav aria-label="Primary navigation" className="absolute left-1/2 top-1/2 hidden h-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-10 font-float-header text-[12px] font-semibold leading-none text-[var(--color-text-primary)] lg:flex">
           {NAV_ITEMS.map((item) => {
             const badge = (
               <>
                 <span
                   aria-hidden="true"
-                  className={`flex h-5 w-5 items-center justify-center text-[12px] font-normal ${item.badgeClass}`}
+                  className={`flex h-5 w-5 items-center justify-center text-[12px] font-semibold ${item.badgeClass}`}
                 >
                   {item.badge}
                 </span>
@@ -78,8 +78,8 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
           <ConnectButton
             label="Connect"
             balanceOnly
-            className="h-full shrink-0 bg-[#ddb8cc] px-4 font-float-header text-[12px] font-normal leading-none text-[var(--color-text-primary)] transition-[box-shadow,opacity] duration-200 hover:opacity-90"
-            connectedClassName="h-full w-auto px-4 font-float-header text-[12px] font-normal leading-none"
+            className="h-full shrink-0 bg-[#ddb8cc] px-4 font-float-header text-[12px] font-semibold leading-none text-[var(--color-text-primary)] transition-[box-shadow,opacity] duration-200 hover:opacity-90"
+            connectedClassName="h-full w-auto px-4 font-float-header text-[12px] font-semibold leading-none"
           />
         </div>
 
