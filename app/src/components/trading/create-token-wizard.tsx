@@ -24,7 +24,7 @@ import { usePools, usd, px8, type PoolsResponse } from "@/components/liquidity/u
 import { tx, waitFor, launchpadParams } from "@/lib/float/chain";
 import { readableError } from "@/lib/float/errors";
 import { cfTx, cfLaunchParams, tokenMetaOwner, setTokenMeta } from "@/lib/float/curve-funder";
-import { launchableCandidates, type Candidate } from "@/lib/float/catalogue";
+import { launchableCandidates, pricedNow, type Candidate } from "@/lib/float/catalogue";
 
 const wizSans = localFont({
   src: "../../../83afe278b6a6bb3c-s.p.3a6ba036.woff2",
@@ -139,10 +139,32 @@ export function CreateTokenWizard() {
   // that venue every listing is launchable and restricting to open markets
   // would hide most of them for no reason.
   const curveFunder = data?.venue === "curve-funder";
-  const live = useMemo(
+  const listedAll = useMemo(
     () => (data?.markets ?? []).filter((m) => (curveFunder ? true : m.status === 0)),
     [data?.markets, curveFunder],
   );
+  // ONE rule for both groups: offer a market only if the oracle prices it NOW.
+  //
+  // A halted market is fine, it opens on the first buy. A market nobody is
+  // pricing is not: it cannot trade at any point, so offering it sells a
+  // launcher a fee for a token that can never move. The hub hides this well,
+  // answering a quorum failure with the last known price stamped far into the
+  // past, so the check has to read the timestamp rather than the price.
+  const [priced, setPriced] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    const ms = data?.markets ?? [];
+    if (ms.length === 0) { setPriced(new Set()); return; }
+    let alive = true;
+    void Promise.all(ms.map(async (m) => ((await pricedNow(m.assetId)) ? m.assetId.toLowerCase() : null)))
+      .then((ids) => { if (alive) setPriced(new Set(ids.filter((i): i is string => i !== null))); })
+      .catch(() => { if (alive) setPriced(new Set()); });
+    return () => { alive = false; };
+  }, [data?.markets]);
+  const live = useMemo(
+    () => (priced === null ? [] : listedAll.filter((m) => priced.has(m.assetId.toLowerCase()))),
+    [listedAll, priced],
+  );
+  const hiddenUnpriced = priced === null ? 0 : listedAll.length - live.length;
   const chosen = live.find((m) => m.assetId === underlying) ?? null;
 
   // What actually happens to the image and links, stated per deployment.
@@ -278,6 +300,7 @@ export function CreateTokenWizard() {
           data={data}
           live={live}
           candidates={candidates}
+          hiddenUnpriced={hiddenUnpriced}
           selected={underlying}
           selectedNew={candidate}
           onSelect={(id) => { setCandidate(null); setUnderlying(id); setStep("identity"); }}
@@ -366,10 +389,11 @@ function Notice({ title, body, action }: { title: string; body: string; action?:
 
 /* ---------------------------------------------------------------- step one */
 
-function UnderlyingStep({ data, live, candidates, selected, selectedNew, onSelect, onSelectNew }: {
+function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, selectedNew, onSelect, onSelectNew }: {
   data: PoolsResponse;
   live: PoolsResponse["markets"];
   candidates: Candidate[];
+  hiddenUnpriced: number;
   selected: `0x${string}` | null;
   selectedNew: Candidate | null;
   onSelect: (id: `0x${string}`) => void;
@@ -428,6 +452,13 @@ function UnderlyingStep({ data, live, candidates, selected, selectedNew, onSelec
           </button>
         ))}
       </div>
+
+      {hiddenUnpriced > 0 ? (
+        <p style={BODY} className="mt-6 text-center text-[13px] text-[var(--color-text-subtle)]">
+          {hiddenUnpriced} listed market{hiddenUnpriced === 1 ? " is" : "s are"} hidden because no
+          poster is pricing {hiddenUnpriced === 1 ? "it" : "them"} right now.
+        </p>
+      ) : null}
 
       {candidates.length > 0 ? (
         <div className="mt-10">

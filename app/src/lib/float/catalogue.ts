@@ -62,6 +62,21 @@ export const assetIdOf = (ticker: string) => keccak256(toBytes(ticker));
  * no poster has ever submitted, which is exactly the signal wanted, so a
  * rejection is a normal answer here rather than an error worth surfacing.
  */
+export async function pricedNow(assetId: `0x${string}`, maxAgeSec = 86_400): Promise<boolean> {
+  try {
+    const q = await oracleQuote(assetId);
+    if (q.price <= 0n) return false;
+    // The hub answers a quorum failure with the last known price stamped
+    // DEGRADED_AGE into the past, so a dead market looks priced until you read
+    // the timestamp. The three fixed test lines read exactly that way: a real
+    // price, a ten-year-old stamp, marketOpen false.
+    const age = Math.floor(Date.now() / 1000) - Number(q.updatedAt);
+    return age >= 0 && age <= maxAgeSec;
+  } catch {
+    return false;
+  }
+}
+
 export async function launchableCandidates(listed: Set<string>): Promise<Candidate[]> {
   const open = CATALOGUE.filter((c) => !listed.has(assetIdOf(c.ticker).toLowerCase()));
   const checked = await Promise.all(
