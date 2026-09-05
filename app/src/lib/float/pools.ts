@@ -29,6 +29,7 @@
  */
 
 import { encodeAbiParameters, keccak256, type Address } from "viem";
+import { withRetry } from "./retry";
 import { publicClient, ERC20_ABI } from "./chain";
 import { resolve, tryResolve } from "./registry";
 import { activeNetwork } from "./networks";
@@ -402,15 +403,38 @@ async function launchers(): Promise<Array<{ address: Address; retired: boolean }
 }
 
 /** Cheap ERC-20 identity, tolerant of a token that will not answer. */
+/**
+ * An ERC-20's name and scale.
+ *
+ * `decimals` used to fall back to 18 when the read failed. That is not a
+ * conservative default, it is a silent 1e12 error on any pool holding USDG,
+ * which is 6dp: every price and amount derived from that pool would be wrong
+ * and nothing would say so. It throws now, and the caller already turns a throw
+ * into an `unreadable` row, which is the honest outcome. `symbol` keeps a
+ * placeholder because a wrong LABEL misleads nobody about a number, and "?" is
+ * visibly a placeholder, which is how one of these last showed up on the board.
+ *
+ * Cached: neither value can change for a deployed token.
+ */
+const metaCache = new Map<string, { symbol: string; decimals: number }>();
+
 async function meta(token: Address) {
+  const key = token.toLowerCase();
+  const hit = metaCache.get(key);
+  if (hit) return hit;
   const pc = publicClient();
   const read = (functionName: string) =>
-    pc.readContract({ address: token, abi: ERC20_ABI, functionName } as never);
+    withRetry(
+      () => pc.readContract({ address: token, abi: ERC20_ABI, functionName } as never),
+      `${functionName}(${token})`,
+    );
   const [symbol, decimals] = await Promise.all([
     read("symbol").catch(() => "?") as Promise<string>,
-    read("decimals").catch(() => 18) as Promise<number>,
+    read("decimals") as Promise<number>,
   ]);
-  return { symbol: String(symbol), decimals: Number(decimals) };
+  const value = { symbol: String(symbol), decimals: Number(decimals) };
+  metaCache.set(key, value);
+  return value;
 }
 
 export interface LpPoolsResult {
@@ -471,17 +495,20 @@ export async function lpPools(): Promise<LpPoolsResult> {
     for (let i = 0n; i < count; i++) {
       let token: Address | null = null;
       try {
-        token = (await pc.readContract({
-          address: cf, abi: CURVE_FUNDER_ABI, functionName: "allTokens", args: [i],
-        })) as Address;
-        const curve = (await pc.readContract({
-          address: cf, abi: CURVE_FUNDER_ABI, functionName: "curves", args: [token],
-        })) as { share: Address; underlying: `0x${string}`; graduated: boolean; poolId: `0x${string}` };
+        token = (await withRetry(
+          () => pc.readContract({ address: cf, abi: CURVE_FUNDER_ABI, functionName: "allTokens", args: [i] }),
+          `allTokens(${i})`,
+        )) as Address;
+        const curve = (await withRetry(
+          () => pc.readContract({ address: cf, abi: CURVE_FUNDER_ABI, functionName: "curves", args: [token as Address] }),
+          `curves(${token})`,
+        )) as { share: Address; underlying: `0x${string}`; graduated: boolean; poolId: `0x${string}` };
         if (!curve.graduated) continue; // no pools until it graduates
 
-        const quotePoolId = (await pc.readContract({
-          address: cf, abi: CURVE_FUNDER_ABI, functionName: "stockPoolOf", args: [curve.underlying],
-        })) as `0x${string}`;
+        const quotePoolId = (await withRetry(
+          () => pc.readContract({ address: cf, abi: CURVE_FUNDER_ABI, functionName: "stockPoolOf", args: [curve.underlying] }),
+          "stockPoolOf",
+        )) as `0x${string}`;
 
         const [memeMeta, shareMeta, usdgMeta] = await Promise.all([
           meta(token), meta(curve.share), meta(usdg),
@@ -498,11 +525,19 @@ export async function lpPools(): Promise<LpPoolsResult> {
             unreadable.push({ poolId, reason: "no (fee, tickSpacing) reproduces this pool id" });
             continue;
           }
+          // Retried, because a single refused read here dropped the WHOLE
+          // launch into `unreadable` and the board came back short while
+          // looking complete: 6, then 8, then 2 pools on three consecutive
+          // calls against an unchanged chain.
           const [slot0, liquidity] = await Promise.all([
-            pc.readContract({ address: stateView, abi: STATE_VIEW_ABI, functionName: "getSlot0", args: [poolId] }) as Promise<
-              [bigint, number, number, number]
-            >,
-            pc.readContract({ address: stateView, abi: STATE_VIEW_ABI, functionName: "getLiquidity", args: [poolId] }) as Promise<bigint>,
+            withRetry(
+              () => pc.readContract({ address: stateView, abi: STATE_VIEW_ABI, functionName: "getSlot0", args: [poolId] }),
+              `getSlot0(${poolId.slice(0, 10)})`,
+            ) as Promise<[bigint, number, number, number]>,
+            withRetry(
+              () => pc.readContract({ address: stateView, abi: STATE_VIEW_ABI, functionName: "getLiquidity", args: [poolId] }),
+              `getLiquidity(${poolId.slice(0, 10)})`,
+            ) as Promise<bigint>,
           ]);
           const zeroIsA = key.currency0.toLowerCase() === a.toLowerCase();
           const usdgLower = usdg.toLowerCase();

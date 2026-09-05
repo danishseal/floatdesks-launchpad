@@ -480,21 +480,47 @@ export const fetchAggregator = async (): Promise<AggregatorRow[]> => [];
 // ── 24h change, derived from candles ────────────────────────────────────────
 const CHANGE_WINDOW_S = 24 * 60 * 60;
 
-export async function fetchTokenChange24h(tokenAddress: string): Promise<number | null> {
+/**
+ * The 24h change AND the 24h volume, from one candle read.
+ *
+ * Volume comes from the same buckets rather than a second source, because it is
+ * already in them: the candle route sums the quote leg of every trade in a
+ * bucket. `volume_24h` was a literal "0" on this venue, so the header's 24h vol
+ * read $0 on tokens that had traded that day, which is a stated measurement of
+ * no activity rather than an absence of one.
+ *
+ * Null, not zero, when there are no candles. Those are different claims and the
+ * caller has to be able to tell them apart.
+ */
+export async function fetchToken24h(
+  tokenAddress: string,
+): Promise<{ change: number | null; volumeUsd: number | null }> {
   try {
-    const candles = await request<Array<{ t: number; o: number; c: number }>>(
+    const candles = await request<Array<{ t: number; o: number; c: number; v?: number }>>(
       `/candles?token=${tokenAddress}&bucket=3600&limit=200`,
     );
-    if (candles.length < 1) return null;
-    const now = candles[candles.length - 1].c;
-    const cutoff = candles[candles.length - 1].t - CHANGE_WINDOW_S;
+    if (candles.length < 1) return { change: null, volumeUsd: null };
+    const last = candles[candles.length - 1];
+    const cutoff = last.t - CHANGE_WINDOW_S;
+
     const before = [...candles].reverse().find((c) => c.t <= cutoff);
     const ref = before ? before.c : candles[0].o;
-    if (!(now > 0 && ref > 0)) return null;
-    return ((now - ref) / ref) * 100;
+    const change = last.c > 0 && ref > 0 ? ((last.c - ref) / ref) * 100 : null;
+
+    // The route's `v` is already USD in micro-units, the same scale the header
+    // divides by 1e6, so it is summed as-is rather than rescaled.
+    const volumeUsd = candles
+      .filter((c) => c.t > cutoff)
+      .reduce((sum, c) => sum + (c.v ?? 0), 0);
+
+    return { change, volumeUsd };
   } catch {
-    return null;
+    return { change: null, volumeUsd: null };
   }
+}
+
+export async function fetchTokenChange24h(tokenAddress: string): Promise<number | null> {
+  return (await fetchToken24h(tokenAddress)).change;
 }
 
 export async function fetchTokenChanges(

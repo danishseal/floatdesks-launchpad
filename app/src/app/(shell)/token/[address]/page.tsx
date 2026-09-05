@@ -14,7 +14,7 @@ import { ContractsGrid } from "@/components/token/contracts-grid";
 import { useCandles } from "@/hooks/use-candles";
 import { TradingChartSkeleton } from "@/components/trading/trading-chart-skeleton";
 import { FloorlaunchTradePanel } from "@/components/trading/floorlaunch-trade-panel";
-import { fetchTokenChange24h } from "@/lib/api";
+import { fetchToken24h } from "@/lib/api";
 import type { Timeframe, TokenListItem, TokenTrade } from "@/lib/api";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import { explorerUrl } from "@/lib/floorlaunch/config";
@@ -64,11 +64,12 @@ export default function TokenDetailPage() {
   const visibleTrades = trades?.length ? trades : lastTrades;
   const candles = useCandles(address, timeframe);
   const holdersQuery = useTokenHolders(address);
-  // The single-token detail fetch does not carry a 24h change, so derive it from
-  // candle history (same source the list uses) to fill the header consistently.
-  const change24hQuery = useQuery({
-    queryKey: ["token-change", address],
-    queryFn: () => fetchTokenChange24h(address),
+  // The single-token detail fetch carries neither a 24h change nor a 24h
+  // volume, so both are derived from candle history, which is the same source
+  // the list uses and the same source the chart draws.
+  const day = useQuery({
+    queryKey: ["token-24h", address],
+    queryFn: () => fetchToken24h(address),
     staleTime: 5 * 60 * 1000,
     enabled: Boolean(address),
   });
@@ -114,16 +115,32 @@ export default function TokenDetailPage() {
   const collectibleName = (token.name ?? "collectible").replace(/\s*Floor$/i, "");
   const floorSol = token.market.cardIndexSol;
   const liquidityCollectibles = floorSol > 0 ? token.market.ammSolReserve / floorSol : 0;
-  const change24h = token.price_change_24h ?? change24hQuery.data ?? null;
+  const change24h = token.price_change_24h ?? day.data?.change ?? null;
   const stats = {
     marketCap: currencyCompact(price * DEFAULT_TOKEN_SUPPLY),
     // Per-token price is tiny; show significant digits instead of rounding to $0.
     price: price >= 0.01 ? currencyCompact(price) : `$${Number(price.toPrecision(3))}`,
     change: change24h,
-    vol: currencyCompact((Number(token.volume_24h) / 1_000_000) * solUsd),
+    // volume_24h is a literal "0" on this venue, so the candle sum is the only
+    // real figure. Unmeasured prints as "-" rather than as $0, which would be a
+    // stated measurement of no trading.
+    vol:
+      day.data?.volumeUsd == null
+        ? "-"
+        : currencyCompact((day.data.volumeUsd / 1_000_000) * solUsd),
     // Liquidity in collectible value - the whole point of a collectible market.
     liquidity: `${formatCollectible(liquidityCollectibles)} ${collectibleName}`,
-    liquidityUsd: currencyCompact(token.market.ammSolReserve * solUsd),
+    // ammSolReserve is the CURVE's raise. That is this token's liquidity right
+    // up to graduation and a number about a spent curve afterwards, so a
+    // graduated token says nothing rather than saying $55.04 of liquidity that
+    // is not there. The real pool figure needs the active tick range and an
+    // exactness check, which the liquidity board already owns; computing it
+    // here cost 41s a request and starved the price reads beside it.
+    liquidityUsd: token.graduated
+      ? "-"
+      : token.market.ammSolReserve > 0
+        ? currencyCompact(token.market.ammSolReserve * solUsd)
+        : "-",
     holders: String(holdersQuery.data?.length ?? 0),
   };
 
@@ -533,51 +550,6 @@ function StatTile({
   );
 }
 
-function TokenSummary({ token, price }: { token: TokenListItem; price: number }) {
-  const volumeUsd =
-    (Number(token.volume_24h) / 1_000_000) * token.market.solUsd;
-  return (
-    <section className="rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          {token.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={token.image}
-              alt={token.name ?? token.symbol ?? "Token"}
-              className="h-9 w-9 shrink-0 rounded-lg object-cover"
-            />
-          ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-bg-hover)] text-sm">
-              {token.symbol?.[0]}
-            </span>
-          )}
-          <div className="min-w-0">
-            <h1 className="truncate text-sm font-bold leading-tight">{token.name}</h1>
-            <p className="text-xs text-[var(--color-text-muted)]">${token.symbol}</p>
-          </div>
-        </div>
-        <span className="shrink-0 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)]">
-          {token.market.dbcPool ? "METEORA DBC" : token.graduated ? "AMM" : "CURVE"}
-        </span>
-      </div>
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] text-[var(--color-text-muted)]">Market cap</p>
-          <p className="truncate text-xl font-bold tracking-tight">
-            {currencyCompact(price * DEFAULT_TOKEN_SUPPLY)}
-            <span className={`ml-1.5 text-xs ${changeClass(token.price_change_24h)}`}>
-              {formatChange(token.price_change_24h)}
-            </span>
-          </p>
-        </div>
-        <p className="shrink-0 text-xs font-semibold text-[var(--color-text-muted)]">
-          Vol {currencyCompact(volumeUsd)}
-        </p>
-      </div>
-    </section>
-  );
-}
 
 type OverviewRange = "5m" | "1h" | "4h" | "1d";
 
@@ -875,10 +847,6 @@ function short(value: string): string {
     : value;
 }
 
-function tiny(value: number): string {
-  return value ? `$${value.toFixed(8)}` : "$0.00000000";
-}
-
 function compact(value: number): string {
   return Intl.NumberFormat("en-US", {
     notation: "compact",
@@ -906,13 +874,6 @@ function currencyCompact(value: number): string {
 function formatChange(value: number | null): string {
   if (value == null) return "-";
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
-function changeClass(value: number | null): string {
-  if (value == null) return "ml-3 text-sm font-medium text-[var(--color-text-muted)]";
-  return value >= 0
-    ? "ml-3 text-sm font-medium text-emerald-400"
-    : "ml-3 text-sm font-medium text-red-400";
 }
 
 function relativeTime(value: string): string {

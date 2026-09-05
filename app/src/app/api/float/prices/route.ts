@@ -43,8 +43,15 @@ export async function GET() {
         underlying: curve.underlying,
         memePoolId: curve.poolId,
       }).catch(() => ({ pools: [] }));
-      const priceUsd = pools.length ? await livePoolPriceUsd(pools) : null;
+      if (!pools.length) return null;
+      const priceUsd = await livePoolPriceUsd(pools);
       if (!priceUsd) return null;
+      // Liquidity is deliberately NOT computed here. Valuing a v4 position needs
+      // the active tick range, and confirming that range is exact is a bitmap
+      // search: adding it made this route take 41 seconds and, worse, starved
+      // the cheap price reads through the shared concurrency gate until they
+      // retried out and returned nothing. The liquidity board already owns that
+      // computation, with its own exactness flag.
       return [
         token.toLowerCase(),
         { priceUsd, source: "pool" as const, ts: Math.floor(Date.now() / 1000) },
