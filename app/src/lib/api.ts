@@ -501,17 +501,30 @@ export async function fetchToken24h(
     );
     if (candles.length < 1) return { change: null, volumeUsd: null };
     const last = candles[candles.length - 1];
-    const cutoff = last.t - CHANGE_WINDOW_S;
 
+    // Anchor the window to NOW, not to the last candle.
+    //
+    // It used to be `last.t - CHANGE_WINDOW_S`, which measures the 24 hours
+    // ending at the most recent trade rather than the 24 hours ending now. On a
+    // token whose last print was 24.4 hours ago that reported "24h change
+    // -88.08%" and "24h volume $292" for a day in which nothing traded at all,
+    // and it would keep reporting that same move a week later. The window has
+    // to be wall time or it is not a 24h window.
+    const cutoff = Math.floor(Date.now() / 1000) - CHANGE_WINDOW_S;
+
+    // Nothing inside the window means there is no 24h change to report, which
+    // is a different fact from a change of zero and is returned as such.
+    const inWindow = candles.filter((c) => c.t > cutoff);
     const before = [...candles].reverse().find((c) => c.t <= cutoff);
-    const ref = before ? before.c : candles[0].o;
-    const change = last.c > 0 && ref > 0 ? ((last.c - ref) / ref) * 100 : null;
+    const ref = before ? before.c : inWindow[0]?.o;
+    const change =
+      inWindow.length > 0 && last.c > 0 && ref !== undefined && ref > 0
+        ? ((last.c - ref) / ref) * 100
+        : null;
 
     // The route's `v` is already USD in micro-units, the same scale the header
     // divides by 1e6, so it is summed as-is rather than rescaled.
-    const volumeUsd = candles
-      .filter((c) => c.t > cutoff)
-      .reduce((sum, c) => sum + (c.v ?? 0), 0);
+    const volumeUsd = inWindow.reduce((sum, c) => sum + (c.v ?? 0), 0);
 
     return { change, volumeUsd };
   } catch {
