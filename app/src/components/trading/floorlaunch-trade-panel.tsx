@@ -25,6 +25,7 @@ import {
   tokenPreviewBuy, tokenPreviewSell, deskPreviewBuy, deskBuyRefusal,
   tx, waitFor, balanceOf, getListing,
 } from "@/lib/float/chain";
+import { readableError } from "@/lib/float/errors";
 import {
   routeFor, quoteGraduated, buyGraduated, sellGraduated, type SwapRoute,
 } from "@/lib/float/v4-router";
@@ -367,11 +368,3 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   );
 }
 
-function readableError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
-  if (/User rejected|denied transaction/i.test(msg)) return "Rejected in wallet.";
-  if (/Graduated/.test(msg)) return "This curve has graduated; trade the pool instead.";
-  if (/Slippage|minOut/i.test(msg)) return "Price moved past your slippage. Try again.";
-  const named = msg.match(/reverted with the following reason:\s*\n?(.+)/);
-  return named ? named[1].trim() : msg.split("\n")[0].slice(0, 160);
-}

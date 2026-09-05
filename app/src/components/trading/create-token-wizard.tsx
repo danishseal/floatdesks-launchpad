@@ -22,6 +22,7 @@ import { ArrowLeft, CheckCircle } from "@phosphor-icons/react";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { usePools, usd, px8, type PoolsResponse } from "@/components/liquidity/use-pools";
 import { tx, waitFor, launchpadParams } from "@/lib/float/chain";
+import { readableError } from "@/lib/float/errors";
 import { cfTx, cfLaunchParams, tokenMetaOwner, setTokenMeta } from "@/lib/float/curve-funder";
 
 const wizSans = localFont({
@@ -628,10 +629,3 @@ function newTokenAddress(receipt: { logs: readonly { topics: readonly string[] }
   return null;
 }
 
-function readableError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
-  if (/UnderlyingNotLive/.test(msg)) return "That market is not open yet.";
-  if (/User rejected|denied transaction/i.test(msg)) return "Rejected in wallet.";
-  const named = msg.match(/reverted with the following reason:\s*\n?(.+)/);
-  return named ? named[1].trim() : msg.split("\n")[0].slice(0, 160);
-}

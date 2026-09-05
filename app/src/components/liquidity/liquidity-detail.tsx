@@ -10,6 +10,7 @@ import styles from "./liquidity.module.css";
 import { TokenPair } from "./token-pair";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { tx, waitFor, deskShares } from "@/lib/float/chain";
+import { readableError } from "@/lib/float/errors";
 
 /**
  * Deposit panel.
@@ -459,12 +460,3 @@ function VaultMetrics({ data }: { data: PoolsResponse }) {
   );
 }
 
-/** Contract reverts arrive as long simulation dumps; surface the useful line. */
-function readableError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
-  const named = msg.match(/reverted with the following reason:\s*\n?(.+)/)
-    ?? msg.match(/Error: ([A-Za-z]+\(\))/);
-  if (named) return named[1].trim();
-  if (/User rejected|denied transaction/i.test(msg)) return "Rejected in wallet.";
-  return msg.split("\n")[0].slice(0, 160);
-}

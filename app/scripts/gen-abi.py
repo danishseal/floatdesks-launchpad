@@ -59,6 +59,15 @@ MANIFEST = [
 
 
 def members(artifact, out, wanted):
+    """The listed functions, plus EVERY custom error the contract declares.
+
+    The errors are not optional decoration. viem decodes a revert against the ABI
+    it was handed, so an ABI of functions only turns every custom error into
+    "reverted with the following signature: 0x40f92143", and the app's whole
+    error-message layer went dead against that: patterns like /Graduated/ or
+    /UnderlyingNotLive/ cannot match a message that never contains the name.
+    Errors are a few bytes each and there is no reason to curate them.
+    """
     path = out / f"{artifact}.sol" / f"{artifact}.json"
     if not path.exists():
         sys.exit(f"missing artifact {path}. Run `forge build` in ~/float/contracts.")
@@ -68,7 +77,9 @@ def members(artifact, out, wanted):
     if missing := set(wanted) - found:
         sys.exit(f"{artifact} has no {sorted(missing)}. Stale artifact, or the name changed.")
     # Sort by name, then by arity so overloads stay in a stable order.
-    return sorted(picked, key=lambda e: (e["name"], len(e["inputs"])))
+    picked = sorted(picked, key=lambda e: (e["name"], len(e["inputs"])))
+    errors = sorted((e for e in abi if e.get("type") == "error"), key=lambda e: e["name"])
+    return picked + errors
 
 
 def render():
