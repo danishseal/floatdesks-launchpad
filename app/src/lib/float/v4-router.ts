@@ -31,6 +31,28 @@
  *   - the router embeds the PoolManager in its bytecode, so it is v4-capable;
  *   - SETTLE_ALL and SETTLE-with-payerIsUser both fail the same way, as do
  *     single-hop and two-hop.
+ * Then traced on a fork of 4663, which narrowed it a lot. The call reaches
+ * PoolManager.unlock and the router's own unlockCallback, and dies THERE, in
+ * about 3,600 gas, long before any swap could run:
+ *
+ *   execute -> PoolManager.unlock -> UniversalRouter.unlockCallback
+ *     -> PoolManager.exttload(0xb6c9ae9507e479affc57925575e1fa2f48b88a5d7959cb0e68ab658eaadc3982)
+ *        returns 0
+ *     -> revert, no data
+ *
+ * So the first action never executes: the callback reads ONE transient slot,
+ * gets zero, and gives up. That is the shape of a delta or credit check
+ * failing on an empty delta, which is what v4-periphery does when an amount
+ * decodes as OPEN_DELTA (zero). The slot is NOT keccak(target ++ currency) for
+ * the router or the caller against USDG, DOZE or the fSHARE, so it is not a
+ * plain currency delta and I did not identify it further.
+ *
+ * Reproduce in one command against a fork:
+ *   anvil --fork-url https://rpc.mainnet.chain.robinhood.com --port 8465
+ *   ACTIONS=0x070c0f bun scripts/fork-calldata.ts   # prints the calldata
+ *   cast send <router> <calldata> --gas-limit 2000000 --rpc-url http://127.0.0.1:8465
+ *   cast run <txhash> --rpc-url http://127.0.0.1:8465
+ *
  * So the fault is in the action parameter encoding, not the route, the
  * approvals or the router. buyGraduated/sellGraduated are left exported but
  * are NOT wired to any button, because a Trade button that reverts is worse
