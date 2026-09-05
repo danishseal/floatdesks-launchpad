@@ -54,7 +54,7 @@
  */
 
 import { encodeAbiParameters, parseAbi, type Address, type Hex } from "viem";
-import { publicClient, walletClient, floatChain, ERC20_ABI } from "./chain";
+import { publicClient, walletClient, floatChain, waitFor, ERC20_ABI } from "./chain";
 import { resolve, tryResolve } from "./registry";
 import { lpPools, type LpPool } from "./pools";
 
@@ -78,7 +78,7 @@ const ACT_TAKE_ALL = 0x0f;
 
 const MAX_UINT160 = (1n << 160n) - 1n;
 
-/** Canonical V4 Quoter on 4663. Quoting works even though execution does not. */
+/** Canonical V4 Quoter on 4663. Used to price both hops before a swap. */
 const CANONICAL_QUOTER = "0x8dc178efb8111bb0973dd9d722ebeff267c98f94" as Address;
 
 const QUOTER_ABI = parseAbi([
@@ -235,7 +235,15 @@ function encodeSwap(
   };
 }
 
-/** Token -> Permit2 -> router. Skipped when already in place. */
+/**
+ * Token -> Permit2 -> router. Skipped when already in place.
+ *
+ * Both approvals go through waitFor, not waitForTransactionReceipt, because
+ * viem resolves on a REVERTED receipt: awaiting the raw receipt and carrying on
+ * takes "the transaction was mined" for "the approval happened". A silently
+ * failed approval here does not fail here, it fails one call later inside the
+ * swap, where it looks like a routing problem rather than a missing allowance.
+ */
 export async function ensurePermit2(account: Address, token: Address, amount: bigint) {
   const pc = publicClient();
   const wc = await walletClient();
@@ -250,7 +258,7 @@ export async function ensurePermit2(account: Address, token: Address, amount: bi
       account: signer, address: token, abi: ERC20_ABI, functionName: "approve",
       args: [PERMIT2, MAX_UINT160], chain: floatChain(),
     });
-    await pc.waitForTransactionReceipt({ hash: await wc.writeContract({ ...request, account: signer } as never) });
+    await waitFor(await wc.writeContract({ ...request, account: signer } as never));
   }
 
   const [permitted, expiration] = (await pc.readContract({
@@ -262,7 +270,7 @@ export async function ensurePermit2(account: Address, token: Address, amount: bi
       account: signer, address: PERMIT2, abi: PERMIT2_ABI, functionName: "approve",
       args: [token, router, MAX_UINT160, now + 30 * 24 * 3600], chain: floatChain(),
     });
-    await pc.waitForTransactionReceipt({ hash: await wc.writeContract({ ...request, account: signer } as never) });
+    await waitFor(await wc.writeContract({ ...request, account: signer } as never));
   }
 }
 
