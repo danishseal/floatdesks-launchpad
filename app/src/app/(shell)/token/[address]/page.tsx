@@ -128,17 +128,19 @@ export default function TokenDetailPage() {
   };
 
   return (
-    <div className="terminal-page mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-[1440px] min-w-0 flex-col gap-4 bg-[var(--color-bg-page)] p-4 text-[var(--color-text-primary)] xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:grid-rows-[auto_auto] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="terminal-page mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-[1440px] min-w-0 flex-col gap-4 bg-[var(--color-bg-page)] p-4 text-[var(--color-text-primary)] xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:grid-rows-[auto_1fr] 2xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* TOP-LEFT: chart card */}
-        {/* minHeight, not height: the row is as tall as the TALLER of this card
-            and the rail beside it, and the rail grew past it when the contracts
-            grid landed. With a fixed height the chart kept its 567px and the
-            extra 235px became a dead band above the Holders panel, which is
-            also why dragging the resize handle appeared to do nothing. The
-            chart flexes into whatever the row turns out to be instead. */}
+        {/* The rail SPANS both rows rather than sharing row one, which is what
+            lets this card own its own height. While they shared a row, the row
+            was as tall as the taller of the two, the rail overtook this card
+            when the contracts grid landed, and the difference showed up as a
+            dead band above the Holders panel. Giving the card a minHeight
+            instead fixed the band and broke the handle the other way: the rail
+            still held the row open, so dragging shorter moved nothing. Spanning
+            the rail decouples them, and the chart tracks the handle again. */}
         <div
-          className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-[var(--color-bg-page)]"
-          style={{ minHeight: chartHeight }}
+          className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-[var(--color-bg-page)] xl:col-start-1 xl:row-start-1"
+          style={{ height: chartHeight }}
         >
         <div className="flex h-[70px] shrink-0 items-center justify-between gap-6 overflow-x-auto border-b border-[var(--color-border-soft)] px-4 py-2">
           <div className="flex shrink-0 items-center gap-2.5">
@@ -239,26 +241,20 @@ export default function TokenDetailPage() {
         </div>
         </div>
         {/* TOP-RIGHT: trade + about rail. */}
-        <aside className="flex min-w-0 flex-col gap-4">
+        <aside className="flex min-w-0 flex-col gap-4 xl:col-start-2 xl:row-start-1 xl:row-span-2">
           <FloorlaunchTradePanel token={token} />
           <Overview token={token} trades={visibleTrades} />
           <ContractsGrid address={token.address} />
         </aside>
         {/* BOTTOM-LEFT: expanded info panel (Holders / Transactions) */}
         <TokenInformationPanel
+          className="xl:col-start-1 xl:row-start-2"
           token={token}
           trades={visibleTrades}
           onResizeStart={startInformationResize}
           onResize={resizeInformation}
           onResizeEnd={stopInformationResize}
         />
-        {/* BOTTOM-RIGHT: proposals, isolated under the right rail. The spacer
-            matches the info panel's resize handle so both cards align top/bottom. */}
-        <div className="flex h-[700px] min-w-0 flex-col">
-          <div className="hidden h-2.5 shrink-0 xl:block" />
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-[var(--color-bg-page)]">
-          </section>
-        </div>
     </div>
   );
 }
@@ -266,12 +262,14 @@ export default function TokenDetailPage() {
 type InformationTab = "holders" | "transactions";
 
 function TokenInformationPanel({
+  className,
   token,
   trades,
   onResizeStart,
   onResize,
   onResizeEnd,
 }: {
+  className?: string;
   token: TokenListItem;
   trades: TokenTrade[];
   onResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void;
@@ -293,7 +291,7 @@ function TokenInformationPanel({
 
   return (
     <div
-      className="flex shrink-0 flex-col"
+      className={`flex shrink-0 flex-col ${className ?? ""}`}
       style={{ height: 700 }}
     >
       <div

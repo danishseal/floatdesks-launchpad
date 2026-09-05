@@ -15,9 +15,10 @@
 
 import localFont from "next/font/local";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ImageDrop } from "@/components/trading/image-drop";
 import { ArrowLeft, CheckCircle } from "@phosphor-icons/react";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { usePools, usd, px8, type PoolsResponse } from "@/components/liquidity/use-pools";
@@ -534,7 +535,6 @@ function IdentityStep(props: {
     twitter, setTwitter, telegram, setTelegram, ticker, valid, storesMetadata,
     metaNote, onBack, onContinue,
   } = props;
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const display = symbol.trim() ? `$${symbol.trim().toUpperCase()}` : "$TICKER";
 
   return (
@@ -570,9 +570,8 @@ function IdentityStep(props: {
         </Field>
         {storesMetadata ? (
           <>
-            <Field label="Image URL" hint="ipfs:// or https://. Screeners will not render it, they have no logo standard, but the token page will.">
-              <input className={FIELD} value={image} placeholder="ipfs://…" onChange={(e) => setImage(e.target.value)} />
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" />
+            <Field label="Logo" hint="Dropped files are stored on chain inside the launch metadata, so they are downscaled to fit. A pasted URL is only linked. Screeners render neither, they have no logo standard, but the token page does.">
+              <ImageDrop value={image} onChange={setImage} />
             </Field>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Website"><input className={FIELD} value={website} placeholder="https://" onChange={(e) => setWebsite(e.target.value)} /></Field>
