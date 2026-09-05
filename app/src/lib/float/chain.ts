@@ -477,8 +477,12 @@ export async function funderAcceptsContribution(assetId: `0x${string}`): Promise
  * Returns null when the boost cannot be read, which is not the same as zero:
  * the caller declines to judge the cap rather than judge it against the wrong
  * number.
+ *
+ * Exported because the liquidity board states utilisation against a cap, and a
+ * board that measures against the listed cap while displaying the staked amount
+ * beside it contradicts itself: staking is what raises the cap.
  */
-async function effectiveOiCap(
+export async function effectiveOiCap(
   assetId: `0x${string}`, listedCap: bigint, px: bigint, after: bigint,
 ): Promise<bigint | null> {
   if (after <= 0n) return listedCap;

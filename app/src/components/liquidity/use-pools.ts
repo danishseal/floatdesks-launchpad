@@ -15,6 +15,7 @@ export interface PoolsMarket {
   oracleUpdatedAt: number | null;
   marketOpen: boolean | null;
   oiCapQuote: string;
+  oiCapEffective: string | null;
   netOI: string;
   baseSpreadBps: number;
   ahSpreadBps: number;

@@ -15,7 +15,7 @@
 import { NextResponse } from "next/server";
 import {
   deskVault, funderQueue, getListing, listingIds, markPx, netOI,
-  oracleQuote, stakePool, tokenCurve, launchpadParams, erc20, publicClient,
+  oracleQuote, stakePool, effectiveOiCap, tokenCurve, launchpadParams, erc20, publicClient,
   funderAcceptsContribution,
 } from "@/lib/float/chain";
 import { resolve, detectVenue } from "@/lib/float/registry";
@@ -161,6 +161,14 @@ export async function GET() {
         oracleQuote(assetId).catch(() => null),
         stakePool(assetId).catch(() => null),
       ]);
+      // The cap a trade is measured against is the LISTED cap plus whatever
+      // StakeVaults has boosted it by, at the oracle price. Read it from the
+      // contract rather than recomputing the boost here, so the rule keeps one
+      // home. Null means the boost was unreadable, which the row must say
+      // rather than quietly fall back to the listed cap.
+      const capEffective = oracle
+        ? await effectiveOiCap(assetId, l.oiCapQuote, oracle.price, oi).catch(() => null)
+        : null;
       const mine = (rows: TradeRow[]) =>
         rows.filter((t) => t.asset_id?.toLowerCase() === assetId.toLowerCase());
       return {
@@ -175,6 +183,7 @@ export async function GET() {
         oracleUpdatedAt: oracle ? Number(oracle.updatedAt) : null,
         marketOpen: oracle ? oracle.marketOpen : null,
         oiCapQuote: l.oiCapQuote.toString(),
+        oiCapEffective: capEffective === null ? null : capEffective.toString(),
         netOI: oi.toString(),
         baseSpreadBps: l.baseSpreadBps,
         ahSpreadBps: l.ahSpreadBps,

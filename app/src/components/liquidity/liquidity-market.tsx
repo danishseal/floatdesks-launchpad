@@ -345,11 +345,17 @@ function MarketTable({ data, query, filter }: { data: PoolsResponse; query: stri
 
 function MarketRow({ m, dp, symbol, feedOk }: { m: PoolsMarket; dp: number; symbol: string; feedOk: boolean }) {
   const mark = px8(m.markPx);
-  const cap = fromUnits(m.oiCapQuote, dp);
-  // netOI is in base (fSHARE) units at 18dp, valued at the mark for comparison
-  // against a quote-denominated cap.
+  // Desk.buy measures OI at the ORACLE price against the listed cap PLUS the
+  // StakeVaults boost, so the cap sentence below uses both. Valuing at the mark
+  // against the listed cap read correct only while the premium was zero and
+  // nothing was staked, and would have overstated utilisation the moment anyone
+  // staked into the market whose staked amount this row already displays.
+  const px = m.oraclePx ? px8(m.oraclePx) : mark;
+  const listedCap = fromUnits(m.oiCapQuote, dp);
+  const cap = m.oiCapEffective === null ? listedCap : fromUnits(m.oiCapEffective, dp);
+  const boosted = cap > listedCap;
   const oiShares = Number(BigInt(m.netOI)) / 1e18;
-  const oiValue = oiShares * mark;
+  const oiValue = oiShares * px;
   const used = cap > 0 ? (Math.abs(oiValue) / cap) * 100 : 0;
   const staked = m.totalStaked ? Number(BigInt(m.totalStaked)) / 1e18 : 0;
 
@@ -381,7 +387,13 @@ function MarketRow({ m, dp, symbol, feedOk }: { m: PoolsMarket; dp: number; symb
       <div>
         <span className={styles.mobileLabel}>Net OI</span>
         <span className={styles.cellValue}>{usd(oiValue, { max: 0 })}</span>
-        <span className={styles.cellSubtle}>{pct(used, 1)} of {usd(cap)}</span>
+        <span className={styles.cellSubtle}>
+          {m.oiCapEffective === null
+            ? `${pct(used, 1)} of ${usd(cap)} listed`
+            : boosted
+              ? `${pct(used, 1)} of ${usd(cap)}, staked up from ${usd(listedCap)}`
+              : `${pct(used, 1)} of ${usd(cap)}`}
+        </span>
       </div>
       <div>
         <span className={styles.mobileLabel}>7d fees</span>
