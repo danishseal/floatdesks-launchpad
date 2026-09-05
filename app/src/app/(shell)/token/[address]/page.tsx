@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowSquareOut, Check, CopySimple, DiscordLogo, GlobeSimple, TelegramLogo, User, XLogo } from "@phosphor-icons/react";
+import { Check, CopySimple, DiscordLogo, GlobeSimple, TelegramLogo, User, XLogo } from "@phosphor-icons/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTokenDetail } from "@/hooks/use-token-detail";
 import { useTokenTrades } from "@/hooks/use-token-trades";
@@ -15,7 +15,7 @@ import { FloorlaunchTradePanel } from "@/components/trading/floorlaunch-trade-pa
 import { fetchTokenChange24h } from "@/lib/api";
 import type { Timeframe, TokenListItem, TokenTrade } from "@/lib/api";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
-import { explorerUrl, solscanUrl, AMM_CONTRACT, LAUNCHPAD_CONTRACT } from "@/lib/floorlaunch/config";
+import { explorerUrl } from "@/lib/floorlaunch/config";
 import { activeNetwork } from "@/lib/float/networks";
 
 const NETWORK_LABEL = activeNetwork().label;
@@ -345,7 +345,7 @@ function HoldersTable({
   loading,
   symbol,
 }: {
-  holders: Array<{ address: string; balance: string }>;
+  holders: Array<{ address: string; balance: string; label?: string | null }>;
   loading: boolean;
   symbol: string;
 }) {
@@ -356,7 +356,10 @@ function HoldersTable({
     return <PanelMessage>No holders found for this token.</PanelMessage>;
   }
 
-  const supplyMicro = DEFAULT_TOKEN_SUPPLY * 1_000_000;
+  // Balances are 18dp wei and the supply constant is in whole tokens. The old
+  // pair of 1e6 assumptions came from the 6dp ansem build and made both the
+  // position and the supply share wrong by orders of magnitude.
+  const supplyWhole = DEFAULT_TOKEN_SUPPLY;
   return (
     <table className="w-full min-w-[600px] text-[13px]">
       <thead className="sticky top-0 z-10 bg-[var(--color-bg-page)] text-[var(--color-text-subtle)]">
@@ -368,8 +371,11 @@ function HoldersTable({
       </thead>
       <tbody>
         {holders.map((holder) => {
-          const percentage = (Number(holder.balance) / supplyMicro) * 100;
-          const tag = poolTag(holder.address);
+          const whole = Number(holder.balance) / 1e18;
+          const percentage = supplyWhole > 0 ? (whole / supplyWhole) * 100 : 0;
+          // The label comes from the Registry (the curve holding its unsold
+          // supply, the Desk, a stake vault), not from a hardcoded address.
+          const tag = holder.label ? LABEL_TEXT[holder.label] ?? holder.label : null;
           return (
             <tr key={holder.address} className="border-b border-[var(--color-border-soft)] transition-colors last:border-0 hover:bg-[var(--color-bg-page)]">
               <td className="px-4 py-2">
@@ -384,14 +390,11 @@ function HoldersTable({
                         {tag}
                       </span>
                     )}
-                    <a href={solscanUrl("account", holder.address)} target="_blank" rel="noreferrer" title="View on Solscan" className="text-[var(--color-text-subtle)] hover:text-[var(--color-accent-strong)]">
-                      <ArrowSquareOut size={11} />
-                    </a>
                   </div>
                 </div>
               </td>
               <td className="px-4 py-2 text-right">
-                <p className="text-[13px] font-semibold text-[var(--color-text-primary)]">{formatTokenAmount(holder.balance)}</p>
+                <p className="text-[13px] font-semibold text-[var(--color-text-primary)]">{formatWholeAmount(whole)}</p>
                 <p className="mt-0.5 text-[11px] text-[var(--color-text-subtle)]">{symbol}</p>
               </td>
               <td className="px-4 py-2 text-right text-[13px] font-semibold text-[var(--color-text-secondary)]">
@@ -408,10 +411,21 @@ function HoldersTable({
 /** Flags the pool-owned holders so a big balance is not mistaken for a whale:
  *  the AMM contract holds a graduated pool's liquidity (LP), the launchpad holds
  *  a curve's unsold reserves. */
-function poolTag(address: string): string | null {
-  if (address === AMM_CONTRACT) return "LP";
-  if (address === LAUNCHPAD_CONTRACT) return "Bonding curve";
-  return null;
+/** Registry keys to the words a reader wants. */
+const LABEL_TEXT: Record<string, string> = {
+  TOKEN_LAUNCHPAD: "Bonding curve",
+  CURVE_FUNDER: "Bonding curve",
+  DESK: "The Desk",
+  STAKE_VAULTS: "Stake vault",
+  FUNDER: "Funding queue",
+};
+
+function formatWholeAmount(amount: number): string {
+  if (!Number.isFinite(amount)) return "0";
+  return Intl.NumberFormat("en-US", {
+    notation: amount >= 10_000 ? "compact" : "standard",
+    maximumFractionDigits: 2,
+  }).format(amount);
 }
 
 function WalletAvatar({ address }: { address: string }) {
@@ -473,14 +487,6 @@ function PanelMessage({ children }: { children: React.ReactNode }) {
   return <div className="flex h-full min-h-36 items-center justify-center px-6 text-center text-sm text-[var(--color-text-muted)]">{children}</div>;
 }
 
-function formatTokenAmount(micro: string): string {
-  const amount = Number(micro) / 1_000_000;
-  if (!Number.isFinite(amount)) return "0";
-  return Intl.NumberFormat("en-US", {
-    notation: amount >= 10_000 ? "compact" : "standard",
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
 
 function StatTile({
   label,

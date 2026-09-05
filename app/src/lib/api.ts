@@ -493,7 +493,13 @@ export async function fetchRecentTrades(limit = 50): Promise<RecentTrade[]> {
 
 // ── holders and balances ────────────────────────────────────────────────────
 
-export interface TokenHolder { address: string; balance: string }
+export interface TokenHolder {
+  address: string;
+  balance: string;
+  /** Set when the address is protocol machinery (the curve holding unsold
+   *  supply, the Desk, a stake vault), so it does not read as a whale. */
+  label?: string | null;
+}
 export interface WalletTokenHolding {
   market: string; mint: string; name: string; symbol: string;
   image: string | null; balance: number;
@@ -507,12 +513,16 @@ export const TOKEN_HOLDERS_QUERY_KEY = (address: string) =>
   ["holders", address] as const;
 
 /**
- * Holder lists need a Transfer-log index that the Float indexer does not build.
- * Returning an empty list keeps the panel honest: it renders its own empty
- * state rather than a fabricated distribution.
+ * Holder distribution, derived from the token's own Transfer logs by
+ * /api/float/holders. The Float indexer builds no holder index, but an ERC-20's
+ * holder set is recoverable from its logs, so it is recovered rather than left
+ * as the empty list this used to return.
  */
-export async function fetchTokenHolders(): Promise<TokenHolder[]> {
-  return [];
+export async function fetchTokenHolders(address: string): Promise<TokenHolder[]> {
+  const r = await request<{ holders?: TokenHolder[]; truncated?: boolean }>(
+    `/holders?token=${address}`,
+  ).catch(() => null);
+  return r?.holders ?? [];
 }
 
 export async function fetchTokenBalance(
