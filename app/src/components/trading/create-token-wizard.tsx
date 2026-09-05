@@ -490,8 +490,11 @@ function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, sele
       </p>
 
       {data.venue === "curve-funder" ? (
-        <div className="mx-auto mt-7 max-w-[520px] rounded-[12px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]/50 p-5">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-subtle)]">
+        <div className="mt-7 rounded-[12px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]/50 p-5">
+          <h3
+            className="text-[15px] uppercase tracking-[0.12em] text-[var(--color-text-subtle)]"
+            style={{ fontFamily: "var(--font-neue-bit)" }}
+          >
             Quoted in
           </h3>
           <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-start gap-4">
