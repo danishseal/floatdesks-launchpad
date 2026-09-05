@@ -12,38 +12,32 @@
  * Curve parameters are read from the contract, never restated here, so this
  * screen cannot drift from what the chain will actually do.
  */
-
-import localFont from "next/font/local";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ImageDrop } from "@/components/trading/image-drop";
-import { ArrowLeft, CheckCircle } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowSquareOut, CheckCircle } from "@phosphor-icons/react";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { usePools, usd, px8, type PoolsResponse } from "@/components/liquidity/use-pools";
-import { tx, waitFor, launchpadParams } from "@/lib/float/chain";
+import { tx, waitFor, launchpadParams, publicClient } from "@/lib/float/chain";
 import { readableError } from "@/lib/float/errors";
 import { cfTx, cfLaunchParams, tokenMetaOwner, setTokenMeta } from "@/lib/float/curve-funder";
 import { launchableCandidates, pricedNow, type Candidate } from "@/lib/float/catalogue";
+import { activeNetwork } from "@/lib/float/networks";
 
-const wizSans = localFont({
-  src: "../../../83afe278b6a6bb3c-s.p.3a6ba036.woff2",
-  weight: "100 900",
-  style: "normal",
-  variable: "--wiz-sans",
-  display: "swap",
-});
-
+// Geist, the same face the rest of the app uses. This wizard had been running
+// on a woff2 lifted from the template it was cloned from, so it read as a
+// different product from every other page.
 const HEADING: React.CSSProperties = {
-  fontFamily: "var(--wiz-sans)", fontWeight: 600, fontSize: "26px",
-  letterSpacing: "-0.26px", lineHeight: "29.9px",
+  fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "26px",
+  letterSpacing: "-0.02em", lineHeight: "1.15",
 };
 const BODY: React.CSSProperties = {
-  fontFamily: "var(--wiz-sans)", fontWeight: 400, fontSize: "15px", lineHeight: "18px",
+  fontFamily: "var(--font-sans)", fontWeight: 400, fontSize: "15px", lineHeight: "1.45",
 };
 const CTA: React.CSSProperties = {
-  fontFamily: "var(--wiz-sans)", fontWeight: 600, fontSize: "14px",
+  fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: "14px",
 };
 
 const FIELD =
@@ -178,7 +172,13 @@ export function CreateTokenWizard() {
       : canSetMeta
         ? "Stored in this deployment's TokenMetadata contract as a second transaction right after the launch."
         : metaOwner
-          ? `On this deployment only ${metaOwner.slice(0, 8)}… can write token metadata, so these are saved with the launch for that admin to set rather than written by you.`
+          // This used to say the values were "saved with the launch for that
+          // admin to set". Nothing saved them. TokenMetadata.setUri is
+          // onlyOwner and the launch path only writes when the connected
+          // wallet IS the owner, so everything typed here was discarded. Say
+          // that, rather than offering reassurance for something that does not
+          // happen.
+          ? `Only ${metaOwner.slice(0, 8)}… can write token metadata on this deployment, so anything entered here is NOT saved anywhere. Leave it blank and ask that admin to set it after the launch.`
           : metaChecked
             ? "This deployment has no metadata contract, so these cannot be stored on chain."
             : "Checking where this deployment stores token metadata…";
@@ -326,6 +326,7 @@ export function CreateTokenWizard() {
         <ReviewStep
           data={data}
           market={chosen}
+          candidate={candidate}
           name={name} symbol={symbol} image={image}
           website={website} twitter={twitter} telegram={telegram}
           params={params}
@@ -344,7 +345,7 @@ export function CreateTokenWizard() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`${wizSans.variable} px-4 py-10 sm:py-14`} style={{ fontFamily: "var(--wiz-sans)" }}>
+    <div className="px-4 py-10 sm:py-14" style={{ fontFamily: "var(--font-sans)" }}>
       {children}
     </div>
   );
@@ -388,6 +389,79 @@ function Notice({ title, body, action }: { title: string; body: string; action?:
   );
 }
 
+/* ---------------------------------------------------------------- market row */
+
+/**
+ * One selectable market, with a link to its contract.
+ *
+ * The explorer link is a sibling of the select button rather than a child of
+ * it: an anchor inside a button is invalid HTML, and browsers resolve it by
+ * doing one or the other unpredictably, so picking a market would sometimes
+ * open a tab instead.
+ */
+function MarketRow({ ticker, displayName, token, price, status, selected, onSelect, dashed }: {
+  ticker: string;
+  displayName: string;
+  token?: string | null;
+  price?: string | null;
+  status: string;
+  selected: boolean;
+  onSelect: () => void;
+  dashed?: boolean;
+}) {
+  const explorer = activeNetwork().explorer;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onSelect}
+        className={`flex w-full items-center justify-between rounded-[12px] border px-4 py-4 pr-12 text-left transition ${
+          selected
+            ? "border-[var(--color-text-primary)] bg-[var(--color-bg-surface)]"
+            : `${dashed ? "border-dashed " : ""}border-[var(--color-border-soft)] hover:border-[var(--color-text-subtle)] hover:bg-[var(--color-bg-surface)]/60`
+        }`}
+      >
+        <div className="min-w-0">
+          <span
+            className="block text-[15px] text-[var(--color-text-primary)]"
+            style={{ fontFamily: "var(--font-display)", fontWeight: 600, letterSpacing: "-0.01em" }}
+          >
+            f{ticker}
+          </span>
+          <span className="mt-1 block truncate text-[13px] text-[var(--color-text-secondary)]">
+            {displayName}
+          </span>
+        </div>
+        <div className="shrink-0 pl-3 text-right">
+          {price ? (
+            <span
+              className="block text-[15px] text-[var(--color-text-primary)]"
+              style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
+            >
+              {price}
+            </span>
+          ) : null}
+          <span className="mt-1 block text-[11px] uppercase tracking-[0.06em] text-[var(--color-text-subtle)]">
+            {status}
+          </span>
+        </div>
+      </button>
+      {token ? (
+        <a
+          href={`${explorer}/token/${token}`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`f${ticker} contract on the explorer`}
+          title={`f${ticker} on the explorer`}
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[8px] p-2 text-[var(--color-text-subtle)] transition hover:bg-[var(--color-bg-page)] hover:text-[var(--color-text-primary)]"
+        >
+          <ArrowSquareOut size={16} weight="bold" />
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- step one */
 
 function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, selectedNew, onSelect, onSelectNew }: {
@@ -422,35 +496,18 @@ function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, sele
 
       <div className="mt-10 space-y-2">
         {live.map((m) => (
-          <button
+          <MarketRow
             key={m.assetId}
-            type="button"
-            onClick={() => onSelect(m.assetId)}
-            className={`flex w-full items-center justify-between rounded-[12px] border px-4 py-4 text-left transition ${
-              selected === m.assetId
-                ? "border-[var(--color-text-primary)] bg-[var(--color-bg-surface)]"
-                : "border-[var(--color-border-soft)] hover:border-[var(--color-text-subtle)]"
-            }`}
-          >
-            <div className="min-w-0">
-              <span className="block text-[16px] font-semibold text-[var(--color-text-primary)]">
-                f{m.ticker}
-              </span>
-              <span className="mt-0.5 block truncate text-[13px] text-[var(--color-text-secondary)]">
-                {m.displayName}
-              </span>
-            </div>
-            <div className="shrink-0 text-right">
-              <span className="block text-[15px] font-semibold text-[var(--color-text-primary)]">
-                {usd(px8(m.markPx), { max: 2 })}
-              </span>
-              <span className="mt-0.5 block text-[12px] text-[var(--color-text-subtle)]">
-                {m.status !== 0
-                  ? "halted, opens on the first buy"
-                  : m.marketOpen ? "home market open" : "quoted overnight"}
-              </span>
-            </div>
-          </button>
+            ticker={m.ticker}
+            displayName={m.displayName}
+            token={m.token}
+            price={usd(px8(m.markPx), { max: 2 })}
+            status={m.status !== 0
+              ? "halted, opens on the first buy"
+              : m.marketOpen ? "home market open" : "quoted overnight"}
+            selected={selected === m.assetId}
+            onSelect={() => onSelect(m.assetId)}
+          />
         ))}
       </div>
 
@@ -612,10 +669,12 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 /* -------------------------------------------------------------- step three */
 
 function ReviewStep({
-  data, market, name, symbol, image, website, twitter, telegram, params, paramsError, wallet, busy, onBack, onLaunch,
+  data, market, candidate, name, symbol, image, website, twitter, telegram, params, paramsError, wallet, busy, onBack, onLaunch,
 }: {
   data: PoolsResponse;
   market: PoolsResponse["markets"][number] | null;
+  /** Set instead of `market` when launching on a company nobody has listed. */
+  candidate: Candidate | null;
   name: string; symbol: string; image: string; website: string; twitter: string; telegram: string;
   params: LaunchParams | null;
   paramsError: string | null;
@@ -623,28 +682,62 @@ function ReviewStep({
   busy: boolean;
   onBack: () => void; onLaunch: () => void;
 }) {
-  if (!market) return null;
+  // A catalogue pick has no listed market yet, so this returned null and the
+  // review step rendered empty. Take the identity from whichever is set.
+  const isNew = !market && !!candidate;
+  // The protocol fee is not what a launch costs. It is 0.10 USDG against a
+  // transaction that deploys an ERC-20, and on a curve-funder launch of an
+  // unlisted company it deploys two. Quoting only the fee understates the real
+  // number by an order of magnitude, so price the gas and show both.
+  const [gasEst, setGasEst] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const gwei = await publicClient().getGasPrice();
+        // measured: launchToken 716k, launchNew 1.63M (it lists the stock too)
+        const units = isNew ? 1_630_000n : 716_000n;
+        const wei = gwei * units;
+        const eth = Number(wei) / 1e18;
+        if (alive) setGasEst(`${eth.toFixed(5)} ETH`);
+      } catch {
+        if (alive) setGasEst(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [isNew]);
+  const ticker = market?.ticker ?? candidate?.ticker ?? null;
+  const underlyingName = market?.displayName ?? candidate?.displayName ?? "";
+  if (!ticker) return null;
   const dp = data.quote.decimals;
   const fee = params ? Number(params.launchFee) / 10 ** dp : null;
+
   const short = wallet.balance !== null && fee !== null && wallet.balance < fee;
 
   // The quote asset is the venue's, not an assumption: CurveFunder settles the
   // curve in USDG, TokenLaunchpad in the underlying fSHARE.
   const curveFunder = data.venue === "curve-funder";
+  // Both halves, because naming only the first is what makes this read wrong.
+  // On the curve the quote is USDG, so a buyer needs no fSHARE to start. Their
+  // money still becomes the stock: every buy is split, part into that market's
+  // cushion and part into its fSHARE reserve. And at graduation the token's
+  // pool is MEME/fSHARE, so from then on it IS quoted in the fSHARE.
   const quoteAsset = curveFunder
-    ? `${data.quote.symbol}, so buyers need no f${market.ticker} first`
-    : `f${market.ticker} at ${usd(px8(market.markPx), { max: 2 })}`;
+    ? `${data.quote.symbol} on the curve, then f${ticker} once it graduates`
+    : `f${ticker} at ${market ? usd(px8(market.markPx), { max: 2 }) : "the oracle price"}`;
 
   const rows: Array<[string, string]> = [
     ["Ticker", `$${symbol.toUpperCase()}`],
     ["Name", name],
-    ["Underlying", `f${market.ticker} · ${market.displayName}`],
+    ["Underlying", `f${ticker} · ${underlyingName}`],
     ["Quote asset", quoteAsset],
-    ...(market.status !== 0 && curveFunder
-      ? [["Market status", "halted, and goes live on the first buy"] as [string, string]]
+    ...((isNew || market?.status !== 0) && curveFunder
+      ? [["Market status", isNew
+          ? "not listed yet, this launch lists it and it goes live on the first buy"
+          : "halted, and goes live on the first buy"] as [string, string]]
       : []),
     ...(params ? [
-      ["Launch fee", `${fee?.toFixed(2)} ${data.quote.symbol}`] as [string, string],
+      ["Launch fee", `${fee?.toFixed(2)} ${data.quote.symbol}${gasEst ? ` + ~${gasEst} gas` : " + network gas"}`] as [string, string],
       ["Trade fee", `${params.feeBps / 100}%, ${params.creatorShareBps / 100}% of it to you`] as [string, string],
       ["Graduates at", params.graduationLabel] as [string, string],
     ] : []),
