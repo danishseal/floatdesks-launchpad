@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ConnectButton } from "@/components/wallet/connect-button";
+import { ScrambleLabel } from "@/components/utoken/scramble-label";
 
 /**
  * The centre of the header. Two destinations, one internal and one not, so
@@ -48,15 +49,15 @@ export function TopNav({ squareCorners = false }: { squareCorners?: boolean }) {
               <>
                 <span
                   aria-hidden="true"
-                  className={`flex h-5 w-5 items-center justify-center text-[11px] font-medium transition-transform duration-200 ease-out group-hover:-rotate-3 group-hover:scale-105 ${item.badgeClass}`}
+                  className={`flex h-5 w-5 items-center justify-center text-[11px] font-medium ${item.badgeClass}`}
                 >
                   {item.badge}
                 </span>
-                <span>{item.label}</span>
+                <ScrambleLabel>{item.label}</ScrambleLabel>
               </>
             );
             const className =
-              "group flex shrink-0 items-center gap-3 whitespace-nowrap transition-[transform,opacity] duration-200 ease-out hover:-translate-y-px hover:opacity-70";
+              "flex shrink-0 items-center gap-3 whitespace-nowrap";
 
             return item.external ? (
               <a key={item.href} href={item.href} target="_blank" rel="noreferrer" className={className}>

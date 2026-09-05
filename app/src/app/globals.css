@@ -2,6 +2,28 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+.hover-effect {
+  font-kerning: none;
+  position: relative;
+  white-space: nowrap;
+}
+
+.hover-effect--cursor-square span {
+  position: relative;
+  --opa: 0;
+}
+
+.hover-effect--cursor-square span::after {
+  content: "";
+  width: 1ch;
+  top: 0;
+  left: 0;
+  position: absolute;
+  opacity: var(--opa);
+  background: currentColor;
+  height: 100%;
+}
+
 @font-face {
   font-family: "NeueBit";
   src: url("/NeueBit-Bold.woff2") format("woff2");
@@ -620,6 +642,7 @@
 .float-footer__logo img {
   width: 6.25rem;
   height: auto;
+  transform: translateX(-31.6667%);
 }
 
 .float-footer__bottom {
@@ -639,7 +662,8 @@
   line-height: 1rem;
 }
 
-.float-footer__navigation a {
+.float-footer__navigation a,
+.float-footer__navigation li > span {
   display: inline-block;
   padding: 0.25rem 0;
   color: #ffffff;
@@ -664,7 +688,8 @@
   gap: 1.5625rem;
 }
 
-.float-footer__social-list a {
+.float-footer__social-list a,
+.float-footer__social-list span {
   display: flex;
   color: #ffffff;
   transition: opacity 150ms ease;
