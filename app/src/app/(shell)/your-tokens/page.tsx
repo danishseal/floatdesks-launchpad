@@ -25,7 +25,7 @@ export default function YourTokensPage() {
   });
 
   if (!wallet.connected || !wallet.address) {
-    return <ConnectState title="Your Tokens" description="Connect your Solana wallet to see the Floatdesk tokens you own." />;
+    return <ConnectState title="Your Tokens" description="Connect a wallet to see the Floatdesk tokens you own." />;
   }
 
   return (
@@ -37,7 +37,7 @@ export default function YourTokensPage() {
       />
 
       {holdings.isLoading && <LoadingState label="Loading token balances…" />}
-      {holdings.error && <ErrorState message="Token balances could not be loaded from Solana. Try again shortly." />}
+      {holdings.error && <ErrorState message="Token balances could not be read from the chain. Try again shortly." />}
       {!holdings.isLoading && !holdings.error && holdings.data?.length === 0 && (
         <EmptyState icon={<Coins size={25} />} title="No Floatdesk tokens found" description="Tokens purchased through an Floatdesk market will appear here." />
       )}

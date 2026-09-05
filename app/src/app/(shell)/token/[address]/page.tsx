@@ -350,7 +350,7 @@ function HoldersTable({
   symbol: string;
 }) {
   if (loading) {
-    return <PanelMessage>Loading holders from Solana…</PanelMessage>;
+    return <PanelMessage>Loading holders…</PanelMessage>;
   }
   if (!holders.length) {
     return <PanelMessage>No holders found for this token.</PanelMessage>;
