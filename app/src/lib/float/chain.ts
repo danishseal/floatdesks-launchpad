@@ -64,8 +64,26 @@ export function resetClients() {
   _public = null;
 }
 
-/** Wallet client bound to the injected provider. Throws when none is present. */
+/**
+ * How a signer is obtained. Defaults to the injected provider, but any backend
+ * can supply its own.
+ *
+ * This is not only for tests. providers.tsx offers a Privy wallet backend as a
+ * config flip, and a Privy embedded wallet is NOT window.ethereum, so with the
+ * provider hardcoded below the Privy path could never have signed anything. The
+ * seam is what makes that claim true, and it is also what lets the tx builders
+ * be exercised from a script against a real chain.
+ */
+type WalletClientFactory = () => Promise<WalletClient>;
+let walletFactory: WalletClientFactory | null = null;
+
+export function setWalletClientFactory(factory: WalletClientFactory | null) {
+  walletFactory = factory;
+}
+
+/** Wallet client for signing. Injected provider unless a backend overrode it. */
 export async function walletClient(): Promise<WalletClient> {
+  if (walletFactory) return walletFactory();
   const eth = typeof window !== "undefined" ? (window as { ethereum?: unknown }).ethereum : undefined;
   if (!eth) throw new Error("No wallet found. Install MetaMask or Rabby.");
   return createWalletClient({ chain: floatChain(), transport: custom(eth as never) });
@@ -307,12 +325,18 @@ async function send(
 ): Promise<`0x${string}`> {
   const wc = await walletClient();
   const pc = publicClient();
+  // Use the signer's own account object when the backend supplies one. Passing
+  // a bare address makes viem treat it as a JSON-RPC account and reach for
+  // eth_sendTransaction, which a local or embedded signer does not implement:
+  // simulate passed and every send failed. An injected wallet has no account
+  // object here, so it keeps the address and the existing behaviour.
+  const signer = wc.account ?? account;
   // Simulate first: a revert here is a clear error instead of a wallet popup
   // that fails on chain and burns gas.
   const { request } = await pc.simulateContract({
-    account, address, abi: abi as never, functionName, args, chain: floatChain(),
+    account: signer, address, abi: abi as never, functionName, args, chain: floatChain(),
   });
-  return wc.writeContract(request as never);
+  return wc.writeContract({ ...request, account: signer } as never);
 }
 
 export async function waitFor(hash: `0x${string}`) {

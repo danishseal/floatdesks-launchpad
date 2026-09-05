@@ -12,3 +12,5 @@ indexer/data/
 
 .vercel
 .env*
+
+# throwaway e2e signing key lives in ~/.float, never in the repo
