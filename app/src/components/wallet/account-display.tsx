@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Check, CopySimple, SignOut, UserCircle, Wallet } from "@phosphor-icons/react";
+import { Check, CopySimple, SignOut, Wallet } from "@phosphor-icons/react";
 import { useFloorWallet } from "@/components/wallet/float-wallet-provider";
 import {
   DropdownMenu,
@@ -55,7 +54,6 @@ export function AccountDisplay({
 } = {}) {
   const { address, balance, nativeBalance, walletName, disconnect } = useFloorWallet();
   const [copied, setCopied] = useState(false);
-  const router = useRouter();
 
   const handleCopyAddress = useCallback(async () => {
     if (address) {
@@ -140,13 +138,6 @@ export function AccountDisplay({
             </span>
           </div>
         </div>
-        <DropdownMenuItem
-          onClick={() => router.push(`/creator/${address}`)}
-          className="h-10 cursor-pointer gap-2 rounded-lg px-3 text-xs text-[var(--color-text-secondary)] focus:bg-[var(--color-bg-raised)] focus:text-[var(--color-text-primary)]"
-        >
-          <UserCircle size={15} weight="fill" />
-          My account
-        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={handleCopyAddress}
           className="h-10 cursor-pointer gap-2 rounded-lg px-3 text-xs text-[var(--color-text-secondary)] focus:bg-[var(--color-bg-raised)] focus:text-[var(--color-text-primary)]"
