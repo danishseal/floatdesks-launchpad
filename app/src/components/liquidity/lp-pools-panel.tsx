@@ -64,7 +64,20 @@ export function LpPoolsPanel() {
       </p>
     );
   }
-  if (!data) return null;
+  // Not `return null`. This route takes seconds against a public RPC, and
+  // rendering nothing meanwhile makes a loading board and a board with no
+  // pools look identical, which is the silence this whole section keeps
+  // relearning. Say it is reading.
+  if (!data) {
+    return (
+      <p
+        className="mx-1 mb-3 rounded border border-[var(--color-border-soft)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]"
+        aria-live="polite"
+      >
+        Reading the liquidity pools from chain...
+      </p>
+    );
+  }
 
   return (
     <LpPoolsSection

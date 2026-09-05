@@ -40,7 +40,7 @@ export interface LpPoolRow {
    * What the active liquidity IS, in tokens, computed server side. L lives in
    * sqrt-price space and is not an amount of anything, so it is not shown.
    */
-  inRange?: { amount0: number; amount1: number; usdg: number | null; bandPct: number };
+  inRange?: { amount0: number; amount1: number; usdg: number | null; bandPct: number; exact: boolean } | null;
   lpFeeBps: number;
   /** Which currency is USDG, or null if the pool holds none. Never infer from the index. */
   usdgSide: 0 | 1 | null;
@@ -165,7 +165,7 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
           <span className={styles.columnLabel}>Route</span>
           <span className={styles.columnLabel}>Fee</span>
           <span className={styles.columnLabel}>Price</span>
-          <span className={styles.columnLabel}>Quoting now</span>
+          <span className={styles.columnLabel}>Within 1%</span>
           <span />
         </div>
 
@@ -220,7 +220,8 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
                       ? `${p.symbol0} + ${tok(p.inRange.amount1)} ${p.symbol1}`
                       : `+ ${tok(p.usdgSide === 0 ? p.inRange.amount1 : p.inRange.amount0)} ${
                           p.usdgSide === 0 ? p.symbol1 : p.symbol0
-                        }`}
+                        }`}{" "}
+                    {p.inRange.exact ? "" : " (approximate)"}
                   </span>
                 </>
               ) : (
@@ -270,8 +271,9 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
         <p className={styles.note}>
           Quoting now is the liquidity sitting in the price range that currently contains spot,
           converted to tokens. It is what a trade would meet before the price leaves that range,
-          roughly {ordered[0]?.inRange ? `${ordered[0].inRange.bandPct.toFixed(1)}%` : "one tick step"}{" "}
-          wide here. It is NOT the pool&apos;s total value: positions outside the live range are
+          within 1% of the current price, which is the question a deposit actually has. It is exact
+          wherever liquidity is unchanged across that band and marked approximate where it is not.
+          It is NOT the pool&apos;s total value: positions further out are
           real and are not counted, and a pool id does not expose them. This column used to print
           the raw liquidity number, which is not an amount of anything and read as a fortune where
           the honest figure is a few dollars. Nothing indexes swaps on these pools yet, so there is
