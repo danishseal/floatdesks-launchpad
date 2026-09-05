@@ -19,6 +19,7 @@ import {
   funderAcceptsContribution,
 } from "@/lib/float/chain";
 import { resolve, detectVenue } from "@/lib/float/registry";
+import { cfAllTokensDetailed, cfCurve, cfTokenMeta } from "@/lib/float/curve-funder";
 import { activeNetwork } from "@/lib/float/networks";
 
 const DAY = 86_400;
@@ -199,9 +200,39 @@ export async function GET() {
     >[];
     const unreadable = marketRows.filter(isDropped).map((d) => ({ assetId: d.__dropped, reason: d.reason }));
 
-    // Launched tokens, only where this deployment runs the fSHARE curve.
     let tokens: unknown[] = [];
     let launchpad: Record<string, string> | null = null;
+
+    // The CurveFunder venue has no indexer, so its launched tokens come from the
+    // contract. Its curve is quoted in USDG rather than in the underlying
+    // fSHARE, so raise and target are already dollars.
+    if (venue === "curve-funder") {
+      const entries = await cfAllTokensDetailed().catch(() => []);
+      tokens = (await Promise.all(entries.map(async ({ token, launcher, superseded }) => {
+        const [c, meta] = await Promise.all([
+          cfCurve(token, launcher).catch(() => null),
+          cfTokenMeta(token).catch(() => ({ name: "", symbol: "" })),
+        ]);
+        if (!c) return null;
+        const ticker = markets.find(
+          (m) => m.assetId.toLowerCase() === c.underlying.toLowerCase(),
+        )?.ticker;
+        return {
+          token,
+          name: meta.name,
+          symbol: meta.symbol,
+          underlyingTicker: ticker ?? "?",
+          raised: c.rQuote.toString(),
+          gradTarget: c.gradTarget.toString(),
+          sold: c.sold.toString(),
+          graduated: c.graduated,
+          quoteIsUsdg: true,
+          poolId: c.poolId,
+          superseded,
+        };
+      }))).filter(Boolean);
+    }
+
     if (venue === "token-launchpad") {
       const params = await launchpadParams();
       launchpad = {

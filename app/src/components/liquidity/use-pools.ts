@@ -34,6 +34,12 @@ export interface PoolsToken {
   gradTarget: string;
   sold: string;
   graduated: boolean;
+  /** CurveFunder quotes its curve in USDG (6dp), TokenLaunchpad in the
+   *  underlying fSHARE (18dp). The row has to know which it is reading. */
+  quoteIsUsdg?: boolean;
+  poolId?: string;
+  /** Launched on a launcher the Registry no longer points at. */
+  superseded?: boolean;
 }
 
 export interface PoolsResponse {

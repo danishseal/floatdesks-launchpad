@@ -18,7 +18,8 @@
 import {
   tokenCurve, markPx, publicClient, balanceOf, launchpadParams,
 } from "@/lib/float/chain";
-import { resolve } from "@/lib/float/registry";
+import { resolve, detectVenue } from "@/lib/float/registry";
+import { cfAllTokensDetailed, cfCurve, cfTokenMeta } from "@/lib/float/curve-funder";
 
 const API = "/api/float";
 
@@ -283,7 +284,90 @@ function toToken(t: IndexerToken, underlyingUsdPx: number, curve?: {
 
 // ── token data ──────────────────────────────────────────────────────────────
 
+/**
+ * Launched tokens on the CurveFunder venue.
+ *
+ * There is no indexer for that deployment, so the list comes from the contract
+ * itself and identity from each ERC-20. The curve is quoted in USDG rather than
+ * in the underlying fSHARE, so `base_label` says USDG and the raise is already
+ * dollars, which is why this is a separate path and not a flag on the one below.
+ */
+async function fetchCurveFunderTokens(): Promise<TokenListItem[]> {
+  const entries = await cfAllTokensDetailed();
+  const rows = await Promise.all(entries.map(async ({ token, launcher, superseded }) => {
+    const [c, meta] = await Promise.all([
+      cfCurve(token, launcher).catch(() => null),
+      cfTokenMeta(token).catch(() => ({ name: "", symbol: "" })),
+    ]);
+    if (!c) return null;
+    const remaining = Number(c.vToken - c.sold);
+    const q = Number(c.vQuote + c.rQuote);
+    const px = remaining > 0 ? q / remaining : 0; // USDG per token, 6dp/18dp mixed
+    const t: TokenListItem = {
+      address: token,
+      mint: token,
+      name: meta.name,
+      symbol: meta.symbol,
+      image: null,
+      description: null,
+      social_links: [],
+      creator: c.creator,
+      source: superseded ? "curve-funder-legacy" : "curve-funder",
+      graduated: c.graduated,
+      created_at: null,
+      first_seen_at: "0",
+      current_price: String(px * 1e6),
+      hodl_reserves: String(Number(c.rQuote)),
+      volume_24h: "0",
+      volume_total: "0",
+      creator_fees_total: "0",
+      trade_count_24h: 0,
+      price_change_24h: null,
+      base_denom: c.underlying,
+      base_label: "USDG",
+      market: {
+        market: token,
+        solUsd: 1, // the quote asset is the dollar on this venue
+        collection: "",
+        synthMint: token,
+        status: c.graduated ? "graduated" : "curve",
+        venue: c.graduated ? "v4" : "curve",
+        frozen: false,
+        indexPerToken: 0,
+        markPerToken: px,
+        cardIndexSol: 0,
+        unitsPerItem: 1,
+        indexLastTs: 0,
+        feedAgeSec: null,
+        ammSolReserve: Number(c.rQuote) / 1e6,
+        ammTokenReserve: remaining / 1e18,
+        insuranceSol: 0,
+        totalCollateralSol: 0,
+        curveSolRaised: Number(c.rQuote) / 1e6,
+        curveVirtualSol: Number(c.vQuote) / 1e6,
+        curveVirtualTokens: Number(c.vToken) / 1e18,
+        graduationTargetSol: Number(c.gradTarget) / 1e6,
+        fundingIndex: "0",
+        maxOpenInterest: 0,
+        itemsDeposited: 0,
+      },
+      listing: {
+        ticker: meta.symbol,
+        name: meta.name,
+        image: null,
+        links: {},
+        feeReceiver: { kind: "creator", value: c.creator },
+        identifier: token,
+        launchedBy: c.creator,
+      },
+    };
+    return t;
+  }));
+  return rows.filter(Boolean) as TokenListItem[];
+}
+
 export async function fetchTokens(): Promise<TokenListItem[]> {
+  if ((await detectVenue()) === "curve-funder") return fetchCurveFunderTokens();
   const rows = await request<IndexerToken[]>("/tokens?limit=200");
   const rates = new Map<string, number>();
   await Promise.all(
@@ -318,6 +402,12 @@ export async function fetchTokens(): Promise<TokenListItem[]> {
 }
 
 export async function fetchToken(address: string): Promise<TokenListItem> {
+  if ((await detectVenue()) === "curve-funder") {
+    const all = await fetchCurveFunderTokens();
+    const hit = all.find((t) => t.address.toLowerCase() === address.toLowerCase());
+    if (!hit) throw new Error(`no token ${address}`);
+    return hit;
+  }
   const t = await request<IndexerToken | null>(`/tokens?token=${address}`);
   if (!t) throw new Error(`no token ${address}`);
   // The indexer's last_px only moves once a trade is indexed, so read the curve

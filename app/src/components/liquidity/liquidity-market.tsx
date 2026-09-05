@@ -413,33 +413,43 @@ function LaunchedTokens({ data }: { data: PoolsResponse }) {
       </div>
       <div>
         {data.tokens.map((t) => {
-          const raised = Number(BigInt(t.raised)) / 1e18;
-          const target = Number(BigInt(t.gradTarget)) / 1e18;
+          // Scale follows the venue: CurveFunder quotes in USDG at 6dp,
+          // TokenLaunchpad in the underlying fSHARE at 18dp. Reading one with
+          // the other's divisor is off by twelve orders of magnitude.
+          const dp = t.quoteIsUsdg ? 1e6 : 1e18;
+          const raised = Number(BigInt(t.raised)) / dp;
+          const target = Number(BigInt(t.gradTarget)) / dp;
           const progress = target > 0 ? (raised / target) * 100 : 0;
+          const quoteLabel = t.quoteIsUsdg ? data.quote.symbol : `f${t.underlyingTicker}`;
           return (
             <article className={styles.poolRow} key={t.token}>
               <div className={styles.poolIdentity}>
-                <TokenPair tokenA={t.symbol} tokenB={`f${t.underlyingTicker}`} />
+                <TokenPair tokenA={t.symbol} tokenB={quoteLabel} />
                 <div>
                   <Link className={styles.poolName} href={`/token/${t.token}`}>
                     {t.symbol}
                     <span className={styles.tokenMeta}> / </span>
-                    f{t.underlyingTicker}
+                    {quoteLabel}
                   </Link>
                   <div className={styles.poolBadges}>
                     <span className={styles.poolBadge}>{t.graduated ? "graduated" : "on curve"}</span>
                     <span className={styles.poolBadge}>{t.name}</span>
+                    {t.superseded ? <span className={styles.poolBadge}>earlier launcher</span> : null}
                   </div>
                 </div>
               </div>
               <div>
                 <span className={styles.mobileLabel}>Raised</span>
-                <span className={styles.cellValue}>{raised.toFixed(3)} f{t.underlyingTicker}</span>
+                <span className={styles.cellValue}>
+                  {t.quoteIsUsdg ? usd(raised, { max: 2 }) : `${raised.toFixed(3)} ${quoteLabel}`}
+                </span>
               </div>
               <div>
                 <span className={styles.mobileLabel}>To graduation</span>
                 <span className={`${styles.cellValue} ${styles.accentValue}`}>{pct(progress, 1)}</span>
-                <span className={styles.cellSubtle}>target {target.toFixed(2)}</span>
+                <span className={styles.cellSubtle}>
+                  target {t.quoteIsUsdg ? usd(target) : target.toFixed(2)}
+                </span>
               </div>
               <div>
                 <span className={styles.mobileLabel}>Sold</span>
