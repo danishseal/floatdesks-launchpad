@@ -52,7 +52,6 @@ export interface OverviewTotals {
 }
 export interface AnalyticsOverview extends OverviewTotals {
   window: AnalyticsWindow;
-  chanseUsd: number;
   prev: OverviewTotals | null;
 }
 
@@ -74,7 +73,6 @@ export interface VolumePoint {
 export interface VolumeSeries {
   window: AnalyticsWindow;
   bucket: number;
-  chanseUsd: number;
   points: VolumePoint[];
 }
 
@@ -101,7 +99,6 @@ export interface TopToken {
 export interface TopTokens {
   window: AnalyticsWindow;
   by: "volume" | "trades";
-  chanseUsd: number;
   tokens: TopToken[];
 }
 

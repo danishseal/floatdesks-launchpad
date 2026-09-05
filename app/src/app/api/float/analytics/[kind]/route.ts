@@ -118,7 +118,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string }>
     const prevFrom = span === Number.MAX_SAFE_INTEGER ? 0 : from - span;
     return NextResponse.json({
       window: win,
-      chanseUsd: 1, // the quote asset IS the dollar here
       ...totals(trades, tokensDated, from, now),
       prev: span === Number.MAX_SAFE_INTEGER ? null : totals(trades, tokensDated, prevFrom, from),
     }, { headers: { "cache-control": "no-store" } });
@@ -148,7 +147,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string }>
       }
     }
     return NextResponse.json(
-      kind === "volume-series" ? { window: win, bucket, chanseUsd: 1, points } : { window: win, bucket, points },
+      kind === "volume-series" ? { window: win, bucket, points } : { window: win, bucket, points },
       { headers: { "cache-control": "no-store" } },
     );
   }
@@ -179,7 +178,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ kind: string }>
       }))
       .sort((a, b) => (by === "volume" ? b.volumeUsd - a.volumeUsd : b.tradeCount - a.tradeCount))
       .slice(0, limit);
-    return NextResponse.json({ window: win, by, chanseUsd: 1, tokens: rows },
+    return NextResponse.json({ window: win, by, tokens: rows },
       { headers: { "cache-control": "no-store" } });
   }
 

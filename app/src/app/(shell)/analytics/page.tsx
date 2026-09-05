@@ -245,14 +245,10 @@ function labelFor(w: AnalyticsWindow): string {
   return ANALYTICS_WINDOWS.find((x) => x.key === w)?.label ?? w;
 }
 function denomLabel(d: string): string {
-  const m: Record<string, string> = {
-    uchanse: "CHANSE",
-    uansem: "Floatdesk",
-    unvdax: "NVDA",
-    utslax: "TSLA",
-    uaaplx: "AAPL",
-    uspyx: "SPY",
-  };
+  // Float denominates in USDG. The rest are ansem-1 denoms this page was forked
+  // with; a label map that answers for a chain we are not on is how a wrong
+  // ticker reaches a screen without anyone typing it.
+  const m: Record<string, string> = { usdg: "USDG" };
   return m[d] ?? d.replace(/^u/, "").toUpperCase();
 }
 
