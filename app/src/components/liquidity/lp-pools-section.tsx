@@ -1,0 +1,223 @@
+"use client";
+
+/**
+ * The LP venues: the v4 pools a graduated launch leaves behind.
+ *
+ * These are the pools you can actually add to and remove from. They are
+ * ordinary public Uniswap v4 pools with no hook, two per launch along the
+ * price chain MEME -> fSHARE -> USDG, and the fee on every fill accrues to
+ * whoever holds the position. That is a different thing from the Desk vault
+ * above, which is one shared balance sheet with pro-rata shares and a one day
+ * exit, and different again from the funding queue, which is a countdown.
+ *
+ * Every figure is a chain read. There is no TVL column and no volume column,
+ * because neither is readable: `liquidity` is the ACTIVE liquidity at the
+ * current tick, and turning that into a dollar value needs every position's
+ * range, which a pool id does not expose. Nothing indexes swaps on these pools
+ * yet either. The rule in this repo is that a column traces to a chain call or
+ * says plainly that it does not exist, so those columns are absent rather than
+ * estimated.
+ */
+
+import { ArrowRight } from "@phosphor-icons/react";
+import { useMemo } from "react";
+import styles from "./lp-pools.module.css";
+import { TokenPair } from "./token-pair";
+
+export interface LpPoolRow {
+  poolId: string;
+  kind: "meme" | "quote";
+  launch: { token: string; symbol: string; launcher: string; retired: boolean };
+  key: { currency0: string; currency1: string; fee: number; tickSpacing: number; hooks: string };
+  symbol0: string;
+  symbol1: string;
+  decimals0: number;
+  decimals1: number;
+  sqrtPriceX96: string;
+  tick: number;
+  liquidity: string;
+  lpFeeBps: number;
+  /** Which currency is USDG, or null if the pool holds none. Never infer from the index. */
+  usdgSide: 0 | 1 | null;
+}
+
+interface Props {
+  pools: LpPoolRow[];
+  unreadable?: Array<{ poolId: string; reason: string }>;
+  onAdd?: (pool: LpPoolRow) => void;
+  onRemove?: (pool: LpPoolRow) => void;
+}
+
+/** token1 per token0, from sqrtPriceX96, corrected for decimals. */
+function priceOf(p: LpPoolRow): number {
+  const sqrt = Number(BigInt(p.sqrtPriceX96)) / 2 ** 96;
+  if (!Number.isFinite(sqrt) || sqrt === 0) return 0;
+  return sqrt * sqrt * 10 ** (p.decimals0 - p.decimals1);
+}
+
+function num(n: number, max = 6) {
+  if (!Number.isFinite(n) || n === 0) return "0";
+  if (n < 0.000001) return n.toExponential(2);
+  return n.toLocaleString("en-US", { maximumFractionDigits: max });
+}
+
+/** Liquidity is a 1e18-ish integer; show its magnitude, not 20 digits. */
+function liq(raw: string) {
+  const n = Number(BigInt(raw));
+  if (n === 0) return "0";
+  const units = ["", "K", "M", "B", "T", "Q"];
+  let i = 0;
+  let v = n;
+  while (v >= 1000 && i < units.length - 1) {
+    v /= 1000;
+    i++;
+  }
+  return `${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}${units[i]}`;
+}
+
+export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Props) {
+  // group each launch's two hops together, meme first, so the price chain reads
+  // top to bottom instead of the pools arriving in whatever order the chain
+  // enumerated them
+  const ordered = useMemo(() => {
+    const byLaunch = new Map<string, LpPoolRow[]>();
+    for (const p of pools) {
+      const k = p.launch.token.toLowerCase();
+      byLaunch.set(k, [...(byLaunch.get(k) ?? []), p]);
+    }
+    return [...byLaunch.values()].flatMap((rows) =>
+      [...rows].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "meme" ? -1 : 1)),
+    );
+  }, [pools]);
+
+  if (pools.length === 0 && unreadable.length === 0) return null;
+
+  const launches = new Set(pools.map((p) => p.launch.token.toLowerCase())).size;
+  const fees = [...new Set(pools.map((p) => p.lpFeeBps))];
+
+  return (
+    <section className={styles.section} aria-label="Liquidity pools">
+      <div className={styles.head}>
+        <div>
+          <span className={styles.eyebrow}>Liquidity pools</span>
+          <h2 className={styles.title}>Add and remove as you please</h2>
+          <p className={styles.blurb}>
+            Every graduated launch leaves two public Uniswap v4 pools behind, one hop each along
+            the route from the meme to its stock to USDG. Provide either side, earn the fee on
+            everything that trades through, and withdraw whenever. No lockup and no epoch.
+          </p>
+        </div>
+        <div className={styles.headStats}>
+          <div className={styles.headStat}>
+            <span className={styles.eyebrow}>Pools</span>
+            <strong className={styles.headStatValue}>{pools.length}</strong>
+          </div>
+          <div className={styles.headStat}>
+            <span className={styles.eyebrow}>Launches</span>
+            <strong className={styles.headStatValue}>{launches}</strong>
+          </div>
+          <div className={styles.headStat}>
+            <span className={styles.eyebrow}>Fee</span>
+            <strong className={styles.headStatValue}>
+              {fees.length === 1 ? `${fees[0] / 100}%` : "mixed"}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.shell}>
+        <div className={styles.header} aria-hidden="true">
+          <span className={styles.columnLabel}>Pool</span>
+          <span className={styles.columnLabel}>Route</span>
+          <span className={styles.columnLabel}>Fee</span>
+          <span className={styles.columnLabel}>Price</span>
+          <span className={styles.columnLabel}>Active liquidity</span>
+          <span />
+        </div>
+
+        {ordered.map((p) => (
+          <article
+            className={`${styles.row} ${p.kind === "quote" ? styles.rowQuote : ""}`}
+            key={p.poolId}
+          >
+            <div className={styles.identity}>
+              <TokenPair tokenA={p.symbol0} tokenB={p.symbol1} />
+              <div>
+                <span className={styles.pair}>
+                  {p.symbol0}
+                  <span className={styles.pairMuted}> / </span>
+                  {p.symbol1}
+                </span>
+                <div className={styles.badges}>
+                  <span className={styles.badge}>{p.launch.symbol}</span>
+                  {p.launch.retired ? (
+                    <span className={`${styles.badge} ${styles.badgeRetired}`}>earlier launcher</span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <span className={styles.value}>{p.kind === "meme" ? "meme hop" : "quote hop"}</span>
+              <span className={styles.sub}>
+                {p.kind === "meme" ? "meme priced in its stock" : "stock priced in USDG"}
+              </span>
+            </div>
+
+            <div>
+              <span className={styles.value}>{p.lpFeeBps / 100}%</span>
+            </div>
+
+            <div>
+              <span className={styles.value}>{num(priceOf(p))}</span>
+              <span className={styles.sub}>
+                {p.symbol1} per {p.symbol0}
+              </span>
+            </div>
+
+            <div>
+              <span className={styles.value}>{liq(p.liquidity)}</span>
+              <span className={styles.sub}>at tick {p.tick.toLocaleString("en-US")}</span>
+            </div>
+
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={styles.action}
+                onClick={() => onAdd?.(p)}
+                disabled={!onAdd}
+                title={onAdd ? undefined : "Connect a wallet to provide liquidity"}
+              >
+                Add <ArrowRight size={12} weight="bold" />
+              </button>
+              <button
+                type="button"
+                className={styles.action}
+                onClick={() => onRemove?.(p)}
+                disabled={!onRemove}
+                title={onRemove ? undefined : "Connect a wallet to withdraw a position"}
+              >
+                Remove
+              </button>
+            </div>
+          </article>
+        ))}
+
+        <p className={styles.note}>
+          Active liquidity is what is quoting at the current tick, read from the pool. It is not
+          the dollar value of the pool: that would need every position&apos;s range, which a pool id
+          does not expose. Nothing indexes swaps on these pools yet, so there is no volume figure
+          to show.
+        </p>
+
+        {unreadable.length > 0 ? (
+          <p className={styles.warn}>
+            {unreadable.length} pool{unreadable.length === 1 ? "" : "s"} the chain named could not be
+            described and {unreadable.length === 1 ? "is" : "are"} not shown:{" "}
+            {unreadable.map((u) => `${u.poolId.slice(0, 10)} (${u.reason})`).join("; ")}.
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}

@@ -96,7 +96,105 @@ const STATE_VIEW_ABI = [
     outputs: [{ type: "uint160" }, { type: "int24" }, { type: "uint24" }, { type: "uint24" }],
   },
   { type: "function", name: "getLiquidity", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint128" }] },
+  {
+    type: "function",
+    name: "getTickLiquidity",
+    stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "int24" }],
+    outputs: [{ type: "uint128" }, { type: "int128" }],
+  },
 ] as const;
+
+export interface DepthBar {
+  tick: number;
+  /** Liquidity active across [tick, tick + spacing). */
+  liquidity: string;
+  /** Which side of the current price this sits on. */
+  side: "bid" | "ask";
+}
+
+/**
+ * The pool's real liquidity distribution, for the depth chart.
+ *
+ * A v4 pool stores liquidityNet at each initialised tick, not a level per
+ * range, so the profile has to be walked out from the middle: start at the
+ * active liquidity the pool reports for the current tick, then add each net as
+ * you step up, and subtract each net as you step down. That reconstruction is
+ * what makes this an actual reading of the book rather than a shape drawn to
+ * look like one.
+ *
+ * Reads only tick multiples of the spacing, because a position can only ever
+ * start or end on one.
+ */
+export async function poolDepth(
+  poolId: `0x${string}`,
+  tickSpacing: number,
+  currentTick: number,
+  activeLiquidity: bigint,
+  steps = 24,
+): Promise<DepthBar[]> {
+  const stateView = await stateViewAddress();
+  if (!stateView) return [];
+  const pc = publicClient();
+  const base = Math.floor(currentTick / tickSpacing) * tickSpacing;
+
+  const ticks: number[] = [];
+  for (let i = -steps; i <= steps; i++) ticks.push(base + i * tickSpacing);
+
+  // A failed tick read must NOT be treated as "no liquidity here". Zeroing a
+  // failure produces a perfectly flat profile that looks like a valid reading
+  // of a pool with uniform depth, which is exactly what it did the first time:
+  // 49 identical bars for a pool whose liquidity actually sits in one 600 tick
+  // band. If a read fails the chart is wrong and has to say so.
+  //
+  // Read in small serial batches rather than firing every tick at once: a
+  // public RPC throttles a 49-way parallel burst, and throttling was the
+  // original cause of the failures being swallowed.
+  const nets = new Map<number, bigint>();
+  const failed: number[] = [];
+  const BATCH = 8;
+  for (let i = 0; i < ticks.length; i += BATCH) {
+    const slice = ticks.slice(i, i + BATCH);
+    const got = await Promise.all(
+      slice.map(async (t) => {
+        try {
+          const [, net] = (await pc.readContract({
+            address: stateView, abi: STATE_VIEW_ABI, functionName: "getTickLiquidity", args: [poolId, t],
+          })) as [bigint, bigint];
+          return [t, net] as const;
+        } catch {
+          return [t, null] as const;
+        }
+      }),
+    );
+    for (const [t, net] of got) {
+      if (net === null) failed.push(t);
+      else nets.set(t, net);
+    }
+  }
+  // Any gap makes the reconstruction wrong from that tick outward, because the
+  // walk accumulates. Better no chart than a confident flat one.
+  if (failed.length > 0) throw new Error(`tick liquidity unreadable for ${failed.length} of ${ticks.length} ticks`);
+
+  const bars: DepthBar[] = [];
+  // upward from the active range: crossing a tick ADDS its net
+  let l = activeLiquidity;
+  for (let t = base; t <= base + steps * tickSpacing; t += tickSpacing) {
+    if (t !== base) l += nets.get(t) ?? 0n;
+    if (l < 0n) l = 0n;
+    bars.push({ tick: t, liquidity: l.toString(), side: "ask" });
+  }
+  // downward: stepping below a tick REMOVES its net
+  l = activeLiquidity;
+  for (let t = base; t >= base - steps * tickSpacing; t -= tickSpacing) {
+    if (t !== base) {
+      l -= nets.get(t + tickSpacing) ?? 0n;
+      if (l < 0n) l = 0n;
+      bars.push({ tick: t, liquidity: l.toString(), side: "bid" });
+    }
+  }
+  return bars.sort((a, b) => a.tick - b.tick);
+}
 
 export interface LpPool {
   poolId: `0x${string}`;
@@ -114,6 +212,15 @@ export interface LpPool {
   /** Active liquidity at the current tick. NOT TVL: see the note in the route. */
   liquidity: string;
   lpFeeBps: number;
+  /**
+   * Which currency is USDG, or null on a pool that holds none.
+   *
+   * Never infer this from the index. Currencies are ordered by address, so USDG
+   * is currency0 in some pools and currency1 in others, and a deposit form that
+   * assumes token1 asks for the wrong asset half the time. It asked for fNTDO3
+   * when it should have asked for USDG exactly once before this existed.
+   */
+  usdgSide: 0 | 1 | null;
 }
 
 /** poolId is keccak of the abi-encoded PoolKey, so a key can be checked. */
@@ -244,6 +351,11 @@ export async function lpPools(): Promise<LpPoolsResult> {
             pc.readContract({ address: stateView, abi: STATE_VIEW_ABI, functionName: "getLiquidity", args: [poolId] }) as Promise<bigint>,
           ]);
           const zeroIsA = key.currency0.toLowerCase() === a.toLowerCase();
+          const usdgLower = usdg.toLowerCase();
+          const usdgSide: 0 | 1 | null =
+            key.currency0.toLowerCase() === usdgLower ? 0
+            : key.currency1.toLowerCase() === usdgLower ? 1
+            : null;
           pools.push({
             poolId,
             kind,
@@ -257,6 +369,7 @@ export async function lpPools(): Promise<LpPoolsResult> {
             tick: Number(slot0[1]),
             liquidity: liquidity.toString(),
             lpFeeBps: key.fee / 100,
+            usdgSide,
           });
         }
       } catch (e) {
