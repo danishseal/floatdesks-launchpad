@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useTokens } from "@/hooks/use-tokens";
 import { Sparkline } from "@/components/utoken/sparkline";
+import { FlippingWordSwap } from "@/components/utoken/flipping-word-swap";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import { type TokenListItem,
   graduationProgress,
@@ -156,17 +157,18 @@ function StarterBanner() {
     <section className="flex min-h-[380px] items-center justify-center overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-5 py-8 lg:h-[420px]" aria-label="Start a new coin">
       <div className="w-full max-w-[520px] text-center">
         <h1 className="font-neue-bit text-[clamp(3rem,6vw,5rem)] font-bold lowercase leading-[0.8] tracking-[-0.025em] text-[var(--color-text-primary)]">
-          [start a new coin]
+          <FlippingWordSwap
+            href="/create"
+            label="Start a new coin"
+            word1="[start a new coin]"
+            word2="[pick your underlying]"
+            toClassName="text-[var(--color-accent-solid)]"
+          />
         </h1>
         <p className="mx-auto mt-7 max-w-[430px] text-[15px] leading-6 text-[var(--color-text-secondary)]">
           Choose a name, image, and ticker. Floatdesk handles the market and bonding curve.
         </p>
-
-        <Link href="/create" className="mx-auto mt-6 flex h-11 max-w-[360px] items-center justify-between bg-[var(--color-accent-solid)] px-4 font-mono text-[12px] font-semibold text-[var(--color-on-accent)] hover:bg-[var(--color-accent-strong)]">
-          <span>Launch your coin</span>
-          <span aria-hidden="true">→</span>
-        </Link>
-        <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
+        <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
           Hover over any live coin to preview its market
         </p>
       </div>

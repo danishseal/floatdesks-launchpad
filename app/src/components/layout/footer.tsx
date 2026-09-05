@@ -39,7 +39,7 @@ const SOCIAL_LINKS = [
     href: "https://www.linkedin.com/company/dottxt",
     icon: LinkedinLogo,
   },
-  { label: "X (Twitter)", href: "https://x.com/dottxtai", icon: XLogo },
+  { label: "X (Twitter)", href: "https://x.com/floatdesks", icon: XLogo },
   { label: "Discord", href: "https://discord.gg/ErZ8XnCmkQ", icon: DiscordLogo },
   { label: "GitHub", href: "https://github.com/dottxt-ai", icon: GithubLogo },
 ] as const;
