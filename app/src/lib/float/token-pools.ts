@@ -24,6 +24,7 @@ import { zeroAddress } from "viem";
 import { CURVEFUNDER_ABI } from "./abi";
 import { ERC20_ABI, publicClient } from "./chain";
 import { resolve } from "./registry";
+import { activeNetwork } from "./networks";
 import { withRetry } from "./retry";
 
 const ZERO_ID = "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -226,4 +227,106 @@ function short(v: string): string {
 
 function message(e: unknown): string {
   return e instanceof Error ? e.message.split("\n")[0] : String(e);
+}
+
+/**
+ * Canonical v4 StateView, used only when the Registry has no V4_STATE_VIEW key,
+ * which today it has on neither network. Same treatment pools.ts gives it, and
+ * for the same reason: chain infrastructure we did not deploy and cannot rotate.
+ */
+const CANONICAL_STATE_VIEW: Record<number, Address> = {
+  4663: "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
+};
+
+const SLOT0_ABI = [
+  {
+    type: "function",
+    name: "getSlot0",
+    stateMutability: "view",
+    inputs: [{ type: "bytes32" }],
+    outputs: [{ type: "uint160" }, { type: "int24" }, { type: "uint24" }, { type: "uint24" }],
+  },
+] as const;
+
+async function stateView(): Promise<Address | null> {
+  const fromRegistry = await resolve("V4_STATE_VIEW").catch(() => null);
+  if (fromRegistry) return fromRegistry;
+  return CANONICAL_STATE_VIEW[activeNetwork().chainId] ?? null;
+}
+
+/** The pool key never changes, so it is worth remembering across requests. */
+const poolsCache = new Map<string, { at: number; value: TokenPoolsResult }>();
+const POOLS_TTL_MS = 10 * 60_000;
+
+export async function poolsForTokenCached(args: {
+  launcher: Address;
+  underlying: `0x${string}`;
+  memePoolId: `0x${string}`;
+}): Promise<TokenPoolsResult> {
+  const key = `${args.launcher}:${args.memePoolId}`.toLowerCase();
+  const hit = poolsCache.get(key);
+  if (hit && Date.now() - hit.at < POOLS_TTL_MS) return hit.value;
+  const value = await poolsForToken(args);
+  if (value.pools.length) poolsCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+/**
+ * What a graduated token is worth right now, in dollars.
+ *
+ * Deliberately NOT the last point of the trade history. That answer is the same
+ * number, but getting it means scanning every log the token ever produced, and
+ * doing that for every token before the page can render turned a token page
+ * into a twenty second blank screen. The pool's price lives in one slot;
+ * `sqrtPriceX96` only moves when somebody swaps, so reading it is exact and is
+ * two calls rather than a history.
+ *
+ * Two hops, because the meme pool is priced in fSHARE: MEME per fSHARE from the
+ * meme pool, fSHARE per USDG from the token's own quote pool. A missing hop
+ * returns null so the caller keeps the curve price rather than showing a zero.
+ */
+export async function livePoolPriceUsd(pools: TokenPool[]): Promise<number | null> {
+  const meme = pools.find((p) => p.kind === "meme");
+  const quote = pools.find((p) => p.kind === "quote");
+  if (!meme || !quote || quote.usdgSide === null) return null;
+
+  const sv = await stateView();
+  if (!sv) return null;
+  const pc = publicClient();
+
+  const read = async (poolId: `0x${string}`) =>
+    (await withRetry(
+      () => pc.readContract({ address: sv, abi: SLOT0_ABI, functionName: "getSlot0", args: [poolId] }),
+      `getSlot0(${poolId.slice(0, 10)})`,
+    )) as readonly [bigint, number, number, number];
+
+  try {
+    const [m, q] = await Promise.all([read(meme.poolId), read(quote.poolId)]);
+    const memeP = price1per0(m[0], meme.decimals0, meme.decimals1);
+    const quoteP = price1per0(q[0], quote.decimals0, quote.decimals1);
+    if (!(memeP > 0) || !(quoteP > 0)) return null;
+    const usdgPerShare = quote.usdgSide === 0 ? 1 / quoteP : quoteP;
+
+    // Which side of the meme pool is the token. Currencies are ordered by
+    // address, so it is currency0 on all four launches today purely by accident
+    // of their addresses, and assuming that would invert the price the first
+    // time a token sorted the other way. The fSHARE is the currency the two
+    // pools have in common; the token is the other one.
+    const shareAddr = (quote.usdgSide === 0 ? quote.currency1 : quote.currency0).toLowerCase();
+    const tokenIsCurrency0 = meme.currency1.toLowerCase() === shareAddr;
+    if (!tokenIsCurrency0 && meme.currency0.toLowerCase() !== shareAddr) return null;
+
+    // price1per0 is currency1 per currency0, and we want fSHARE per token.
+    const sharePerToken = tokenIsCurrency0 ? memeP : 1 / memeP;
+    const usd = sharePerToken * usdgPerShare;
+    return Number.isFinite(usd) && usd > 0 ? usd : null;
+  } catch {
+    return null;
+  }
+}
+
+/** currency1 per currency0, in whole units. */
+function price1per0(sqrtPriceX96: bigint, decimals0: number, decimals1: number): number {
+  const ratio = Number(sqrtPriceX96) / 2 ** 96;
+  return ratio * ratio * 10 ** (decimals0 - decimals1);
 }

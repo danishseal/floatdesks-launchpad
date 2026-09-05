@@ -209,25 +209,35 @@ export function TradingChartCanvas({
       priceLineVisible: true,
       lastValueVisible: true,
     });
+    // No room reserved for volume, because volume has its own pane now. While
+    // it was an overlay the price scale gave up its bottom to it, and the axis
+    // went on labelling that reserved band by extrapolating BELOW the data: a
+    // price chart printing -$400. Shrinking the margin only moved the threshold
+    // (SLEEPY's low sits a tenth of the way up its own range and still went
+    // negative). A separate pane removes the reservation instead of tuning it.
     candleSeries.priceScale().applyOptions({
-      // Bottom margin reserves room for the volume overlay. It was 0.4, which
-      // on a series whose low sits a third of the way up its own range put the
-      // axis well below zero and printed negative dollars as price labels.
-      // 0.26 keeps the volume band and keeps the extrapolated axis positive for
-      // any series whose low is above a quarter of its range.
-      scaleMargins: { top: 0.1, bottom: 0.26 },
+      scaleMargins: { top: 0.1, bottom: 0.08 },
     });
     candleSeriesRef.current = candleSeries;
 
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: "volume" },
-      priceScaleId: "",
-      priceLineVisible: false,
-      lastValueVisible: false,
-    });
+    const VOLUME_PANE = 1;
+    const volumeSeries = chart.addSeries(
+      HistogramSeries,
+      {
+        priceFormat: { type: "volume" },
+        priceLineVisible: false,
+        lastValueVisible: false,
+      },
+      VOLUME_PANE,
+    );
     volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.78, bottom: 0 },
+      scaleMargins: { top: 0.2, bottom: 0 },
     });
+    // A quarter of the height, floored so it stays readable on a short chart.
+    const panes = chart.panes();
+    if (panes[VOLUME_PANE]) {
+      panes[VOLUME_PANE].setHeight(Math.max(70, Math.round(initialChartHeightRef.current * 0.22)));
+    }
     volumeSeriesRef.current = volumeSeries;
 
     // OHLCV legend on crosshair move
