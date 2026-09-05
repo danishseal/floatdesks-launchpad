@@ -59,7 +59,20 @@ function legacyLaunchers(): Address[] {
   return ["0xD55E56BeaC9527Ace861a788BaAE82e5347c6495"];
 }
 
-/** Every launcher to read, current first. */
+/**
+ * Every launcher to read, current first.
+ *
+ * Exported because enumerating tokens is not a safe way to answer "which
+ * launcher holds THIS token": `cfAllTokensDetailed` fans out one `allTokens(i)`
+ * per index and drops the ones that fail, so under RPC throttling it returns a
+ * short list that looks complete, and a token missing from it is
+ * indistinguishable from a token that does not exist. Callers who already know
+ * the address should probe `curves(token)` on these instead.
+ */
+export async function cfLaunchers(): Promise<Array<{ address: Address; superseded: boolean }>> {
+  return launchers();
+}
+
 async function launchers(): Promise<Array<{ address: Address; superseded: boolean }>> {
   const current = await curveFunderAddress();
   const legacy = legacyLaunchers()

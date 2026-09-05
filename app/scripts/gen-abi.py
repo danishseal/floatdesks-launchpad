@@ -50,16 +50,22 @@ MANIFEST = [
         "pendingRewards", "pools", "positions", "requestUnstake", "stake", "unstakeDelay",
     ]),
     ("ORACLEHUBMEDIAN_ABI", "OracleHubMedian", ["getQuote", "minPosters", "posterFreshWindow"]),
+    # CurveBuy and CurveSell are the app's only source of price history on this
+    # venue. Nothing indexes them: /candles proxied to an indexer that answers []
+    # for every token, so a token that had really traded printed "Chart will
+    # appear after first trade" over its own trade. The chart reads these logs.
     ("CURVEFUNDER_ABI", "CurveFunder", CURVE_OUT, [
         "allTokens", "buy", "creatorShareBps", "curves", "defaultTarget", "feeBps",
         "launchFeeUsdg", "launchNew", "launchToken", "listFeeUsdg", "previewBuy",
-        "previewSell", "raiseTargetOf", "sell", "tokenCount", "virtualBps",
+        "previewSell", "raiseTargetOf", "sell", "stockPoolOf", "tokenCount",
+        "virtualBps",
+        "CurveBuy", "CurveSell",
     ]),
 ]
 
 
 def members(artifact, out, wanted):
-    """The listed functions, plus EVERY custom error the contract declares.
+    """The listed functions and events, plus EVERY custom error the contract declares.
 
     The errors are not optional decoration. viem decodes a revert against the ABI
     it was handed, so an ABI of functions only turns every custom error into
@@ -67,17 +73,28 @@ def members(artifact, out, wanted):
     error-message layer went dead against that: patterns like /Graduated/ or
     /UnderlyingNotLive/ cannot match a message that never contains the name.
     Errors are a few bytes each and there is no reason to curate them.
+
+    Events are curated the same way functions are, and for the same reason the
+    errors were not: viem filters and decodes logs against the ABI it is handed,
+    so an ABI with no events cannot read a log at all. This file carried zero
+    event entries until the price chart needed CurveBuy, which is the identical
+    shape of gap the errors had, one layer over. They stay explicit rather than
+    uncurated because an event pulled in here is a claim that the app reads
+    those logs, and a name listed but absent from the artifact should fail loudly.
     """
     path = out / f"{artifact}.sol" / f"{artifact}.json"
     if not path.exists():
         sys.exit(f"missing artifact {path}. Run `forge build` in ~/float/contracts.")
     abi = json.loads(path.read_text())["abi"]
-    picked = [e for e in abi if e.get("type") == "function" and e["name"] in wanted]
+    picked = [e for e in abi if e.get("type") in ("function", "event") and e["name"] in wanted]
     found = {e["name"] for e in picked}
     if missing := set(wanted) - found:
         sys.exit(f"{artifact} has no {sorted(missing)}. Stale artifact, or the name changed.")
-    # Sort by name, then by arity so overloads stay in a stable order.
-    picked = sorted(picked, key=lambda e: (e["name"], len(e["inputs"])))
+    # Sort by name, then by arity so overloads stay in a stable order. Functions
+    # before events so an added event does not reshuffle the whole file.
+    def rank(e):
+        return (0 if e["type"] == "function" else 1, e["name"], len(e["inputs"]))
+    picked = sorted(picked, key=rank)
     errors = sorted((e for e in abi if e.get("type") == "error"), key=lambda e: e["name"])
     return picked + errors
 

@@ -233,8 +233,8 @@ export default function AnalyticsPage() {
       {o && o.unpricedDenoms.length > 0 && (
         <p className="text-[11px] leading-4 text-[var(--color-text-subtle)]">
           Volume in {o.unpricedDenoms.map((d) => denomLabel(d)).join(", ")} is shown in base
-          units and excluded from the USD totals: the indexer prices only CHANSE (no live USD
-          oracle for these denoms yet).
+          units and excluded from the USD totals: there is no live USD oracle for these
+          denoms yet.
         </p>
       )}
     </div>

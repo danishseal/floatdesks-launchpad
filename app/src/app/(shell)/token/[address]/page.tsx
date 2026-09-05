@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTokenDetail } from "@/hooks/use-token-detail";
 import { useTokenTrades } from "@/hooks/use-token-trades";
 import { useTokenHolders } from "@/hooks/use-token-holders";
+import { useTokenContracts } from "@/hooks/use-token-contracts";
+import { ContractsGrid } from "@/components/token/contracts-grid";
 import { useCandles } from "@/hooks/use-candles";
 import { TradingChartSkeleton } from "@/components/trading/trading-chart-skeleton";
 import { FloorlaunchTradePanel } from "@/components/trading/floorlaunch-trade-panel";
@@ -45,6 +47,7 @@ export default function TokenDetailPage() {
   const [chartHeight, setChartHeight] = useState(700);
   const resizeStart = useRef({ y: 0, height: 700 });
   const { data: token, isLoading, error } = useTokenDetail(address);
+  const contracts = useTokenContracts(address);
   const { data: trades } = useTokenTrades(address, 2_000);
   // Hold the last non-empty result so a transient empty refetch does not blank
   // the table, reset when the token changes. This was a ref mutated during
@@ -103,8 +106,10 @@ export default function TokenDetailPage() {
   }
 
   const solUsd = token.market.solUsd;
-  // Indexer current_price is raw price_uchanse (base micro-units per token,
-  // scaled 1e6). /1e6 -> CHANSE per token, then x oracle USD rate -> USD/token.
+  // current_price is raw quote micro-units per token, scaled 1e6. /1e6 -> quote
+  // asset per token, then x the oracle USD rate -> USD/token. On the
+  // CurveFunder venue the quote asset is USDG and solUsd is 1, so the second
+  // step is the identity.
   const price = (Number(token.current_price || 0) / 1e6) * solUsd;
   const collectibleName = (token.name ?? "collectible").replace(/\s*Floor$/i, "");
   const floorSol = token.market.cardIndexSol;
@@ -143,9 +148,18 @@ export default function TokenDetailPage() {
             <div className="min-w-0">
               <div className="flex h-8 items-center gap-1.5">
                 <p className="max-w-52 truncate text-[15px] font-bold leading-none text-[var(--color-text-primary)]">{token.name}</p>
-                <span className="shrink-0 rounded border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-1.5 py-1 text-[9px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
-                  {token.market.dbcPool ? "Meteora DBC" : token.graduated ? "AMM" : "Curve"}
-                </span>
+                {/* The pair, not the venue. "AMM" was the same word on every
+                    graduated token and said nothing about what this one is
+                    priced in; the pair names the fSHARE underneath it. Not
+                    uppercased, because the leading lowercase f in fNTDO2 is the
+                    part that says it is an fSHARE. Absent while it loads and
+                    absent if it cannot be read, rather than falling back to a
+                    category that would read as an answer. */}
+                {contracts.data?.pair && (
+                  <span className="shrink-0 rounded border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-1.5 py-1 text-[10px] font-semibold tracking-tight text-[var(--color-text-secondary)]">
+                    {contracts.data.pair}
+                  </span>
+                )}
                 {(token.listing.links?.website ||
                   token.listing.links?.twitter ||
                   token.listing.links?.telegram ||
@@ -222,6 +236,7 @@ export default function TokenDetailPage() {
         <aside className="flex min-w-0 flex-col gap-4">
           <FloorlaunchTradePanel token={token} />
           <Overview token={token} trades={visibleTrades} />
+          <ContractsGrid address={token.address} />
         </aside>
         {/* BOTTOM-LEFT: expanded info panel (Holders / Transactions) */}
         <TokenInformationPanel
@@ -307,7 +322,7 @@ function TokenInformationPanel({
         )}
 
         {tab === "transactions" && (
-          <TransactionsTable trades={trades} symbol={token.symbol ?? "TOKEN"} baseLabel={token.base_label ?? "CHANSE"} />
+          <TransactionsTable trades={trades} symbol={token.symbol ?? "TOKEN"} baseLabel={token.base_label ?? "QUOTE"} />
         )}
 
       </div>

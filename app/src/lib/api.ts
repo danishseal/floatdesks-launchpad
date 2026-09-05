@@ -510,14 +510,21 @@ export async function fetchCandles(
   limit = 300,
 ): Promise<CandleResponse> {
   const bucket = TF_SECONDS[timeframe];
-  const rows = await request<Array<{ t: number; o: number; h: number; l: number; c: number }>>(
-    `/candles?token=${tokenAddress}&bucket=${bucket}&limit=${limit}`,
-  ).catch(() => []);
+  // No .catch here. /candles is served by this app's own route now, and that
+  // route answers a non-2xx when it could not read the logs, precisely so the
+  // chart can tell "no trades" from "we could not ask". Swallowing the throw
+  // would collapse them back into the same empty chart.
+  const rows = await request<
+    Array<{ t: number; o: number; h: number; l: number; c: number; v?: number; n?: number }>
+  >(`/candles?token=${tokenAddress}&bucket=${bucket}&limit=${limit}`);
   return {
     token_address: tokenAddress,
     timeframe,
     candles: rows.map((r) => ({
-      time: r.t, open: r.o, high: r.h, low: r.l, close: r.c, volume: 0, trades: 0,
+      time: r.t, open: r.o, high: r.h, low: r.l, close: r.c,
+      // Volume is a real column now. It was hardcoded 0 here, so the canvas's
+      // volume histogram drew a flat empty row under every chart.
+      volume: r.v ?? 0, trades: r.n ?? 0,
     })),
   };
 }

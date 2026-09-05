@@ -110,7 +110,6 @@ export function TradingChartCanvas({
     const candleData: CandlestickData<UTCTimestamp>[] = [];
     const volumeData: HistogramData<UTCTimestamp>[] = [];
 
-    let prevClose: number | null = null;
     for (const candle of data.candles) {
       const ts = Math.floor(
         new Date(candle.time).getTime() / 1000,
@@ -122,16 +121,19 @@ export function TradingChartCanvas({
       const rawLow = (Number(candle.low) / 1e6) * priceMul;
       const close = (Number(candle.close) / 1e6) * priceMul;
 
-      // Carry the open forward from the previous candle's close so the series
-      // is continuous and each candle forms a real body. Without this, a bucket
-      // with a single trade has open===high===low===close and draws as an
-      // invisible flat doji; the chart looked empty even with trades. The
-      // high/low are widened to include the carried open so the body is fully
-      // enclosed.
-      const open = prevClose ?? rawOpen;
+      // The candle's own open, not the previous candle's close.
+      //
+      // This used to carry the previous close forward, to stop a single-trade
+      // bucket drawing as a flat doji back when the candle feed was empty and
+      // every bucket had at most one print in it. Against a real series it
+      // states something false: DOZE's second hour opened at $265.65 and the
+      // carried open drew it from $72.53, one candle covering a move that took
+      // an hour and four trades, and the legend read "O $269.60" on a candle
+      // whose open was $270.24. A doji is what a bucket with one trade IS, and
+      // drawing it as a line is the honest picture of that.
+      const open = rawOpen;
       const high = Math.max(rawHigh, open, close);
       const low = Math.min(rawLow, open, close);
-      prevClose = close;
 
       closes.push(close);
       candleData.push({ time: ts, open, high, low, close });
@@ -208,7 +210,12 @@ export function TradingChartCanvas({
       lastValueVisible: true,
     });
     candleSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.1, bottom: 0.4 },
+      // Bottom margin reserves room for the volume overlay. It was 0.4, which
+      // on a series whose low sits a third of the way up its own range put the
+      // axis well below zero and printed negative dollars as price labels.
+      // 0.26 keeps the volume band and keeps the extrapolated axis positive for
+      // any series whose low is above a quarter of its range.
+      scaleMargins: { top: 0.1, bottom: 0.26 },
     });
     candleSeriesRef.current = candleSeries;
 
@@ -219,7 +226,7 @@ export function TradingChartCanvas({
       lastValueVisible: false,
     });
     volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.7, bottom: 0 },
+      scaleMargins: { top: 0.78, bottom: 0 },
     });
     volumeSeriesRef.current = volumeSeries;
 

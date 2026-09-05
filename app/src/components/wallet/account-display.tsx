@@ -12,10 +12,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { activeNetwork } from "@/lib/float/networks";
+import { floatChain } from "@/lib/float/chain";
 
 function truncateAddress(address: string): string {
   if (address.length <= 12) return address;
   return `${address.slice(0, 5)}...${address.slice(-4)}`;
+}
+
+/**
+ * What the two balances are called.
+ *
+ * They were labelled CHANSE and "Floatdesk", which are ansem-1's token and this
+ * app's own name: the wallet reads a USDG balance and a native gas balance and
+ * announced neither. Both come from the active network now, because a ticker
+ * typed in as a literal is how the previous pair survived a chain migration.
+ */
+function quoteTicker(): string {
+  return activeNetwork().quoteSymbol;
+}
+
+function nativeTicker(): string {
+  return floatChain().nativeCurrency.symbol;
 }
 
 function formatSol(balance: number): string {
@@ -67,8 +85,8 @@ export function AccountDisplay({
             <>
               <Wallet size={17} weight="fill" className="shrink-0 text-[var(--color-text-secondary)]" />
               <span className="flex min-w-0 flex-col items-start font-sans text-[12px] font-semibold leading-tight">
-                <span className="truncate">{balance === null ? "-" : formatSol(balance)} CHANSE</span>
-                <span className="truncate text-[var(--color-text-secondary)]">{nativeBalance ? formatSol(nativeBalance) : "0"} Floatdesk</span>
+                <span className="truncate">{balance === null ? "-" : formatSol(balance)} {quoteTicker()}</span>
+                <span className="truncate text-[var(--color-text-secondary)]">{nativeBalance ? formatSol(nativeBalance) : "0"} {nativeTicker()}</span>
               </span>
             </>
           ) : (
@@ -78,8 +96,8 @@ export function AccountDisplay({
                 <>
                   <span className="shrink-0 text-[var(--color-text-subtle)]">|</span>
                   <span className="shrink-0">
-                    {formatSol(balance)} CHANSE
-                    {nativeBalance ? ` · ${formatSol(nativeBalance)} Floatdesk` : ""}
+                    {formatSol(balance)} {quoteTicker()}
+                    {nativeBalance ? ` · ${formatSol(nativeBalance)} ${nativeTicker()}` : ""}
                   </span>
                 </>
               )}
@@ -110,15 +128,15 @@ export function AccountDisplay({
         </div>
         <div className="mb-1 space-y-1.5 rounded-lg bg-[var(--color-bg-raised)] px-3 py-2.5 text-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[var(--color-text-muted)]">CHANSE balance</span>
+            <span className="text-[var(--color-text-muted)]">{quoteTicker()} balance</span>
             <span className="font-semibold text-[var(--color-text-primary)]">
-              {balance === null ? "-" : `${formatSol(balance)} CHANSE`}
+              {balance === null ? "-" : `${formatSol(balance)} ${quoteTicker()}`}
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[var(--color-text-muted)]">Floatdesk balance</span>
+            <span className="text-[var(--color-text-muted)]">{nativeTicker()} balance</span>
             <span className="font-semibold text-[var(--color-text-primary)]">
-              {nativeBalance ? `${formatSol(nativeBalance)} Floatdesk` : "0 Floatdesk"}
+              {nativeBalance ? `${formatSol(nativeBalance)} ${nativeTicker()}` : `0 ${nativeTicker()}`}
             </span>
           </div>
         </div>
