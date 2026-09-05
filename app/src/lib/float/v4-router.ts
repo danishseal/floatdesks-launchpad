@@ -19,44 +19,38 @@
  * Tokens reach the router through Permit2, which is two approvals the first
  * time (token -> Permit2, then Permit2 -> router) and none afterwards.
  *
- * STATUS. Quoting works and is wired. EXECUTION IS NOT: every encoding I tried
- * reverts inside the v4 swap with empty revert data. What is established, so
- * the next attempt does not redo it:
- *   - the route and both pool keys are right, because the V4 Quoter prices the
- *     exact same path and returns a sane number;
- *   - Permit2 is approved both hops (token -> Permit2 -> router), confirmed on
- *     chain;
- *   - 0x10 IS a valid command on this router: a bogus command reverts with a
- *     signature while 0x10 reverts empty, so it dispatches and fails inside;
- *   - the router embeds the PoolManager in its bytecode, so it is v4-capable;
- *   - SETTLE_ALL and SETTLE-with-payerIsUser both fail the same way, as do
- *     single-hop and two-hop.
- * Then traced on a fork of 4663, which narrowed it a lot. The call reaches
- * PoolManager.unlock and the router's own unlockCallback, and dies THERE, in
- * about 3,600 gas, long before any swap could run:
+ * STATUS. Quoting and execution both work. Execution took some finding, so the
+ * fault is written down here, because its shape will recur on any other
+ * periphery call this chain answers.
  *
- *   execute -> PoolManager.unlock -> UniversalRouter.unlockCallback
- *     -> PoolManager.exttload(0xb6c9ae9507e479affc57925575e1fa2f48b88a5d7959cb0e68ab658eaadc3982)
- *        returns 0
- *     -> revert, no data
+ * Every encoding of a v4 swap reverted with EMPTY data inside the router's own
+ * unlockCallback, before any swap could run. Empty revert data is not a
+ * contract saying no; it is solc's calldata bounds check, `revert(0, 0)`.
+ * Tracing the router's opcodes on a fork of 4663 and reading every calldata
+ * word it loaded gave the answer directly:
  *
- * So the first action never executes: the callback reads ONE transient slot,
- * gets zero, and gives up. That is the shape of a delta or credit check
- * failing on an empty delta, which is what v4-periphery does when an amount
- * decodes as OPEN_DELTA (zero). The slot is NOT keccak(target ++ currency) for
- * the router or the caller against USDG, DOZE or the fSHARE, so it is not a
- * plain currency delta and I did not identify it further.
+ *   struct at 0x184   currencyIn  read at +0x00   as we encoded it
+ *                     path        read at +0x20   as we encoded it
+ *                     +0x40                       bounds-checked as a DYNAMIC member
+ *                     amountIn    read at +0x60   where we had put amountOutMinimum
  *
- * Reproduce in one command against a fork:
- *   anvil --fork-url https://rpc.mainnet.chain.robinhood.com --port 8465
- *   ACTIONS=0x070c0f bun scripts/fork-calldata.ts   # prints the calldata
- *   cast send <router> <calldata> --gas-limit 2000000 --rpc-url http://127.0.0.1:8465
- *   cast run <txhash> --rpc-url http://127.0.0.1:8465
+ * So this router's ExactInputParams carries one more dynamic field between
+ * `path` and `amountIn` than current v4-periphery defines. Encoding without it
+ * shifted amountIn by a word: the router read zero, treated zero as OPEN_DELTA,
+ * reached for a credit it did not have (that is the exttload of
+ * keccak256(abi.encode(router, USDG)), its own USDG delta), and then failed the
+ * bounds check on our amountIn, read as an offset into calldata.
  *
- * So the fault is in the action parameter encoding, not the route, the
- * approvals or the router. buyGraduated/sellGraduated are left exported but
- * are NOT wired to any button, because a Trade button that reverts is worse
- * than one that is honest about not being ready.
+ * Ruled out along the way, so nobody pays for it twice: the route and both pool
+ * keys are right, since the V4 Quoter prices the same path and, once the swap
+ * ran, matched its output to the digit; Permit2 is approved on both hops; 0x10
+ * is a valid command; the action bytes are the CURRENT enumeration, because
+ * action 0x05 comes back as UnsupportedAction(5); and SETTLE_ALL and TAKE_ALL
+ * on their own both execute, which is what cleared the envelope and left the
+ * swap params as the only suspect.
+ *
+ * Verified on a fork of 4663: 0.5 USDG in, 1808679989192451723322300 DOZE out,
+ * status 1. Reproduce both directions with `bun scripts/fork-swap.ts`.
  */
 
 import { encodeAbiParameters, parseAbi, type Address, type Hex } from "viem";
@@ -197,17 +191,24 @@ function encodeSwap(
   amountOutMin: bigint,
   currencyOut: Address,
 ): { commands: Hex; inputs: Hex[] } {
+  // The extra dynamic member is not in current v4-periphery's ExactInputParams,
+  // but this router's decoder reads amountIn a word later than that struct puts
+  // it and bounds-checks this slot as dynamic. See the STATUS note at the top
+  // for the trace. Empty is the right value whichever field it is: an empty
+  // `bytes` and an empty `bytes[]` encode identically, and none of these pools
+  // has a hook to carry data for.
   const swapParams = encodeAbiParameters(
     [{
       type: "tuple",
       components: [
         { name: "currencyIn", type: "address" },
         { name: "path", ...PATH_KEY_TUPLE },
+        { name: "extra", type: "bytes" },
         { name: "amountIn", type: "uint128" },
         { name: "amountOutMinimum", type: "uint128" },
       ],
     }],
-    [{ currencyIn, path, amountIn, amountOutMinimum: amountOutMin }] as never,
+    [{ currencyIn, path, extra: "0x", amountIn, amountOutMinimum: amountOutMin }] as never,
   );
   const settle = encodeAbiParameters(
     [{ type: "address" }, { type: "uint256" }],
@@ -265,13 +266,33 @@ export async function ensurePermit2(account: Address, token: Address, amount: bi
   }
 }
 
+/**
+ * The exact bytes a buy or a sell sends, with no wallet involved. Exported so a
+ * fork can exercise the real encoder instead of a copy of it, which is how the
+ * struct mismatch above stayed hidden for as long as it did.
+ */
+export function swapCalldata(
+  route: SwapRoute, direction: "buy" | "sell", amountIn: bigint, minOut: bigint,
+): { commands: Hex; inputs: Hex[] } {
+  return direction === "buy"
+    ? encodeSwap(
+        route.usdg,
+        [pathKey(route.quotePool, route.fshare), pathKey(route.memePool, route.token)],
+        amountIn, minOut, route.token,
+      )
+    : encodeSwap(
+        route.token,
+        [pathKey(route.memePool, route.fshare), pathKey(route.quotePool, route.usdg)],
+        amountIn, minOut, route.usdg,
+      );
+}
+
 /** Buy a graduated token with USDG, two hops. */
 export async function buyGraduated(
   account: Address, route: SwapRoute, usdgIn: bigint, minOut: bigint,
 ) {
   await ensurePermit2(account, route.usdg, usdgIn);
-  const path = [pathKey(route.quotePool, route.fshare), pathKey(route.memePool, route.token)];
-  const { commands, inputs } = encodeSwap(route.usdg, path, usdgIn, minOut, route.token);
+  const { commands, inputs } = swapCalldata(route, "buy", usdgIn, minOut);
   return send(account, commands, inputs);
 }
 
@@ -280,8 +301,7 @@ export async function sellGraduated(
   account: Address, route: SwapRoute, tokensIn: bigint, minOut: bigint,
 ) {
   await ensurePermit2(account, route.token, tokensIn);
-  const path = [pathKey(route.memePool, route.fshare), pathKey(route.quotePool, route.usdg)];
-  const { commands, inputs } = encodeSwap(route.token, path, tokensIn, minOut, route.usdg);
+  const { commands, inputs } = swapCalldata(route, "sell", tokensIn, minOut);
   return send(account, commands, inputs);
 }
 
