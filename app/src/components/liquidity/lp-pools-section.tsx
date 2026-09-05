@@ -36,6 +36,11 @@ export interface LpPoolRow {
   sqrtPriceX96: string;
   tick: number;
   liquidity: string;
+  /**
+   * What the active liquidity IS, in tokens, computed server side. L lives in
+   * sqrt-price space and is not an amount of anything, so it is not shown.
+   */
+  inRange?: { amount0: number; amount1: number; usdg: number | null; bandPct: number };
   lpFeeBps: number;
   /** Which currency is USDG, or null if the pool holds none. Never infer from the index. */
   usdgSide: 0 | 1 | null;
@@ -82,18 +87,25 @@ function num(n: number, max = 6) {
   return n.toLocaleString("en-US", { maximumFractionDigits: max });
 }
 
-/** Liquidity is a 1e18-ish integer; show its magnitude, not 20 digits. */
-function liq(raw: string) {
-  const n = Number(BigInt(raw));
+/**
+ * A dollar figure for the USDG side, and a token figure for the other.
+ *
+ * Deliberately not abbreviated with K/M/B suffixes. The number this replaced
+ * was abbreviated, and "56,886,259.95Q" is exactly how a quantity that is not
+ * a quantity passes for a large amount of money. At the sizes these pools
+ * actually hold, the full figure is short anyway.
+ */
+function money(n: number) {
+  if (!Number.isFinite(n)) return "unmeasured";
+  if (n > 0 && n < 0.01) return "<$0.01";
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function tok(n: number) {
+  if (!Number.isFinite(n)) return "unmeasured";
   if (n === 0) return "0";
-  const units = ["", "K", "M", "B", "T", "Q"];
-  let i = 0;
-  let v = n;
-  while (v >= 1000 && i < units.length - 1) {
-    v /= 1000;
-    i++;
-  }
-  return `${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}${units[i]}`;
+  if (n < 0.0001) return n.toExponential(2);
+  return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
 
 export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Props) {
@@ -153,7 +165,7 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
           <span className={styles.columnLabel}>Route</span>
           <span className={styles.columnLabel}>Fee</span>
           <span className={styles.columnLabel}>Price</span>
-          <span className={styles.columnLabel}>Active liquidity</span>
+          <span className={styles.columnLabel}>Quoting now</span>
           <span />
         </div>
 
@@ -198,8 +210,25 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
             </div>
 
             <div>
-              <span className={styles.value}>{liq(p.liquidity)}</span>
-              <span className={styles.sub}>at tick {p.tick.toLocaleString("en-US")}</span>
+              {p.inRange ? (
+                <>
+                  <span className={styles.value}>
+                    {p.inRange.usdg === null ? tok(p.inRange.amount0) : money(p.inRange.usdg)}
+                  </span>
+                  <span className={styles.sub}>
+                    {p.inRange.usdg === null
+                      ? `${p.symbol0} + ${tok(p.inRange.amount1)} ${p.symbol1}`
+                      : `+ ${tok(p.usdgSide === 0 ? p.inRange.amount1 : p.inRange.amount0)} ${
+                          p.usdgSide === 0 ? p.symbol1 : p.symbol0
+                        }`}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className={styles.value}>unmeasured</span>
+                  <span className={styles.sub}>the amounts did not come back</span>
+                </>
+              )}
             </div>
 
             <div className={styles.actions}>
@@ -239,10 +268,14 @@ export function LpPoolsSection({ pools, unreadable = [], onAdd, onRemove }: Prop
         ))}
 
         <p className={styles.note}>
-          Active liquidity is what is quoting at the current tick, read from the pool. It is not
-          the dollar value of the pool: that would need every position&apos;s range, which a pool id
-          does not expose. Nothing indexes swaps on these pools yet, so there is no volume figure
-          to show.
+          Quoting now is the liquidity sitting in the price range that currently contains spot,
+          converted to tokens. It is what a trade would meet before the price leaves that range,
+          roughly {ordered[0]?.inRange ? `${ordered[0].inRange.bandPct.toFixed(1)}%` : "one tick step"}{" "}
+          wide here. It is NOT the pool&apos;s total value: positions outside the live range are
+          real and are not counted, and a pool id does not expose them. This column used to print
+          the raw liquidity number, which is not an amount of anything and read as a fortune where
+          the honest figure is a few dollars. Nothing indexes swaps on these pools yet, so there is
+          no volume figure to show.
         </p>
 
         {unreadable.length > 0 ? (
