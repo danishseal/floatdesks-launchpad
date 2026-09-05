@@ -73,14 +73,20 @@ export const NETWORKS: Record<string, FloatNetwork> = {
     explorer: "https://explorer.chain.robinhood.com",
     registry: "0x7134d98596490838FC16e8CA16bC2FDd57aD3202",
     indexer: "/api/float",
-    indexerOrigin: "http://localhost:8463",
+    // val1, systemd unit float-indexer, reachable from Vercel's server side.
+    // The BROWSER never touches this: it calls this app's /api/float proxy, so
+    // plain http here is not mixed content. It serves public chain data only.
+    indexerOrigin: "http://195.72.61.234:8463",
     quoteSymbol: "USDG",
     venue: "curve-funder",
     testnet: false,
   },
 };
 
-export const DEFAULT_NETWORK = "float-testnet";
+// Mainnet is the default from 2026-09-05: the 36 genesis markets are listed on
+// 4663 and the testnet deployment has ten unrelated ones, so a visitor landing
+// on testnet sees a different product. Override with NEXT_PUBLIC_FLOAT_NETWORK.
+export const DEFAULT_NETWORK = "float-mainnet";
 const STORAGE_KEY = "float-network";
 
 /**
