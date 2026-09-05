@@ -70,7 +70,10 @@ export const NETWORKS: Record<string, FloatNetwork> = {
     label: "Robinhood Chain",
     chainId: 4663,
     rpc: "https://rpc.mainnet.chain.robinhood.com",
-    explorer: "https://explorer.chain.robinhood.com",
+    // Blockscout. explorer.chain.robinhood.com does not resolve at all, so every
+    // contract link on the mainnet board was dead. This is the same host the
+    // catalogue in ~/float/data was assembled from.
+    explorer: "https://robinhoodchain.blockscout.com",
     registry: "0x7134d98596490838FC16e8CA16bC2FDd57aD3202",
     indexer: "/api/float",
     // val1, systemd unit float-indexer, reachable from Vercel's server side.
