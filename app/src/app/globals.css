@@ -196,16 +196,21 @@
       opacity: 0;
       transform: translateY(4px);
     }
-    /* `to` intentionally omits transform so the element does NOT keep a lingering
-       transform after the animation. A persisted transform creates a stacking
-       context on every faded card, which traps absolute dropdowns (the repost
-       menu) behind later sibling cards. The slide-in still animates to 0. */
+    /* `to` omits transform, but that alone does NOT stop a lingering one: the
+       animation still interpolates toward the underlying value and the computed
+       result at 100% is matrix(1,0,0,1,0,0), an identity matrix, which is still
+       a transform. With fill-mode `both` that got held forever, so every faded
+       card kept the stacking context this comment was written to avoid and went
+       on trapping the repost dropdown behind later siblings. The fill mode below
+       is what actually fixes it. */
     to {
       opacity: 1;
     }
   }
   .ansem-fade-in {
-    animation: ansem-fade-in 0.28s ease-out both;
+    /* `backwards`, not `both`. The end state IS the element's resting state, so
+       there is nothing to hold; holding it is what left the transform behind. */
+    animation: ansem-fade-in 0.28s ease-out backwards;
   }
 
   /* Horns explorer: animate the detail panel swapping between Horns. */

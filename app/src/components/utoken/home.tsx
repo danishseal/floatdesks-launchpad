@@ -9,9 +9,14 @@ import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import { type TokenListItem,
   graduationProgress,
 } from "@/lib/api";
+import styles from "./home.module.css";
 
 export function UtokenHome() {
   const { data: tokens, isLoading } = useTokens();
+  // Sticky on purpose. The preview sits above the grid, so clearing it on
+  // mouse-out destroyed it the moment you moved the cursor toward it: it could
+  // be glimpsed but never read. A hovered coin stays selected until another
+  // coin takes its place.
   const [previewAddress, setPreviewAddress] = useState<string | null>(null);
 
   const ranked = useMemo(
@@ -48,7 +53,7 @@ export function UtokenHome() {
             ))}
           </div>
         ) : (
-          <FeaturedGrid items={featured} onPreview={setPreviewAddress} />
+          <FeaturedGrid items={featured} activeAddress={previewAddress} onPreview={setPreviewAddress} />
         )}
       </section>
 
@@ -74,8 +79,10 @@ function TokenPreviewBanner({
   const progress = graduationProgress(token) ?? 4;
 
   return (
-    <section className="grid overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:h-[420px] lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.7fr)]" aria-label={`${token.name} live market preview`} aria-live="polite">
-      <div className="flex min-h-[250px] min-w-0 flex-col border-b border-[var(--color-border-soft)] p-5 lg:min-h-0 lg:border-b-0 lg:border-r">
+    <section className={`${styles.previewSpawn} grid overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:h-[420px] lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.7fr)]`} aria-label={`${token.name} live market preview`} aria-live="polite">
+      {/* Keyed by address so the two columns replay the swap cue on a coin
+          change. The section itself is not keyed, so it spawns once. */}
+      <div key={`chart-${token.address}`} className={`${styles.previewSwap} flex min-h-[250px] min-w-0 flex-col border-b border-[var(--color-border-soft)] p-5 lg:min-h-0 lg:border-b-0 lg:border-r`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--color-text-muted)]">Live market preview</p>
@@ -100,11 +107,11 @@ function TokenPreviewBanner({
 
         <div className="mt-2 flex shrink-0 items-center justify-between gap-4 font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
           <span>Recent price · 1h candles</span>
-          <span>Hover a coin below to inspect</span>
+          <span>Hover another coin below to switch</span>
         </div>
       </div>
 
-      <aside className="flex min-h-0 min-w-0 flex-col p-5">
+      <aside key={`stats-${token.address}`} className={`${styles.previewSwap} flex min-h-0 min-w-0 flex-col p-5`}>
         <div className="flex shrink-0 items-start gap-3 border-b border-[var(--color-border-soft)] pb-3">
           <div className="h-11 w-11 shrink-0 overflow-hidden bg-[var(--color-bg-raised)]">
             {token.image ? (
@@ -142,10 +149,6 @@ function TokenPreviewBanner({
           <div className="mt-2 h-1.5 bg-[var(--color-bg-raised)]">
             <div className="h-full bg-[var(--color-accent-solid)]" style={{ width: `${progress}%` }} />
           </div>
-          <Link href={`/token/${token.address}`} className="mt-3 flex h-9 items-center justify-between bg-[var(--color-text-primary)] px-3 font-mono text-[11px] font-semibold text-[var(--color-bg-surface)] hover:bg-[var(--color-accent-solid)]">
-            <span>Open full market</span>
-            <span aria-hidden="true">↗</span>
-          </Link>
         </div>
       </aside>
     </section>
@@ -180,10 +183,12 @@ function StarterBanner() {
 
 function FeaturedGrid({
   items,
+  activeAddress,
   onPreview,
 }: {
   items: TokenListItem[];
-  onPreview: (address: string | null) => void;
+  activeAddress: string | null;
+  onPreview: (address: string) => void;
 }) {
   if (items.length === 0) {
     return (
@@ -197,13 +202,14 @@ function FeaturedGrid({
     <div
       className="grid grid-cols-1 overflow-hidden border border-[var(--color-border)] bg-[var(--color-border-soft)] sm:grid-cols-2 lg:grid-cols-4"
       aria-label="Live coins"
-      onMouseLeave={() => onPreview(null)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) onPreview(null);
-      }}
     >
       {items.map((token) => (
-        <FeaturedCard key={token.address} token={token} onPreview={onPreview} />
+        <FeaturedCard
+          key={token.address}
+          token={token}
+          active={token.address === activeAddress}
+          onPreview={onPreview}
+        />
       ))}
     </div>
   );
@@ -211,10 +217,12 @@ function FeaturedGrid({
 
 function FeaturedCard({
   token,
+  active,
   onPreview,
 }: {
   token: TokenListItem;
-  onPreview: (address: string | null) => void;
+  active: boolean;
+  onPreview: (address: string) => void;
 }) {
   const change = token.price_change_24h;
   const graduated = token.graduated;
@@ -225,7 +233,15 @@ function FeaturedCard({
       href={`/token/${token.address}`}
       onMouseEnter={() => onPreview(token.address)}
       onFocus={() => onPreview(token.address)}
-      className="group relative flex min-w-0 flex-col border-b border-r border-[var(--color-border-soft)] bg-[var(--color-bg-page)] hover:z-10 hover:bg-[var(--color-bg-surface)] hover:shadow-[inset_0_-3px_0_var(--color-accent-solid)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent-solid)]"
+      // The selection outlives the hover now, so the card the panel is showing
+      // keeps the hover treatment. Without it nothing on the page says which of
+      // the coins the preview belongs to.
+      aria-current={active ? "true" : undefined}
+      className={`group relative flex min-w-0 flex-col border-b border-r border-[var(--color-border-soft)] hover:z-10 hover:bg-[var(--color-bg-surface)] hover:shadow-[inset_0_-3px_0_var(--color-accent-solid)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent-solid)] ${
+        active
+          ? "z-10 bg-[var(--color-bg-surface)] shadow-[inset_0_-3px_0_var(--color-accent-solid)]"
+          : "bg-[var(--color-bg-page)]"
+      }`}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-[var(--color-bg-raised)]">
         {token.image ? (

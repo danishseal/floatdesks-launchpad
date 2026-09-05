@@ -1,0 +1,50 @@
+/* Motion for the live market preview panel. Two separate cues on purpose:
+   the panel arriving out of nothing is a bigger event than the panel changing
+   which coin it is showing. */
+
+/* First hover of the session: the panel replaces the starter banner, so it gets
+   the full spawn. Fill is `backwards`, not `both`: `both` holds the last
+   keyframe forever, and even a transform that has interpolated back to the
+   identity matrix is still a transform, so the panel would keep a stacking
+   context for the rest of the page's life. Omitting transform from `to` is not
+   enough on its own, since the interpolation to the underlying value is what
+   gets frozen. Nothing needs holding here anyway: the end state is the panel's
+   own resting state. */
+@keyframes previewSpawn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.previewSpawn {
+  animation: previewSpawn 0.34s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Moving the cursor across the grid crosses several cards on the way to the one
+   you want. Replaying the full spawn for each of them reads as a flicker, so a
+   coin change only re-plays this shorter, flatter cue on the contents while the
+   panel itself stays put. */
+@keyframes previewSwap {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.previewSwap {
+  animation: previewSwap 0.2s ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .previewSpawn,
+  .previewSwap {
+    animation: none;
+  }
+}
