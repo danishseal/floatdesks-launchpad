@@ -14,7 +14,7 @@ import {
   type WalletClient,
 } from "viem";
 import { activeNetwork } from "./networks";
-import { resolve } from "./registry";
+import { resolve, tryResolve } from "./registry";
 import {
   DESK_ABI,
   LISTINGS_ABI,
@@ -459,19 +459,49 @@ export async function funderAcceptsContribution(assetId: `0x${string}`): Promise
  *
  * This mirrors buy()'s own conditions so the offer and the transaction agree:
  * Halted, then settleOnly (status SettleOnly OR a stale oracle) for a
- * skew-increasing trade, then the listed OI cap.
+ * skew-increasing trade, then the OI cap.
+ *
+ * The cap is measured the way Desk._effectiveCap measures it: the listed cap
+ * PLUS StakeVaults.capBoostQuote, at the ORACLE price rather than the mark.
+ * Both corrections are invisible today (nothing is staked, and the premium has
+ * decayed to zero, so boost is 0 and mark == px) and both would have made this
+ * refuse trades the chain allows the moment either changed.
  *
  * Returns null when the trade would go through, or a reason when it would not.
  */
+/**
+ * The cap a buy is actually measured against: Desk._effectiveCap adds
+ * StakeVaults.capBoostQuote to the listed cap, but only for a long-side
+ * position, and only when the registry has a STAKE_VAULTS.
+ *
+ * Returns null when the boost cannot be read, which is not the same as zero:
+ * the caller declines to judge the cap rather than judge it against the wrong
+ * number.
+ */
+async function effectiveOiCap(
+  assetId: `0x${string}`, listedCap: bigint, px: bigint, after: bigint,
+): Promise<bigint | null> {
+  if (after <= 0n) return listedCap;
+  const sv = await tryResolve("STAKE_VAULTS");
+  if (!sv) return listedCap; // no STAKE_VAULTS in the registry, no boost, same as the Desk
+  try {
+    const boost = (await publicClient().readContract({
+      address: sv, abi: STAKEVAULTS_ABI, functionName: "capBoostQuote", args: [assetId, px],
+    })) as bigint;
+    return listedCap + boost;
+  } catch {
+    return null;
+  }
+}
+
 export async function deskBuyRefusal(
   assetId: `0x${string}`, quoteIn: bigint,
 ): Promise<string | null> {
   try {
-    const [l, oracle, oi, mark] = await Promise.all([
+    const [l, oracle, oi] = await Promise.all([
       getListing(assetId),
       oracleQuote(assetId),
       netOI(assetId),
-      markPx(assetId),
     ]);
     if (l.status === 2) return "this market is halted";
 
@@ -490,11 +520,14 @@ export async function deskBuyRefusal(
         : "its price feed is stale, so it can only be traded down until the oracle catches up";
     }
     if (increasing) {
-      // Notional at the mark against the LISTED cap. StakeVaults can raise the
-      // real cap, so this only reports a refusal it is sure of.
-      const notional = (abs(after) * mark) / (10n ** 18n) / 100n;
-      if (notional > l.oiCapQuote) {
-        return "this trade would push the market past its open-interest cap";
+      const cap = await effectiveOiCap(assetId, l.oiCapQuote, oracle.price, after);
+      // Not knowing the boost is not knowing the cap, so no refusal is claimed.
+      if (cap !== null) {
+        // _notional(base, px, qScale): base * px * 1e6 / (1e8 * 1e18).
+        const notional = (abs(after) * oracle.price) / (10n ** 20n);
+        if (notional > cap) {
+          return "this trade would push the market past its open-interest cap";
+        }
       }
     }
     return null;
