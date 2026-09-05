@@ -42,6 +42,19 @@ const RETIRED_LAUNCHERS: Record<number, Address[]> = {
   4663: ["0xD55E56BeaC9527Ace861a788BaAE82e5347c6495"],
 };
 
+/// Canonical v4 StateView per chain, used only when the Registry has no
+/// V4_STATE_VIEW key, which today it does not on either network. This is the
+/// same treatment `contracts/src/v4/V4Addresses.sol` already gives the
+/// PoolManager: chain infrastructure that we did not deploy and cannot rotate,
+/// with the Registry still winning if somebody ever registers it.
+const CANONICAL_STATE_VIEW: Record<number, Address> = {
+  4663: "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
+};
+
+async function stateViewAddress(): Promise<Address | null> {
+  return (await tryResolve("V4_STATE_VIEW")) ?? CANONICAL_STATE_VIEW[activeNetwork().chainId] ?? null;
+}
+
 const CURVE_FUNDER_ABI = [
   { type: "function", name: "tokenCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "allTokens", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "address" }] },
@@ -170,11 +183,14 @@ export async function lpPools(): Promise<LpPoolsResult> {
   const unreadable: LpPoolsResult["unreadable"] = [];
 
   const [stateView, usdg, listings] = await Promise.all([
-    resolve("V4_STATE_VIEW").catch(() => null),
+    stateViewAddress(),
     resolve("USDG"),
     resolve("LISTINGS"),
   ]);
-  if (!stateView) return { pools, unreadable };
+  if (!stateView) {
+    unreadable.push({ poolId: "-", reason: "no V4_STATE_VIEW in the registry and no canonical one for this chain" });
+    return { pools, unreadable };
+  }
 
   for (const { address: cf, retired } of await launchers()) {
     let count = 0n;
