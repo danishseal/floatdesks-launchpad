@@ -9,7 +9,7 @@ import {
 } from "./use-pools";
 import styles from "./liquidity.module.css";
 import { TokenPair } from "./token-pair";
-import { DeskHookSection, type HookPoolRow } from "./desk-hook-section";
+import { DeskHookSection, type HookPoolRow, type HookUnreadable } from "./desk-hook-section";
 
 /**
  * The liquidity board.
@@ -36,15 +36,24 @@ export function LiquidityMarket() {
   // that reverts cannot take down the vault board people actually deposit into.
   // Empty is the normal answer: the hook is not deployed on any real network yet.
   const [hook, setHook] = useState<{
+    address: string | null;
     pools: HookPoolRow[];
+    unreadable: HookUnreadable[];
     quote: { symbol: string; decimals: number } | null;
-  }>({ pools: [], quote: null });
+  }>({ address: null, pools: [], unreadable: [], quote: null });
 
   useEffect(() => {
     let live = true;
     fetch("/api/float/hook-pools")
       .then((r) => r.json())
-      .then((d) => { if (live) setHook({ pools: d.pools ?? [], quote: d.quote ?? null }); })
+      .then((d) => {
+        if (live) setHook({
+          address: d.hook ?? null,
+          pools: d.pools ?? [],
+          unreadable: d.unreadable ?? [],
+          quote: d.quote ?? null,
+        });
+      })
       .catch(() => { /* section stays absent */ });
     return () => { live = false; };
   }, []);
@@ -65,9 +74,13 @@ export function LiquidityMarket() {
       ) : null}
       <Summary data={data} />
       <DeskVaultCard data={data} />
-      {hook.quote && hook.pools.length > 0 ? (
+      {/* Gate on the hook EXISTING, not on pools being non-empty. Gating on
+          pools meant a hook whose pools were all unreadable rendered exactly
+          like a deployment with no hook at all. */}
+      {hook.address && hook.quote && (hook.pools.length > 0 || hook.unreadable.length > 0) ? (
         <DeskHookSection
           pools={hook.pools}
+          unreadable={hook.unreadable}
           quoteSymbol={hook.quote.symbol}
           quoteDecimals={hook.quote.decimals}
         />

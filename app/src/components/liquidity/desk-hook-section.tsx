@@ -44,10 +44,18 @@ export interface HookPoolRow {
   rungs: number;
 }
 
+export interface HookUnreadable {
+  poolId: string;
+  assetId?: string;
+  reason: string;
+}
+
 interface Props {
   pools: HookPoolRow[];
   quoteSymbol: string;
   quoteDecimals: number;
+  /** Pools the hook holds but we could not read, with why. Normally empty. */
+  unreadable?: HookUnreadable[];
 }
 
 function usd(raw: string, decimals: number, digits = 2) {
@@ -63,8 +71,11 @@ function bps(n: number) {
   return `${(n / 100).toFixed(2)}%`;
 }
 
-export function DeskHookSection({ pools, quoteSymbol, quoteDecimals }: Props) {
-  if (pools.length === 0) return null;
+export function DeskHookSection({ pools, quoteSymbol, quoteDecimals, unreadable = [] }: Props) {
+  // A hook whose pools all failed to read must NOT disappear: vanishing is how
+  // "there are no pools" and "there are pools I could not read" become the same
+  // statement. Absent only when there is genuinely nothing to say.
+  if (pools.length === 0 && unreadable.length === 0) return null;
 
   const book = pools.reduce((a, p) => a + Number(BigInt(p.tvlQuote)), 0) / 10 ** quoteDecimals;
   const working = pools.filter((p) => p.scarcityAskTicks > 0 || p.scarcityBidTicks > 0).length;
@@ -192,6 +203,13 @@ export function DeskHookSection({ pools, quoteSymbol, quoteDecimals }: Props) {
           and no reward epoch. Volume and fees are lifetime totals read from the pool itself.
         </p>
       </div>
+      {unreadable.length > 0 ? (
+        <div className={styles.note}>
+          {unreadable.length} pool{unreadable.length === 1 ? "" : "s"} on this hook
+          could not be read and {unreadable.length === 1 ? "is" : "are"} not shown:{" "}
+          {unreadable.map((u) => `${u.poolId.slice(0, 10)}… (${u.reason})`).join("; ")}
+        </div>
+      ) : null}
     </section>
   );
 }
