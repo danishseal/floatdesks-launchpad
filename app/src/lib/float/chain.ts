@@ -339,8 +339,29 @@ async function send(
   return wc.writeContract({ ...request, account: signer } as never);
 }
 
+/**
+ * Wait for a transaction, and refuse a reverted one.
+ *
+ * viem RESOLVES waitForTransactionReceipt with status "reverted" rather than
+ * throwing, so every `await waitFor(hash)` followed by a past-tense toast was
+ * reporting a revert as a completed action: "Deposited $500 into the Desk."
+ * over a transaction that moved nothing.
+ *
+ * Every write here simulates first, which makes that rare rather than
+ * impossible. The conditions simulate checks are all re-evaluated at inclusion:
+ * the OI cap, minBaseOut against a moving oracle, and staleness. Anything
+ * landing between the simulate and the block reverts a transaction that
+ * simulated clean, and this is the app whose whole afternoon was spent on the
+ * gap between a poll and a call.
+ *
+ * Throwing puts it on the caller's existing error path, so no call site changes.
+ */
 export async function waitFor(hash: `0x${string}`) {
-  return publicClient().waitForTransactionReceipt({ hash });
+  const receipt = await publicClient().waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") {
+    throw new Error(`Transaction ${hash.slice(0, 10)} reverted on chain. Nothing changed.`);
+  }
+  return receipt;
 }
 
 export async function ensureAllowance(
