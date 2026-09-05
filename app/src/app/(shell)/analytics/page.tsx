@@ -18,11 +18,11 @@ import {
 import { VolumeChart, LaunchesChart } from "@/components/analytics/charts";
 
 /**
- * Chain-wide Analytics — volume, activity and launch stats aggregated across
- * every token from the indexer's /analytics/* routes. Everything is real,
- * derived from raw_trades + tokens. Only uchanse (CHANSE) volume is priced to
- * USD (the indexer has one CHANSE oracle); Floatdesk / RWA-denom volume is reported
- * in base units and flagged, never folded into the USD total at the wrong rate.
+ * Chain-wide analytics: Desk volume, activity and launches, served by this
+ * app's own /api/float/analytics/* routes rather than the indexer, which has no
+ * such endpoints. Everything is derived from real Desk trades and the launched
+ * token list. The quote asset is USDG, so volume is already in dollars and
+ * there is no denom left unpriced.
  */
 export default function AnalyticsPage() {
   const [win, setWin] = useState<AnalyticsWindow>("24h");
@@ -60,7 +60,7 @@ export default function AnalyticsPage() {
           </h1>
           <p className="mt-1 max-w-xl text-[13px] leading-5 text-[var(--color-text-secondary)]">
             Chain-wide volume and activity across every Floatdesk token. USD figures
-            price CHANSE volume through the on-chain oracle.
+            are USDG, the quote asset every market settles in.
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border border-[var(--hairline)] bg-[var(--color-bg-surface)] p-1">
@@ -126,7 +126,7 @@ export default function AnalyticsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card
           title="Volume over time"
-          subtitle={`CHANSE volume in USD · ${labelFor(win)}`}
+          subtitle={`Desk volume in USDG · ${labelFor(win)}`}
           right={
             flow > 0 ? (
               <div className="flex flex-col items-end gap-1">
@@ -204,7 +204,7 @@ export default function AnalyticsPage() {
                       className="flex items-center gap-2 font-display text-[13px] font-semibold text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-strong)]"
                     >
                       ${t.symbol || t.address.slice(0, 6)}
-                      {t.base_denom !== "uchanse" && (
+                      {t.base_denom !== "usdg" && (
                         <span className="rounded-[3px] bg-[var(--color-bg-raised)] px-1.5 py-0.5 font-mono text-[9px] uppercase text-[var(--color-text-secondary)]">
                           {t.base_label}
                         </span>

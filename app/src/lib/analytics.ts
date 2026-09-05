@@ -1,11 +1,12 @@
 "use client";
 
-// Chain-wide analytics client. Reads the indexer's public GET /analytics/*
-// routes DIRECTLY over INDEXER_HTTP (the same base the rest of the data layer
-// uses), no auth. Everything is derived from raw_trades + tokens on the indexer;
-// only uchanse volume is priced to USD (the indexer has one CHANSE oracle), so
-// `volumeUsd` is priced (uchanse) volume and `byDenom` carries the rest in base
-// units. These shapes mirror services/indexer/src/analytics.ts.
+// Chain-wide analytics client. Reads /api/float/analytics/*, which this app
+// serves itself: the Float indexer has no analytics routes, and because it
+// answers an unknown path with 200 and its endpoint listing, pointing at it
+// meant parsing that menu as data. Everything is derived from real Desk trades
+// and the launched token list; volume is quoted in USDG, which is already
+// dollars, so `volumeUsd` needs no conversion and `byDenom` carries the single
+// quote asset.
 
 import { useQuery } from "@tanstack/react-query";
 import { INDEXER_HTTP } from "@/lib/floorlaunch/config";
