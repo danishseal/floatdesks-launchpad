@@ -480,10 +480,9 @@ function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, sele
       <p style={BODY} className="mx-auto mt-3 max-w-[460px] text-center text-[var(--color-text-secondary)]">
         {data.venue === "curve-funder" ? (
           <>
-            Your token&apos;s whole supply sits on a curve quoted in{" "}
-            {data.quote.symbol}, and every buy funds this stock&apos;s vault, so the
-            raise IS the underlying. A halted market is fine: it goes live on the
-            first buy.
+            Your token&apos;s whole supply sits on a curve, and every buy of it
+            funds this stock. A halted market is fine: it goes live on the first
+            buy.
           </>
         ) : (
           <>
@@ -493,6 +492,44 @@ function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, sele
           </>
         )}
       </p>
+
+      {data.venue === "curve-funder" ? (
+        <div className="mx-auto mt-7 max-w-[520px] rounded-[12px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]/50 p-5">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-subtle)]">
+            What your token is quoted in
+          </h3>
+          <p style={BODY} className="mt-3 text-[var(--color-text-secondary)]">
+            It changes once, and both halves are worth knowing before you launch.
+          </p>
+          <div className="mt-4 space-y-4">
+            <div className="flex gap-3">
+              <span className="mt-[3px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">
+                On the curve
+              </span>
+              <p style={BODY} className="text-[var(--color-text-secondary)]">
+                Priced in <strong className="text-[var(--color-text-primary)]">{data.quote.symbol}</strong>,
+                so a buyer needs none of the fSHARE to get in. Their money still
+                becomes the stock: every buy is split, part into this
+                market&apos;s cash cushion and part into buying its fSHARE
+                reserve. That is why the raise IS the underlying even though
+                nobody touches the fSHARE directly.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-[3px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">
+                After graduation
+              </span>
+              <p style={BODY} className="text-[var(--color-text-secondary)]">
+                The curve closes and the leftover supply opens a{" "}
+                <strong className="text-[var(--color-text-primary)]">token / fSHARE</strong> pool,
+                with an fSHARE / {data.quote.symbol} pool underneath it. From
+                then on your token is quoted in the company, not in dollars, so
+                its price moves with the stock as well as with its own demand.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-10 space-y-2">
         {live.map((m) => (
