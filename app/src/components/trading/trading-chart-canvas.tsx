@@ -85,7 +85,12 @@ function readPalette() {
 function formatChartPrice(v: number): string {
   if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
   if (v >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
-  if (v >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
+  // One decimal of K collapses a whole axis onto one label: a market opening
+  // at $1,224 printed "$1.2K" on every gridline. Markets on this venue live in
+  // exactly that band, opening at $1,224 and graduating at $15,001, so print
+  // the number until K notation is actually buying brevity.
+  if (v >= 1e5) return `$${(v / 1e3).toFixed(0)}K`;
+  if (v >= 1e3) return `$${Math.round(v).toLocaleString("en-US")}`;
   if (v >= 1) return `$${v.toFixed(2)}`;
   if (v >= 0.01) return `$${v.toFixed(4)}`;
   if (v >= 0.0001) return `$${v.toFixed(6)}`;
@@ -308,6 +313,20 @@ export function TradingChartCanvas({
       priceLineColor: palette.down,
       priceLineVisible: true,
       lastValueVisible: true,
+      // A series with no range gives the scale nothing to spread, so it
+      // labelled every gridline with the same number: a token that has only
+      // its opening quote printed "$1.2K" thirteen times down the axis. Give a
+      // degenerate range a band to breathe in, so the labels differ and the
+      // flat line sits in the middle of it rather than filling the pane.
+      autoscaleInfoProvider: (original: () => { priceRange: { minValue: number; maxValue: number } | null } | null) => {
+        const res = original();
+        const r = res?.priceRange;
+        if (!r) return res;
+        if (r.maxValue > r.minValue) return res;
+        const v = r.maxValue;
+        const pad = Math.abs(v) * 0.02 || 1;
+        return { ...res, priceRange: { minValue: v - pad, maxValue: v + pad } };
+      },
     });
     // No room reserved for volume, because volume has its own pane now. While
     // it was an overlay the price scale gave up its bottom to it, and the axis
