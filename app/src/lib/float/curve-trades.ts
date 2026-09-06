@@ -31,6 +31,8 @@ import { resolve } from "./registry";
 import { withRetry, mapLimited, isRateLimited } from "./retry";
 import { poolsForToken, type TokenPool } from "./token-pools";
 import { cfCurve } from "./curve-funder";
+import fs from "node:fs";
+import os from "node:os";
 
 export interface PricePoint {
   /** Block timestamp, unix seconds. */
@@ -138,17 +140,88 @@ async function allLogs<T>(
   }
 }
 
-/** Block timestamps for the blocks we actually saw, fetched once each. */
+/**
+ * Block timestamps, fetched once ever.
+ *
+ * A mined block's timestamp cannot change, so this cache has no TTL and needs
+ * none: the answer for block N is the same answer forever. It was the single
+ * largest cost in a cold chart. getBlock runs 0.26s to 1.29s on this RPC and
+ * ran once per unique block on every load, sequentially behind the retry gate,
+ * while the getLogs that found those blocks took 0.34s for the whole chain.
+ * The scan was never the slow part; asking what time it was, over and over,
+ * was.
+ *
+ * Shared across tokens as well as loads, because two markets that traded in
+ * the same block ask the same question.
+ */
+const blockTsCache = new Map<string, number>();
+
+/**
+ * And once ever across process lifetimes, not just within one.
+ *
+ * A block timestamp is immutable, so it is safe to keep on disk with no
+ * invalidation at all. Without this every deploy and every dev-server restart
+ * re-buys the same answers, which is the whole of a cold chart's cost. Lives
+ * in the temp dir because that is the one writable path both locally and on a
+ * serverless host, and losing it is merely slow, never wrong.
+ */
+const BLOCK_TS_FILE = `${os.tmpdir()}/float-block-times.json`;
+let blockTsLoaded = false;
+let blockTsDirty = false;
+
+function loadBlockTs() {
+  if (blockTsLoaded) return;
+  blockTsLoaded = true;
+  try {
+    const raw = fs.readFileSync(BLOCK_TS_FILE, "utf8");
+    for (const [k, v] of Object.entries(JSON.parse(raw) as Record<string, number>)) {
+      if (typeof v === "number" && v > 0) blockTsCache.set(k, v);
+    }
+  } catch {
+    /* no cache yet, or unreadable. Either way we just fetch. */
+  }
+}
+
+function saveBlockTs() {
+  if (!blockTsDirty) return;
+  blockTsDirty = false;
+  try {
+    fs.writeFileSync(BLOCK_TS_FILE, JSON.stringify(Object.fromEntries(blockTsCache)));
+  } catch {
+    /* a cache we cannot write is a slower path, not a broken one */
+  }
+}
+
 async function blockTimes(blocks: bigint[]): Promise<Map<bigint, number>> {
+  loadBlockTs();
   const pc = publicClient();
   const unique = [...new Set(blocks.map((b) => b.toString()))].map(BigInt);
-  const entries = await mapLimited(unique, async (b) => {
-    const block = await withRetry(() => pc.getBlock({ blockNumber: b }), `getBlock(${b})`).catch(
-      () => null,
-    );
-    return [b, block ? Number(block.timestamp) : 0] as const;
-  });
-  return new Map(entries.filter(([, ts]) => ts > 0));
+  const known = new Map<bigint, number>();
+  const missing: bigint[] = [];
+  for (const b of unique) {
+    const hit = blockTsCache.get(b.toString());
+    if (hit !== undefined) known.set(b, hit);
+    else missing.push(b);
+  }
+  if (missing.length) {
+    const entries = await mapLimited(missing, async (b) => {
+      const block = await withRetry(() => pc.getBlock({ blockNumber: b }), `getBlock(${b})`).catch(
+        () => null,
+      );
+      return [b, block ? Number(block.timestamp) : 0] as const;
+    });
+    for (const [b, ts] of entries) {
+      if (ts > 0) {
+        // Only a real answer is remembered. Caching a failed read would pin a
+        // zero timestamp on that block for the life of the process.
+        blockTsCache.set(b.toString(), ts);
+        blockTsDirty = true;
+        known.set(b, ts);
+      }
+    }
+    saveBlockTs();
+  }
+  return known;
 }
 
 /**
