@@ -13,7 +13,7 @@
 
 import type { Address } from "viem";
 import { withRetry, mapLimited } from "./retry";
-import { publicClient, ERC20_ABI, ensureAllowance, walletClient, floatChain } from "./chain";
+import { publicClient, ERC20_ABI, ensureAllowance, walletClient, floatChain, simulateRetrying } from "./chain";
 import { CURVEFUNDER_ABI } from "./abi";
 import { resolve } from "./registry";
 
@@ -176,11 +176,10 @@ async function send(account: Address, address: Address, functionName: string, ar
   // The write below is NOT retried and must never be. A send that times out
   // may still have been broadcast, and retrying it risks a second
   // transaction against the same intent.
-  const { request } = await withRetry(
-    () => pc.simulateContract({
+  const { request } = await simulateRetrying(() =>
+    pc.simulateContract({
       account: signer, address, abi: CURVEFUNDER_ABI as never, functionName, args, chain: floatChain(),
     }),
-    `simulate ${functionName}`,
   );
   return wc.writeContract({ ...request, account: signer } as never);
 }

@@ -331,6 +331,46 @@ export async function pendingStakeRewards(assetId: `0x${string}`, who: Address):
 
 // ---------------------------------------------------------------- writes
 
+/**
+ * Retry a write's simulate, and only for the reasons worth retrying.
+ *
+ * Not `withRetry` from retry.ts. That one retries every failure and wraps the
+ * last one in an RpcError whose message is a flattened first line, which would
+ * erase the revert signature viem puts on a later line and that readableError
+ * decodes into a sentence. A slippage or cap revert would come back as an
+ * unreadable transport complaint.
+ *
+ * So a revert is treated as what it is, an answer, and rethrown untouched and
+ * immediately. Only a transport failure is tried again.
+ */
+function isTransportFailure(e: unknown): boolean {
+  const text = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  if (/revert|ContractFunctionRevertedError|ContractFunctionExecutionError/i.test(text)) {
+    return false;
+  }
+  return /HTTP request failed|429|too many requests|rate limit|timed out|timeout|fetch failed|Failed to fetch|network error/i.test(text);
+}
+
+async function simulateRetrying<T>(fn: () => Promise<T>): Promise<T> {
+  const attempts = 3;
+  let last: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (!isTransportFailure(e)) throw e;
+      last = e;
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 400 * 2 ** i + Math.random() * 200));
+      }
+    }
+  }
+  // The original error, so the caller still sees viem's own status and URL.
+  throw last;
+}
+
+export { simulateRetrying };
+
 async function send(
   account: Address,
   address: Address,
@@ -348,9 +388,21 @@ async function send(
   const signer = wc.account ?? account;
   // Simulate first: a revert here is a clear error instead of a wallet popup
   // that fails on chain and burns gas.
-  const { request } = await pc.simulateContract({
-    account: signer, address, abi: abi as never, functionName, args, chain: floatChain(),
-  });
+  //
+  // Retried, because it is a read and this RPC throttles. Every read path in
+  // this app got a retry for that reason and the WRITE path never did, so one
+  // 429 between pressing a button and signing came back as "HTTP request
+  // failed." and the transaction was never offered. That is how a $5 buy died
+  // on its approve leg with the allowance left at zero.
+  //
+  // The write below is NOT retried and must not be: a send that times out may
+  // already have been broadcast, and a second attempt risks a duplicate
+  // transaction against the same intent.
+  const { request } = await simulateRetrying(() =>
+    pc.simulateContract({
+      account: signer, address, abi: abi as never, functionName, args, chain: floatChain(),
+    }),
+  );
   return wc.writeContract({ ...request, account: signer } as never);
 }
 
@@ -372,7 +424,13 @@ async function send(
  * Throwing puts it on the caller's existing error path, so no call site changes.
  */
 export async function waitFor(hash: `0x${string}`) {
-  const receipt = await publicClient().waitForTransactionReceipt({ hash });
+  // The transaction is already broadcast by the time we get here, so a
+  // throttled poll must not be reported as a failed action: the approve is on
+  // chain either way and giving up on it leaves the caller believing nothing
+  // happened. Poll longer and tolerate refusals rather than resolving early.
+  const receipt = await publicClient().waitForTransactionReceipt({
+    hash, retryCount: 12, retryDelay: 1_500, pollingInterval: 1_500,
+  });
   if (receipt.status !== "success") {
     throw new Error(`Transaction ${hash.slice(0, 10)} reverted on chain. Nothing changed.`);
   }
