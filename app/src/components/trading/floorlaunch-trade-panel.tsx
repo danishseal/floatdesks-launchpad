@@ -41,7 +41,7 @@ import {
   tokenPreviewBuy, tokenPreviewSell, deskPreviewBuy, deskBuyRefusal,
   tx, waitFor, balanceOf, getListing,
 } from "@/lib/float/chain";
-import { cfPreviewBuy, cfTx } from "@/lib/float/curve-funder";
+import { cfPreviewBuy, cfPreviewSellUsdg, cfTx } from "@/lib/float/curve-funder";
 import { activeNetwork } from "@/lib/float/networks";
 import { readableError } from "@/lib/float/errors";
 import {
@@ -252,6 +252,15 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
       return () => { cancelled = true; };
     }
 
+    // The sell is two legs and the dollars come from the second one, so the
+    // curve's own previewSell is not the payout. See cfPreviewSellUsdg.
+    if (side === "sell" && curveVenue && !token.graduated) {
+      void cfPreviewSellUsdg(token.address as `0x${string}`, raw)
+        .then((q) => done(q ? q.usdgOut : null, 10 ** usdgDecimals))
+        .catch(fail);
+      return () => { cancelled = true; };
+    }
+
     const p = side === "buy"
       ? tokenPreviewBuy(token.address as `0x${string}`, raw)
       : tokenPreviewSell(token.address as `0x${string}`, raw);
@@ -355,6 +364,14 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           await waitFor(hash);
         }
         toast.success(`Bought ${symbol}.`);
+      } else if (curveVenue && !token.graduated) {
+        // The venue's own sell. This branch used to fall through to
+        // TOKEN_LAUNCHPAD unconditionally, which is the zero address in the
+        // mainnet registry, so every sell failed at address resolution: the
+        // launchpad could be bought and not exited.
+        const hash = await cfTx.sellToUsdg(account, token.address as `0x${string}`, raw, minOut);
+        await waitFor(hash);
+        toast.success(`Sold ${symbol}.`);
       } else {
         const hash = await tx.tokenSell(account, token.address as `0x${string}`, raw, minOut);
         await waitFor(hash);

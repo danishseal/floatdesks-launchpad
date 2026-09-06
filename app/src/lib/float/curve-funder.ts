@@ -13,7 +13,7 @@
 
 import type { Address } from "viem";
 import { withRetry, mapLimited } from "./retry";
-import { publicClient, ERC20_ABI, ensureAllowance, walletClient, floatChain, simulateRetrying } from "./chain";
+import { publicClient, ERC20_ABI, ensureAllowance, walletClient, floatChain, simulateRetrying, deskPreviewSell } from "./chain";
 import { CURVEFUNDER_ABI } from "./abi";
 import { resolve } from "./registry";
 
@@ -156,6 +156,37 @@ export async function cfPreviewSell(token: Address, tokensIn: bigint) {
   })) as [bigint, bigint];
 }
 
+/**
+ * What a sell actually pays, in dollars, across BOTH legs.
+ *
+ * `previewSell` answers the curve leg only. `sellToUsdg` does not pay that
+ * number: it converts the curve's output into fSHARE and redeems it at the
+ * Desk, so the dollars come from the Desk's own quote at its own spread. This
+ * mirrors `_sell`'s arithmetic exactly rather than approximating it, then asks
+ * the Desk what those shares fetch. Quoting the curve leg as if it were the
+ * payout would overstate every sell by the Desk's spread.
+ *
+ * Null when the curve cannot answer, which the caller must render as "no
+ * quote" rather than as zero.
+ */
+export async function cfPreviewSellUsdg(
+  token: Address, tokensIn: bigint,
+): Promise<{ shareOut: bigint; usdgOut: bigint } | null> {
+  const cf = await resolve("CURVE_FUNDER");
+  const [c, [out, fee]] = await Promise.all([
+    cfCurve(token, cf),
+    cfPreviewSell(token, tokensIn),
+  ]);
+  const gross = out + fee;
+  if (gross === 0n || c.rQuote === 0n) return null;
+  const shareGross = (gross * c.fShareReserve) / c.rQuote;
+  const feeShares = (shareGross * fee) / gross;
+  const shareOut = shareGross - feeShares;
+  if (shareOut === 0n) return null;
+  const [usdgOut] = await deskPreviewSell(c.underlying, shareOut);
+  return { shareOut, usdgOut };
+}
+
 /** ERC-20 identity for a launched token, since there is no indexer here. */
 export async function cfTokenMeta(token: Address) {
   const pc = publicClient();
@@ -223,6 +254,17 @@ export const cfTx = {
     const cf = await resolve("CURVE_FUNDER");
     await ensureAllowance(account, token, cf, tokensIn);
     return send(account, cf, "sell", [token, tokensIn, minShareOut]);
+  },
+  /**
+   * Sell the meme and redeem the fSHARE at the Desk in one transaction, paying
+   * out USDG. This is the symmetric counterpart of `buy`: dollars in, dollars
+   * out. `sell` above pays the fSHARE instead, which leaves the seller holding
+   * a different token they did not ask for and have to sell again.
+   */
+  async sellToUsdg(account: Address, token: Address, tokensIn: bigint, minUsdgOut: bigint) {
+    const cf = await resolve("CURVE_FUNDER");
+    await ensureAllowance(account, token, cf, tokensIn);
+    return send(account, cf, "sellToUsdg", [token, tokensIn, minUsdgOut]);
   },
 
   /**

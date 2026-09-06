@@ -61,7 +61,7 @@ MANIFEST = [
     ("CURVEFUNDER_ABI", "CurveFunder", CURVE_OUT, [
         "allTokens", "buy", "creatorShareBps", "curves", "defaultTarget", "feeBps",
         "launchFeeUsdg", "launchNew", "launchToken", "listFeeUsdg", "previewBuy",
-        "previewSell", "raiseTargetOf", "sell", "stockPoolOf", "tokenCount",
+        "previewSell", "raiseTargetOf", "sell", "sellToUsdg", "stockPoolOf", "tokenCount",
         "virtualBps",
         "CurveBuy", "CurveSell", "TokenLaunched",
     ]),
