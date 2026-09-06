@@ -734,6 +734,32 @@ async function extendHistory(
  * indexer that is unreachable, behind, or does not know this token must never
  * be allowed to render as "this market has not traded".
  */
+/**
+ * The chain head, cached for a few seconds.
+ *
+ * Only used to ask whether the indexer is caught up, which is a question about
+ * hundreds of blocks, so a head that is two seconds old answers it exactly as
+ * well as a fresh one. Without this the fast path still paid a round trip per
+ * load to learn a number that had barely moved.
+ */
+let headMemo: { at: number; head: bigint } | null = null;
+async function cachedHead(): Promise<bigint> {
+  if (headMemo && Date.now() - headMemo.at < 5_000) return headMemo.head;
+  const head = await publicClient().getBlockNumber();
+  headMemo = { at: Date.now(), head };
+  return head;
+}
+
+/**
+ * A launch anchor, cached forever.
+ *
+ * vQuote and vToken are written once when the curve is created and never move,
+ * and the launch block is in the past, so this answer cannot change. It was
+ * costing a contract read and sometimes a getBlock on every load of an already
+ * indexed market.
+ */
+const launchMemo = new Map<string, PriceHistory["launch"]>();
+
 async function indexerCurveHistory(token: Address): Promise<PriceHistory | null> {
   const origin = indexerOrigin();
   if (!origin) return null;
@@ -771,7 +797,7 @@ async function indexerCurveHistory(token: Address): Promise<PriceHistory | null>
   // And it must be caught up. A cursor well behind the head means its answer is
   // a snapshot of the past, which is exactly the "short list that looks
   // complete" this app keeps being bitten by.
-  const head = await publicClient().getBlockNumber();
+  const head = await cachedHead();
   if (BigInt(body.cursor) + 500n < head) return null;
 
   const points: PricePoint[] = body.trades
@@ -790,13 +816,20 @@ async function indexerCurveHistory(token: Address): Promise<PriceHistory | null>
     .sort((a, b) => a.ts - b.ts || a.block - b.block);
 
   const launcher = await resolve("CURVE_FUNDER");
-  const curve = await cfCurve(token, launcher).catch(() => null);
-  let launch: PriceHistory["launch"] = null;
-  if (curve && curve.vToken > 0n) {
-    const open = (Number(curve.vQuote) / USDG_UNIT) / (Number(curve.vToken) / TOKEN_UNIT);
-    const at = await blockTimes([BigInt(body.launchBlock)]);
-    const ts = at.get(BigInt(body.launchBlock));
-    if (ts && Number.isFinite(open) && open > 0) launch = { ts, priceUsd: open };
+  const key = token.toLowerCase();
+  let launch = launchMemo.get(key) ?? null;
+  let curve = null as Awaited<ReturnType<typeof cfCurve>> | null;
+  if (!launchMemo.has(key)) {
+    curve = await cfCurve(token, launcher).catch(() => null);
+    if (curve && curve.vToken > 0n) {
+      const open = (Number(curve.vQuote) / USDG_UNIT) / (Number(curve.vToken) / TOKEN_UNIT);
+      const at = await blockTimes([BigInt(body.launchBlock)]);
+      const ts = at.get(BigInt(body.launchBlock));
+      if (ts && Number.isFinite(open) && open > 0) launch = { ts, priceUsd: open };
+    }
+    // Remembered even when it came back null, so a market whose anchor cannot
+    // be built does not re-attempt the same two reads on every single load.
+    launchMemo.set(key, launch);
   }
   return { points, unreadable: [], launcher, curve, launch, head };
 }
