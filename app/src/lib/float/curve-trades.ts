@@ -28,6 +28,7 @@ import { publicClient } from "./chain";
 import { launcherHolding } from "./token-owner";
 import type { CurveFunderCurve } from "./curve-funder";
 import { resolve } from "./registry";
+import { indexerOrigin } from "./networks";
 import { withRetry, mapLimited, isRateLimited } from "./retry";
 import { poolsForToken, type TokenPool } from "./token-pools";
 import { cfCurve } from "./curve-funder";
@@ -720,7 +721,92 @@ async function extendHistory(
   }
 }
 
+/**
+ * The curve leg, from the indexer rather than the chain.
+ *
+ * Reading logs per page load has a floor of several seconds: it is about six
+ * sequential round trips to a throttled public RPC, and no cache removes a
+ * round trip you still have to make. The indexer has already done that work
+ * once, so this is a single local query.
+ *
+ * Returns null rather than a partial answer whenever it cannot be trusted, and
+ * the caller then reads the chain. That is the whole safety story here: an
+ * indexer that is unreachable, behind, or does not know this token must never
+ * be allowed to render as "this market has not traded".
+ */
+async function indexerCurveHistory(token: Address): Promise<PriceHistory | null> {
+  const origin = indexerOrigin();
+  if (!origin) return null;
+  let body: {
+    launchBlock: number | null;
+    graduated: boolean;
+    cursor: number;
+    trades: Array<{
+      side: "buy" | "sell"; quote: string; base: string; px: number;
+      block: number; ts: number; tx: string | null; who: string | null;
+    }>;
+  };
+  try {
+    const r = await fetch(`${origin}/token-trades?token=${token}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(4_000),
+    });
+    if (!r.ok) return null;
+    body = await r.json();
+    if (!Array.isArray(body.trades)) return null;
+  } catch {
+    return null;
+  }
+
+  // A graduated token's series also needs its pool swaps, which this indexer
+  // does not carry. Hand those back to the chain path whole rather than
+  // serving half a history.
+  if (body.graduated) return null;
+
+  // Only the CURRENT launcher is indexed, so a token on the superseded one is
+  // absent here rather than untraded. `launchBlock` is what tells the two
+  // apart: the indexer has seen this token launch, or it has not.
+  if (body.launchBlock == null) return null;
+
+  // And it must be caught up. A cursor well behind the head means its answer is
+  // a snapshot of the past, which is exactly the "short list that looks
+  // complete" this app keeps being bitten by.
+  const head = await publicClient().getBlockNumber();
+  if (BigInt(body.cursor) + 500n < head) return null;
+
+  const points: PricePoint[] = body.trades
+    .filter((t) => t.ts > 0 && t.px > 0)
+    .map((t) => ({
+      ts: t.ts,
+      block: t.block,
+      priceUsd: t.px,
+      volumeUsd: Number(t.quote) / USDG_UNIT,
+      side: t.side,
+      venue: "curve" as const,
+      txHash: (t.tx as `0x${string}`) ?? ZERO_HASH,
+      trader: (t.who as Address) ?? ZERO_ADDR,
+      tokens: Number(t.base) / TOKEN_UNIT,
+    }))
+    .sort((a, b) => a.ts - b.ts || a.block - b.block);
+
+  const launcher = await resolve("CURVE_FUNDER");
+  const curve = await cfCurve(token, launcher).catch(() => null);
+  let launch: PriceHistory["launch"] = null;
+  if (curve && curve.vToken > 0n) {
+    const open = (Number(curve.vQuote) / USDG_UNIT) / (Number(curve.vToken) / TOKEN_UNIT);
+    const at = await blockTimes([BigInt(body.launchBlock)]);
+    const ts = at.get(BigInt(body.launchBlock));
+    if (ts && Number.isFinite(open) && open > 0) launch = { ts, priceUsd: open };
+  }
+  return { points, unreadable: [], launcher, curve, launch, head };
+}
+
 async function buildPriceHistory(token: Address): Promise<PriceHistory> {
+  // Indexed first, chain second. The fallback is not decoration: it is what
+  // keeps a missing indexer slow instead of wrong.
+  const indexed = await indexerCurveHistory(token);
+  if (indexed) return indexed;
+
   const curve = await curvePriceHistory(token);
   const unreadable = [...curve.unreadable];
 
