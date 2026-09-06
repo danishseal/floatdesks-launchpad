@@ -97,7 +97,17 @@ function PrivyBridge({ children }: { children: ReactNode }) {
     onError: () => setConnecting(false),
   });
 
-  const wallet = wallets[0] ?? null;
+  /**
+   * Disconnect is app state, not only Privy state.
+   *
+   * `logout()` ends a Privy SESSION. It does not remove an external wallet
+   * from `useWallets()`, and a visitor who connected Rabby without ever
+   * logging in has no session to end, so pressing Disconnect cleared the
+   * balances and left the account chip sitting there still connected. This
+   * flag is what the button actually moves; `connect()` clears it.
+   */
+  const [dismissed, setDismissed] = useState(false);
+  const wallet = dismissed ? null : (wallets[0] ?? null);
   const address = wallet ? (wallet.address as Address) : null;
   const chainId = caip2ChainId(wallet?.chainId);
 
@@ -130,6 +140,7 @@ function PrivyBridge({ children }: { children: ReactNode }) {
   }, [wallet]);
 
   const connect = useCallback(async () => {
+    setDismissed(false);
     // Already signed in but no wallet attached: the thing missing is a wallet,
     // not a login, and sending them back through login() would do nothing.
     if (authenticated) {
@@ -146,10 +157,34 @@ function PrivyBridge({ children }: { children: ReactNode }) {
   }, [authenticated, connectWallet, login]);
 
   const disconnect = useCallback(async () => {
+    // Read the wallet before dismissing, since `wallet` is null once we do.
+    const live = wallets[0] ?? null;
+    setDismissed(true);
     setBalance(null);
     setNativeBalance(null);
-    await logout();
-  }, [logout, setBalance, setNativeBalance]);
+
+    // Drop the site's authorisation at the wallet itself, the same thing the
+    // injected backend does. Without it the wallet stays authorised, Privy
+    // keeps listing it, and pressing Connect silently re-attaches the account
+    // the user was trying to leave. Embedded wallets and older externals do
+    // not implement the method; the flag above has already done the visible
+    // work, so failing here is not a regression.
+    if (live) {
+      try {
+        const provider = await live.getEthereumProvider();
+        await provider.request({
+          method: "wallet_revokePermissions",
+          params: [{ eth_accounts: {} }],
+        } as never);
+      } catch { /* wallet does not support it */ }
+    }
+
+    // Only when there IS a session. Calling logout without one is a no-op at
+    // best and an error at worst, and it must not mask the work above.
+    if (authenticated) {
+      try { await logout(); } catch { /* already gone */ }
+    }
+  }, [wallets, authenticated, logout, setBalance, setNativeBalance]);
 
   const switchChain = useCallback(async () => {
     if (!wallet) throw new Error("Connect a wallet first.");
