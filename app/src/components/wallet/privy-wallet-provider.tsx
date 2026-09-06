@@ -35,6 +35,31 @@ function caip2ChainId(value: string | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/**
+ * Privy reports a machine name ("rabby_wallet"), and it was reaching the
+ * header as "via rabby_wallet". Known wallets get the capitalisation their
+ * makers use; anything unrecognised is de-slugged rather than guessed at, so a
+ * wallet we have never heard of still reads as a name.
+ */
+const WALLET_NAMES: Record<string, string> = {
+  metamask: "MetaMask",
+  rabby_wallet: "Rabby",
+  coinbase_wallet: "Coinbase Wallet",
+  wallet_connect: "WalletConnect",
+  phantom: "Phantom",
+  rainbow: "Rainbow",
+  zerion: "Zerion",
+  okx_wallet: "OKX Wallet",
+};
+
+function prettyWalletName(type: string): string {
+  const known = WALLET_NAMES[type];
+  if (known) return known;
+  return type
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function PrivyWalletProvider({ children }: { children: ReactNode }) {
   // No app id means Privy cannot mount at all. Rendering PrivyProvider anyway
   // throws and takes the whole site down, so the app stays readable and the
@@ -143,7 +168,7 @@ function PrivyBridge({ children }: { children: ReactNode }) {
     ? "Privy"
     : wallet.walletClientType === "privy"
       ? "Float account"
-      : wallet.walletClientType;
+      : prettyWalletName(wallet.walletClientType);
 
   const value = useMemo<FloatWallet>(() => ({
     connected: Boolean(address),
