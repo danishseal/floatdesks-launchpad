@@ -146,7 +146,11 @@ export default function TokenDetailPage() {
       : token.market.ammSolReserve > 0
         ? currencyCompact(token.market.ammSolReserve * solUsd)
         : "-",
-    holders: String(holdersQuery.data?.length ?? 0),
+    // The holder list is rebuilt from Transfer logs across the whole chain, so
+    // it arrives seconds after the rest of the header. Rendering 0 in the
+    // meantime states that nobody holds this token, which is a measurement we
+    // have not made yet: the same lie the chart told with "no trades".
+    holders: holdersQuery.isPending ? "\u2026" : String(holdersQuery.data?.length ?? 0),
   };
 
   return (
