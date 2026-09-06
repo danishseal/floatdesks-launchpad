@@ -94,7 +94,11 @@ function TokenPreviewBanner({
             </div>
           </div>
           <div className="text-right">
-            <p className="font-mono text-[20px] font-semibold tabular-nums text-[var(--color-text-primary)]">{formatPrice(priceUsd)}</p>
+            {/* Market cap, not price per token. A launch quotes at 8.73e-7 and
+                that number tells a reader nothing they can hold in their head;
+                the cap is the figure this whole page is ranked and read by, and
+                it is what the token page's own chart is denominated in. */}
+            <p className="font-mono text-[20px] font-semibold tabular-nums text-[var(--color-text-primary)]">{usd(capUsd(token))}</p>
             <p className={`mt-1 font-mono text-[11px] font-semibold ${change == null ? "text-[var(--color-text-muted)]" : change >= 0 ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"}`}>
               {change == null ? "No 24h change" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}% · 24h`}
             </p>
@@ -102,11 +106,20 @@ function TokenPreviewBanner({
         </div>
 
         <div className="mt-4 flex min-h-[120px] flex-1 items-end overflow-hidden border-b border-l border-[var(--color-border-soft)] px-2 pb-2 [&>svg]:h-full [&>svg]:w-full">
-          <Sparkline address={token.address} up={change == null ? true : change >= 0} width={760} height={170} />
+          {/* Labels in market cap, matching the headline and the caption. The
+              candles are unchanged: cap is price times a fixed supply, so only
+              the axis numbers move. */}
+          <Sparkline
+            address={token.address}
+            up={change == null ? true : change >= 0}
+            width={760}
+            height={170}
+            labelScale={DEFAULT_TOKEN_SUPPLY}
+          />
         </div>
 
         <div className="mt-2 flex shrink-0 items-center justify-between gap-4 font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
-          <span>Recent price · 1h candles</span>
+          <span>Recent market cap · 1h candles</span>
           <span>Hover another coin below to switch</span>
         </div>
       </div>
@@ -133,7 +146,7 @@ function TokenPreviewBanner({
         </div>
 
         <dl className="grid shrink-0 grid-cols-2 gap-x-5 gap-y-3 py-4 font-mono text-[10px]">
-          <PreviewStat label="Market cap" value={usd(capUsd(token))} />
+          <PreviewStat label="Price" value={formatPrice(priceUsd)} />
           <PreviewStat label="Volume · 24h" value={usd(volumeUsd)} />
           <PreviewStat label="Liquidity" value={usd(liquidityUsd)} />
           <PreviewStat label="Trades · 24h" value={String(token.trade_count_24h ?? 0)} />

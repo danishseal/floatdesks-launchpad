@@ -41,6 +41,14 @@ interface CandlePreviewChartProps {
   width?: number;
   height?: number;
   timeframe?: Timeframe;
+  /**
+   * Multiply every axis label by this before formatting. The series itself is
+   * unchanged: market cap is price times a fixed supply, so the shape is
+   * identical and only the numbers on the axis differ. Pass the supply to read
+   * the chart in market cap, which is how the home preview and the token page
+   * are both denominated. Default 1, which is price per token.
+   */
+  labelScale?: number;
 }
 
 interface Bar {
@@ -95,6 +103,7 @@ export function CandlePreviewChart({
   width = 72,
   height = 26,
   timeframe = "1h",
+  labelScale = 1,
 }: CandlePreviewChartProps) {
   const { data, isLoading, error } = useCandles(address, timeframe);
 
@@ -142,7 +151,11 @@ export function CandlePreviewChart({
   const drawn = useMemo(() => {
     if (!bars.length) return null;
     const facts = readSeries(bars);
-    if (!facts.moved) return null;
+    // A series with no range still draws. It used to be refused here, on the
+    // same reasoning the main chart used, and the same answer applies: a curve
+    // quotes a real price from the moment it launches, so the series opens at
+    // that quote and a market with one trade has a move to show. A token with
+    // no trades at all draws its opening quote as a flat line, which is true.
 
     // Enough buckets to fill the width without drawing sub-pixel candles.
     const capacity = Math.max(12, Math.min(200, Math.floor(innerW / 4)));
@@ -160,11 +173,15 @@ export function CandlePreviewChart({
     }
     const lo = stats.low;
     const hi = stats.high;
+    const flat = hi === lo;
     const span = hi - lo || 1;
 
     const slot = innerW / window.length;
     const body = Math.max(1, Math.min(slot * 0.6, 26));
-    const y = (v: number) => padY + ((hi - v) / span) * innerH;
+    // A flat series has no range to scale into, and the plain formula would
+    // pin it to the top of the box. Centre it instead.
+    const y = (v: number) =>
+      flat ? padY + innerH / 2 : padY + ((hi - v) / span) * innerH;
 
     const candles = window.map((b, i) => {
       const cx = 1 + slot * (i + 0.5);
@@ -221,15 +238,6 @@ export function CandlePreviewChart({
     vacant = {
       head: "No trades yet",
       note: "This market has not printed a price",
-    };
-  } else if (!drawn) {
-    const facts = readSeries(bars);
-    vacant = {
-      head:
-        facts.prints === 1
-          ? "One trade, no price movement yet"
-          : `${facts.prints} trades, all at one price`,
-      note: `Held at ${priceLabel(bars[bars.length - 1].c / 1e6)}, so there is no series to draw`,
     };
   }
 
@@ -365,7 +373,7 @@ export function CandlePreviewChart({
                 fontSize={10}
                 fill="var(--color-text-muted)"
               >
-                {priceLabel(drawn.hi / 1e6)}
+                {priceLabel((drawn.hi / 1e6) * labelScale)}
               </text>
               <text
                 x={box.w - gutter + 6}
@@ -374,7 +382,7 @@ export function CandlePreviewChart({
                 fontSize={10}
                 fill="var(--color-text-muted)"
               >
-                {priceLabel(drawn.lo / 1e6)}
+                {priceLabel((drawn.lo / 1e6) * labelScale)}
               </text>
               <text
                 x={1}
