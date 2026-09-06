@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "@/components/ui/sonner";
 import { FloatWalletProvider } from "@/components/wallet/float-wallet-provider";
+import { PrivyWalletProvider } from "@/components/wallet/privy-wallet-provider";
 import { setRuntimeNetwork } from "@/lib/float/networks";
 import { resetClients } from "@/lib/float/chain";
 import { clearRegistryCache } from "@/lib/float/registry";
@@ -18,10 +19,20 @@ function makeQueryClient() {
 }
 
 /**
- * Wallet backend is chosen here. `injected` is the default and needs no
- * service; `privy` swaps in the embedded/email backend, which satisfies the
- * same context, so nothing downstream changes. See float-wallet-provider.tsx.
+ * Wallet backend is chosen here, and only here.
+ *
+ * `injected` needs no service and talks to MetaMask or Rabby. `privy` swaps in
+ * the embedded/email backend. Both fill the same context (wallet-context.ts),
+ * so nothing downstream changes and no component branches on the mode.
+ *
+ * Read statically so Next inlines it into the client bundle; the comparison is
+ * explicit rather than defaulting to whichever backend has credentials,
+ * because a wallet layer that picks itself based on which env var happens to
+ * be present is a wallet layer nobody can predict.
  */
+const WALLET_BACKEND =
+  process.env.NEXT_PUBLIC_WALLET_MODE === "privy" ? PrivyWalletProvider : FloatWalletProvider;
+
 export function Providers({
   children,
   networkKey,
@@ -49,12 +60,12 @@ export function Providers({
   }, [networkKey]);
 
   return (
-    <FloatWalletProvider>
+    <WALLET_BACKEND>
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster />
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
-    </FloatWalletProvider>
+    </WALLET_BACKEND>
   );
 }

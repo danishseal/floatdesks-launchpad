@@ -1,46 +1,30 @@
 "use client";
 
 /**
- * Wallet layer for Robinhood Chain.
+ * Wallet layer for Robinhood Chain: the injected backend.
  *
- * Exports `FloatWalletProvider` and `useFloatWallet`. Two backends satisfy the
- * same context so switching is a config change, not a refactor:
- *   NEXT_PUBLIC_WALLET_MODE=injected   MetaMask / Rabby (default, no service)
- *   NEXT_PUBLIC_WALLET_MODE=privy      Privy embedded + email login
- * The Privy backend lives in privy-wallet-provider.tsx and is selected in
- * providers.tsx. Anything that needs to sign takes `getAccount()` and calls the
- * builders in lib/float/chain.ts, so no component knows which backend is live.
+ * Two backends satisfy the same context, so switching is a config change and
+ * not a refactor:
+ *   NEXT_PUBLIC_WALLET_MODE=injected   MetaMask / Rabby, no service (default)
+ *   NEXT_PUBLIC_WALLET_MODE=privy      Privy embedded wallets + email login
+ * The Privy backend is privy-wallet-provider.tsx; the shared contract and the
+ * one context both of them fill are in wallet-context.ts, and the choice is
+ * made in providers.tsx. Anything that needs to sign takes `getAccount()` and
+ * calls the builders in lib/float/chain.ts, so no component knows which
+ * backend is live.
  */
 
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState,
-  type ReactNode,
+  useCallback, useEffect, useMemo, useState, type ReactNode,
 } from "react";
 import type { Address } from "viem";
 import { activeNetwork } from "@/lib/float/networks";
-import { balanceOf, publicClient, resetClients } from "@/lib/float/chain";
-import { resolve, clearRegistryCache } from "@/lib/float/registry";
+import { resetClients, setWalletClientFactory } from "@/lib/float/chain";
+import { clearRegistryCache } from "@/lib/float/registry";
+import {
+  WalletCtx, useFloatWallet, useWalletBalances, type FloatWallet,
+} from "./wallet-context";
 
-export interface FloatWallet {
-  connected: boolean;
-  connecting: boolean;
-  address: Address | null;
-  /** Quote-asset (USDG) balance in whole units, null until read. */
-  balance: number | null;
-  /** Native gas balance in whole units. */
-  nativeBalance: number | null;
-  walletName: string;
-  /** True when the wallet is on a different chain than the active network. */
-  wrongChain: boolean;
-  connect: () => Promise<void>;
-  disconnect: () => Promise<void>;
-  switchChain: () => Promise<void>;
-  refreshBalance: () => Promise<void>;
-  /** Throws with a readable message when not connected. */
-  getAccount: () => Address;
-}
-
-const Ctx = createContext<FloatWallet | null>(null);
 const STORAGE_KEY = "float-wallet-connected";
 
 interface Eip1193 {
@@ -57,32 +41,18 @@ function injected(): Eip1193 | null {
 export function FloatWalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<Address | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [balance, setBalance] = useState<number | null>(null);
-  const [nativeBalance, setNativeBalance] = useState<number | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
 
   const net = activeNetwork();
+  const { balance, nativeBalance, refreshBalance, setBalance, setNativeBalance } =
+    useWalletBalances(address);
 
-  const refreshBalance = useCallback(async () => {
-    if (!address) {
-      setBalance(null);
-      setNativeBalance(null);
-      return;
-    }
-    try {
-      const [usdgAddr, native] = await Promise.all([
-        resolve("USDG"),
-        publicClient().getBalance({ address }),
-      ]);
-      const raw = await balanceOf(usdgAddr, address);
-      // USDG is 6dp on every Robinhood Chain deployment, but read it rather
-      // than assume: a mock on a fork could differ.
-      setBalance(Number(raw) / 1e6);
-      setNativeBalance(Number(native) / 1e18);
-    } catch {
-      /* leave prior values rather than flashing zeros */
-    }
-  }, [address]);
+  // This backend signs through window.ethereum, which is what walletClient()
+  // reaches for when no factory is registered. Clear any factory a previously
+  // mounted backend left behind rather than inheriting its signer.
+  useEffect(() => {
+    setWalletClientFactory(null);
+  }, []);
 
   const readChain = useCallback(async () => {
     const eth = injected();
@@ -160,7 +130,7 @@ export function FloatWalletProvider({ children }: { children: ReactNode }) {
         params: [{ eth_accounts: {} }],
       });
     } catch { /* wallet does not support it; local state is already cleared */ }
-  }, []);
+  }, [setBalance, setNativeBalance]);
 
   const getAccount = useCallback((): Address => {
     if (!address) throw new Error("Connect a wallet first.");
@@ -182,8 +152,6 @@ export function FloatWalletProvider({ children }: { children: ReactNode }) {
       }
     })();
   }, [readChain]);
-
-  useEffect(() => { void refreshBalance(); }, [refreshBalance]);
 
   useEffect(() => {
     const eth = injected();
@@ -223,14 +191,12 @@ export function FloatWalletProvider({ children }: { children: ReactNode }) {
   }), [address, connecting, balance, nativeBalance, chainId, net.chainId,
        connect, disconnect, switchChain, refreshBalance, getAccount]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <WalletCtx.Provider value={value}>{children}</WalletCtx.Provider>;
 }
 
-export function useFloatWallet(): FloatWallet {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useFloatWallet must be used within FloatWalletProvider");
-  return ctx;
-}
+/** Re-exported so the nine existing consumers keep their import path. */
+export { useFloatWallet };
+export type { FloatWallet };
 
 /** Back-compat aliases so components migrated from the ansem build still resolve. */
 export const SolanaWalletProvider = FloatWalletProvider;
