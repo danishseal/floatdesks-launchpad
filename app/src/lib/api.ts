@@ -20,6 +20,7 @@ import {
 } from "@/lib/float/chain";
 import { resolve, detectVenue } from "@/lib/float/registry";
 import { cfAllTokensDetailed, cfCurve, cfTokenMeta, readTokenMeta } from "@/lib/float/curve-funder";
+import { launcherHolding } from "@/lib/float/token-owner";
 
 const API = "/api/float";
 
@@ -300,6 +301,102 @@ async function livePrices(): Promise<Map<string, LivePrice>> {
 // ── token data ──────────────────────────────────────────────────────────────
 
 /**
+ * One launched token, built from its own reads.
+ *
+ * Split out of the list so a page about a KNOWN address never has to enumerate
+ * every token to find it. That enumeration was the whole cost of the token
+ * detail fetch, and it is also the shape this repo has been bitten by before:
+ * a fanned out read with a per item catch returns a SHORT list that looks
+ * complete, and the token the page was open on was the one that went missing.
+ */
+async function buildCurveFunderToken(
+  token: `0x${string}`,
+  launcher: `0x${string}`,
+  superseded: boolean,
+  /** Already read by the caller, so the curve is not fetched twice. */
+  known?: Awaited<ReturnType<typeof cfCurve>> | null,
+): Promise<TokenListItem | null> {
+  const [c, meta, extra] = await Promise.all([
+    known ?? cfCurve(token, launcher).catch(() => null),
+      cfTokenMeta(token).catch(() => ({ name: "", symbol: "" })),
+      // LaunchedToken carries no image or links; they live in the separate
+      // TokenMetadata contract, so read them rather than leaving every token
+      // on this venue blank.
+      readTokenMeta(token).catch(() => null),
+    ]);
+    if (!c) return null;
+    const remaining = Number(c.vToken - c.sold);
+    const q = Number(c.vQuote + c.rQuote);
+    // The quote side is USDG at 6dp and the token side is 18dp, so the raw
+    // ratio is USDG-micro per wei and reads 1e12 too small: a real 2.05e-8
+    // rendered as $2.05e-20. Convert both to whole units before dividing.
+    const px = remaining > 0 ? (q / 1e6) / (remaining / 1e18) : 0;
+    const t: TokenListItem = {
+      address: token,
+      mint: token,
+      name: meta.name,
+      symbol: meta.symbol,
+      image: extra?.image ?? null,
+      description: extra?.description ?? null,
+      social_links: [extra?.website, extra?.twitter, extra?.telegram].filter(Boolean) as string[],
+      creator: c.creator,
+      source: superseded ? "curve-funder-legacy" : "curve-funder",
+      graduated: c.graduated,
+      created_at: null,
+      first_seen_at: "0",
+      current_price: String(px * 1e6),
+      hodl_reserves: String(Number(c.rQuote)),
+      volume_24h: "0",
+      volume_total: "0",
+      creator_fees_total: "0",
+      trade_count_24h: 0,
+      price_change_24h: null,
+      base_denom: c.underlying,
+      base_label: "USDG",
+      market: {
+        market: token,
+        solUsd: 1, // the quote asset is the dollar on this venue
+        collection: "",
+        synthMint: token,
+        status: c.graduated ? "graduated" : "curve",
+        venue: c.graduated ? "v4" : "curve",
+        frozen: false,
+        indexPerToken: 0,
+        markPerToken: px,
+        cardIndexSol: 0,
+        unitsPerItem: 1,
+        indexLastTs: 0,
+        feedAgeSec: null,
+        ammSolReserve: Number(c.rQuote) / 1e6,
+        ammTokenReserve: remaining / 1e18,
+        insuranceSol: 0,
+        totalCollateralSol: 0,
+        curveSolRaised: Number(c.rQuote) / 1e6,
+        curveVirtualSol: Number(c.vQuote) / 1e6,
+        curveVirtualTokens: Number(c.vToken) / 1e18,
+        graduationTargetSol: Number(c.gradTarget) / 1e6,
+        fundingIndex: "0",
+        maxOpenInterest: 0,
+        itemsDeposited: 0,
+      },
+      listing: {
+        ticker: meta.symbol,
+        name: meta.name,
+        image: extra?.image ?? null,
+        links: {
+          ...(extra?.website ? { website: extra.website } : {}),
+          ...(extra?.twitter ? { twitter: extra.twitter } : {}),
+          ...(extra?.telegram ? { telegram: extra.telegram } : {}),
+        },
+        feeReceiver: { kind: "creator", value: c.creator },
+        identifier: token,
+        launchedBy: c.creator,
+      },
+    };
+  return t;
+}
+
+/**
  * Launched tokens on the CurveFunder venue.
  *
  * There is no indexer for that deployment, so the list comes from the contract
@@ -444,9 +541,27 @@ export async function fetchTokens(): Promise<TokenListItem[]> {
 
 export async function fetchToken(address: string): Promise<TokenListItem> {
   if ((await detectVenue()) === "curve-funder") {
-    const all = await fetchCurveFunderTokens();
-    const hit = all.find((t) => t.address.toLowerCase() === address.toLowerCase());
+    // Read THIS token, not every token. Enumerating to find one known address
+    // cost the whole list on every poll, and "absent" and "could not read"
+    // have to stay different answers: a refused RPC call is not evidence that
+    // a token does not exist, and rendering "Token not found" over one that
+    // does is the failure this path already had once.
+    const owner = await launcherHolding(address as `0x${string}`);
+    if (owner.kind === "unreadable") {
+      throw new Error(`could not read ${address}: ${owner.reasons.join("; ")}`);
+    }
+    if (owner.kind === "absent") throw new Error(`no token ${address}`);
+    const hit = await buildCurveFunderToken(
+      address as `0x${string}`, owner.launcher, owner.superseded, owner.curve,
+    );
     if (!hit) throw new Error(`no token ${address}`);
+    // Same overlay the list applies: a graduated curve is spent, so its formula
+    // price is meaningless and the pool's is the real one.
+    const p = (await livePrices()).get(address.toLowerCase());
+    if (p && p.priceUsd > 0 && (p.source === "pool" || !hit.graduated)) {
+      hit.current_price = String(p.priceUsd * 1e6);
+      hit.market.markPerToken = p.priceUsd;
+    }
     return hit;
   }
   const t = await request<IndexerToken | null>(`/tokens?token=${address}`);

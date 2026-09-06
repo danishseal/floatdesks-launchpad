@@ -7,8 +7,9 @@ export function useCurveProgress(tokenAddress: string) {
   return useQuery({
     queryKey: ["curve-progress", tokenAddress],
     queryFn: () => fetchCurveProgress(tokenAddress),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     enabled: !!tokenAddress,
   });
 }

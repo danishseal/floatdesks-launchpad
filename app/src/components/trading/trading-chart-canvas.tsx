@@ -365,7 +365,14 @@ export function TradingChartCanvas({
 
     const resizeObserver = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
-      if (width && chartRef.current) chartRef.current.applyOptions({ width });
+      if (!width || !chartRef.current) return;
+      chartRef.current.applyOptions({ width });
+      // Re-fit, or the bars keep the spacing they were given at the old width.
+      // fitContent ran once after setData; every resize after that (the panel
+      // opening, the drag handle, a window change) left a short series drawn
+      // at its former spacing, which is why a 17 candle chart rendered as
+      // slivers with dead space either side.
+      chartRef.current.timeScale().fitContent();
     });
     resizeObserver.observe(containerRef.current);
 
@@ -516,7 +523,21 @@ export function TradingChartCanvas({
       series.setData(config.data);
     }
 
+    // Fill the pane, and keep the bars wide while doing it.
+    //
+    // fitContent alone leaves a short series narrow: it fits the DATA, and a
+    // handful of candles fitted to a wide pane still get whatever spacing the
+    // chart last had. Pinning the logical range to the series makes the bars
+    // span the full width, so a market with 17 candles draws 17 wide candles
+    // rather than a cluster of slivers.
+    const bars = computed.candleData.length;
     chart.timeScale().fitContent();
+    if (bars > 0) {
+      // Half a bar of air at each end. Ending exactly at bars - 0.5 puts the
+      // newest candle flush against the price axis, which clipped it: the
+      // trade showed in the volume pane and its body did not.
+      chart.timeScale().setVisibleLogicalRange({ from: -1, to: bars });
+    }
   }, [computed, indicators, palette]);
 
   const displayedLegend = legend ?? initialLegend;

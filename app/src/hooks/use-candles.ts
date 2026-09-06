@@ -12,8 +12,13 @@ export function useCandles(tokenAddress: string, timeframe: Timeframe) {
     // Load the full candle history so the chart can pan/zoom over everything,
     // not just the most recent window.
     queryFn: () => fetchCandles(tokenAddress, timeframe, 1000),
-    staleTime: 60_000,       // 1 minute (matches candle update frequency)
-    refetchInterval: 60_000, // Auto-refresh every minute for live data
+    // A trader who just bought watches this pane for their own print, and a
+    // minute of nothing reads as a failed trade. The route can afford this
+    // cadence now: a refresh scans only the blocks since the last one instead
+    // of rebuilding the series from genesis.
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     enabled: !!tokenAddress,
   });
 }

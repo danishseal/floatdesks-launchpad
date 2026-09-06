@@ -30,6 +30,7 @@ import type { CurveFunderCurve } from "./curve-funder";
 import { resolve } from "./registry";
 import { withRetry, mapLimited, isRateLimited } from "./retry";
 import { poolsForToken, type TokenPool } from "./token-pools";
+import { cfCurve } from "./curve-funder";
 
 export interface PricePoint {
   /** Block timestamp, unix seconds. */
@@ -81,6 +82,8 @@ export interface PriceHistory {
    * the chart's opening candle and nothing else.
    */
   launch: { ts: number; priceUsd: number } | null;
+  /** The block this series was scanned up to, so a refresh can start after it. */
+  head?: bigint;
 }
 
 /** USDG is 6dp, the launched token is 18dp. */
@@ -117,18 +120,19 @@ const WINDOW = 250_000n;
 async function allLogs<T>(
   fetch: (from: bigint, to: bigint) => Promise<T[]>,
   head: bigint,
+  start: bigint = 0n,
 ): Promise<T[]> {
   try {
-    return await withRetry(() => fetch(0n, head), "getLogs full range");
+    return await withRetry(() => fetch(start, head), "getLogs full range");
   } catch (e) {
     // Windowing a rate-limited node turns one refused call into hundreds of
     // them. The fallback is for a node that will not serve a WIDE range, which
     // is a different complaint from one that will not serve any more calls.
     if (isRateLimited(e)) throw e;
     const out: T[] = [];
-    for (let start = 0n; start <= head; start += WINDOW + 1n) {
-      const end = start + WINDOW > head ? head : start + WINDOW;
-      out.push(...(await withRetry(() => fetch(start, end), `getLogs ${start}-${end}`)));
+    for (let from = start; from <= head; from += WINDOW + 1n) {
+      const end = from + WINDOW > head ? head : from + WINDOW;
+      out.push(...(await withRetry(() => fetch(from, end), `getLogs ${from}-${end}`)));
     }
     return out;
   }
@@ -155,13 +159,38 @@ async function blockTimes(blocks: bigint[]): Promise<Map<bigint, number>> {
  * launcher returns a zero struct rather than reverting, so "which contract
  * holds this token" has to be answered before anything is read from it.
  */
-export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
+export async function curvePriceHistory(
+  token: Address,
+  /**
+   * Scan only from here. Used by the incremental refresh: the logs before this
+   * block are already in the cached series, and re-reading the whole chain to
+   * find one new trade is what made the chart a minute stale.
+   */
+  opts: {
+    fromBlock?: bigint;
+    knownLaunch?: PriceHistory["launch"];
+    /**
+     * Skip the launcher search. Asking every launcher `curves(token)` is the
+     * expensive half of a refresh, and on a refresh the answer is already
+     * known: this token has not moved launchers since the series was built.
+     */
+    knownLauncher?: Address;
+  } = {},
+): Promise<PriceHistory> {
   const pc = publicClient();
   const unreadable: string[] = [];
+  const startBlock = opts.fromBlock ?? 0n;
 
   // "Which launcher holds this" has three answers, not two, and collapsing the
   // third into "none" is what made this route report a live token as untraded.
-  const owner = await launcherHolding(token);
+  const owner = opts.knownLauncher
+    ? {
+        kind: "found" as const,
+        launcher: opts.knownLauncher,
+        superseded: false,
+        curve: await cfCurve(token, opts.knownLauncher),
+      }
+    : await launcherHolding(token);
   if (owner.kind === "unreadable") {
     unreadable.push(`launcher lookup: ${owner.reasons.join("; ")}`);
     return { points: [], unreadable, launcher: null, curve: null, launch: null };
@@ -182,6 +211,7 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
     (f, t) =>
       pc.getLogs({ address: launcher, event: buyEvent, args: { token }, fromBlock: f, toBlock: t }),
     head,
+    startBlock,
   ).catch((e) => {
     unreadable.push(`CurveBuy logs: ${message(e)}`);
     return [];
@@ -190,6 +220,7 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
     (f, t) =>
       pc.getLogs({ address: launcher, event: sellEvent, args: { token }, fromBlock: f, toBlock: t }),
     head,
+    startBlock,
   ).catch((e) => {
     unreadable.push(`CurveSell logs: ${message(e)}`);
     return [];
@@ -251,9 +282,9 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
   // wherever the first buyer happened to arrive, which is a made-up timestamp
   // on a real price. If the log cannot be read we return no anchor at all
   // rather than guessing, and the chart simply starts at the first print.
-  let launch: { ts: number; priceUsd: number } | null = null;
+  let launch: { ts: number; priceUsd: number } | null = opts.knownLaunch ?? null;
   const c = owner.curve;
-  if (c && c.vToken > 0n) {
+  if (!launch && c && c.vToken > 0n) {
     const openPrice = (Number(c.vQuote) / USDG_UNIT) / (Number(c.vToken) / TOKEN_UNIT);
     if (Number.isFinite(openPrice) && openPrice > 0) {
       try {
@@ -276,7 +307,7 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
     }
   }
 
-  return { points, unreadable, launcher, curve: owner.curve, launch };
+  return { points, unreadable, launcher, curve: owner.curve, launch, head };
 }
 
 /**
@@ -498,9 +529,29 @@ async function poolPriceHistory(
  * So: one entry per token, and concurrent callers for the same token share a
  * single in-flight promise rather than each starting their own scan.
  */
-const HISTORY_TTL_MS = 60_000;
+/**
+ * How long a series is served untouched. Short, because a trader who just
+ * bought watches the chart for their own print and a minute of nothing reads
+ * as a failed trade: that is exactly the complaint this became.
+ *
+ * It can be this short only because a refresh no longer rescans the chain. The
+ * first build reads every log from genesis and takes seconds; a refresh reads
+ * the handful of blocks since the last one and takes milliseconds.
+ */
+const HISTORY_TTL_MS = 6_000;
 
-const historyCache = new Map<string, { at: number; value: PriceHistory }>();
+/**
+ * When to throw the incremental series away and rebuild from genesis.
+ *
+ * The incremental path keeps the curve it was built with, so a token that
+ * graduates in the meantime would keep being priced off a spent curve. A full
+ * rebuild on this interval bounds that, and graduation is rare enough that
+ * bounding it is enough. A graduated token never takes the incremental path at
+ * all, since its series also needs pool swaps.
+ */
+const FULL_REBUILD_MS = 5 * 60_000;
+
+const historyCache = new Map<string, { at: number; builtAt: number; value: PriceHistory }>();
 const historyInflight = new Map<string, Promise<PriceHistory>>();
 
 /**
@@ -518,12 +569,27 @@ export async function tokenPriceHistory(token: Address): Promise<PriceHistory> {
   const running = historyInflight.get(key);
   if (running) return running;
 
-  const job = buildPriceHistory(token)
+  const now = Date.now();
+  const canExtend =
+    hit !== undefined
+    && hit.value.head !== undefined
+    && hit.value.launcher !== null
+    && hit.value.curve?.graduated === false
+    && now - hit.builtAt < FULL_REBUILD_MS;
+
+  const job = (canExtend ? extendHistory(token, hit!) : buildPriceHistory(token))
     .then((value) => {
       // Only a successful read is worth remembering. Caching a failure would
       // hold the page on "we could not ask" for a minute after the RPC recovers.
       if (value.points.length || !value.unreadable.length) {
-        historyCache.set(key, { at: Date.now(), value });
+        historyCache.set(key, {
+          at: Date.now(),
+          // An extension inherits the original build time, so the periodic
+          // full rebuild still happens on schedule rather than being pushed
+          // out forever by a token that keeps trading.
+          builtAt: canExtend && hit ? hit.builtAt : Date.now(),
+          value,
+        });
       }
       return value;
     })
@@ -532,6 +598,53 @@ export async function tokenPriceHistory(token: Address): Promise<PriceHistory> {
     });
   historyInflight.set(key, job);
   return job;
+}
+
+/**
+ * Refresh a cached series by reading only the blocks since it was built.
+ *
+ * The expensive part of a build is one getLogs across every block from
+ * genesis. Doing that on a six second cadence would be worse than the staleness
+ * it fixes, so a refresh scans the gap instead, which is usually a few hundred
+ * blocks and returns nothing at all.
+ *
+ * Falls back to a full build on any failure: a partial series presented as
+ * complete is the failure mode this whole file exists to avoid.
+ */
+async function extendHistory(
+  token: Address,
+  hit: { at: number; builtAt: number; value: PriceHistory },
+): Promise<PriceHistory> {
+  const prev = hit.value;
+  try {
+    const from = (prev.head ?? 0n) + 1n;
+    const fresh = await curvePriceHistory(token, {
+      fromBlock: from,
+      knownLaunch: prev.launch,
+      knownLauncher: prev.launcher ?? undefined,
+    });
+    if (fresh.unreadable.length) return buildPriceHistory(token);
+    if (!fresh.points.length) {
+      // Nothing new, but the scan reached a later block, so the next refresh
+      // starts from there rather than re-reading the same empty gap.
+      return { ...prev, head: fresh.head ?? prev.head, curve: fresh.curve ?? prev.curve };
+    }
+    const seen = new Set(prev.points.map((p) => `${p.txHash}:${p.ts}:${p.tokens}`));
+    const added = fresh.points.filter((p) => !seen.has(`${p.txHash}:${p.ts}:${p.tokens}`));
+    const points = [...prev.points, ...added].sort(
+      (a, b) => a.ts - b.ts || a.block - b.block,
+    );
+    return {
+      points,
+      unreadable: [],
+      launcher: prev.launcher,
+      curve: fresh.curve ?? prev.curve,
+      launch: prev.launch,
+      head: fresh.head ?? prev.head,
+    };
+  } catch {
+    return buildPriceHistory(token);
+  }
 }
 
 async function buildPriceHistory(token: Address): Promise<PriceHistory> {
@@ -565,7 +678,7 @@ async function buildPriceHistory(token: Address): Promise<PriceHistory> {
   );
   return {
     points, unreadable, launcher: curve.launcher, curve: curve.curve,
-    launch: curve.launch,
+    launch: curve.launch, head: curve.head,
   };
 }
 
@@ -648,6 +761,22 @@ export function toCandles(
     for (let k = 1; k <= gap; k += 1) {
       filled.push({ t: ordered[i].t + k * bucketSeconds, o: c, h: c, l: c, c, v: 0, n: 0 });
     }
+  }
+
+  // Open each candle where the last one closed.
+  //
+  // Taken literally, a bucket holding one trade has open == close == high ==
+  // low and draws as a one pixel line: the second trade on TEST rendered as a
+  // volume bar with no candle above it. Opening at the previous close is the
+  // convention these charts use and it is not an invention, because the price
+  // genuinely was the previous close until this bucket's first trade moved it.
+  // The series is already gap-free by the carry-forward above, so this makes
+  // every bucket show the move it actually contains.
+  for (let i = 1; i < filled.length; i += 1) {
+    const open = filled[i - 1].c;
+    filled[i].o = open;
+    filled[i].h = Math.max(filled[i].h, open);
+    filled[i].l = Math.min(filled[i].l, open);
   }
 
   return filled.slice(-limit);

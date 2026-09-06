@@ -10,8 +10,11 @@ export function useTokenDetail(address: string) {
   return useQuery({
     queryKey: TOKEN_DETAIL_QUERY_KEY(address),
     queryFn: () => fetchToken(address),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    // Price and market cap are read straight off the curve, so they can move
+    // as soon as a trade lands rather than up to a minute later.
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     enabled: !!address,
   });
 }
