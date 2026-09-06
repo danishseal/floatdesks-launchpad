@@ -484,6 +484,37 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
     : quoteOut;
   const ethBlocked = payingEth ? ethPlan?.blocked ?? null : null;
 
+  /**
+   * How far the price this trade actually gets is from the current price.
+   *
+   * Taken from the quote already in hand rather than a second read: the
+   * effective price is what you pay divided by what you receive, and spot is
+   * the venue's marginal price, so their ratio IS the slippage. On a constant
+   * product curve it works out to exactly the trade size over the quote
+   * reserve, which is why $100 into a $876 virtual reserve costs 11% and no
+   * amount of UI softens it. The panel showed this for the ETH hop only, so a
+   * buyer moving the price a quarter was told nothing at all.
+   *
+   * Shown only where BOTH legs are dollars. On the TokenLaunchpad venue the
+   * quote is denominated in the fSHARE, and dividing that by a USD spot would
+   * print a confident number about nothing.
+   */
+  const spotUsd = (Number(token.current_price || 0) / 1e6) * (token.market.solUsd || 1);
+  const usdLeg = payingEth
+    ? (ethPlan ? Number(formatUnits(ethPlan.hop1.usdgOut, ethPlan.hop1.usdgDecimals)) : null)
+    : numeric;
+  const priceImpact = (() => {
+    if (!curveVenue && !token.graduated) return null;
+    if (!spotUsd || spotUsd <= 0) return null;
+    if (shownOut === null || shownOut <= 0) return null;
+    if (side === "buy") {
+      if (!usdLeg || usdLeg <= 0) return null;
+      return (usdLeg / shownOut) / spotUsd - 1;
+    }
+    if (numeric <= 0) return null;
+    return 1 - (shownOut / numeric) / spotUsd;
+  })();
+
   return (
     <div className="rounded-[14px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-4">
       <div className="mb-4 flex items-center gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
@@ -616,6 +647,21 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             : `${fmtAmount(shownOut)} ${outLabel}`}
         </span>
       </div>
+
+      {priceImpact !== null && Number.isFinite(priceImpact) ? (
+        <div className="mb-4 flex items-center justify-between text-[12px]">
+          <span className="text-[var(--color-text-secondary)]">Price impact</span>
+          <span
+            className={
+              priceImpact >= 0.05
+                ? "font-semibold text-[var(--color-negative)]"
+                : "font-semibold text-[var(--color-text-primary)]"
+            }
+          >
+            {priceImpact < 0 && priceImpact > -0.0001 ? "0.00%" : `${(priceImpact * 100).toFixed(2)}%`}
+          </span>
+        </div>
+      ) : null}
 
       {payingEth && ethPlan ? (
         <div className="mb-4 rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3 py-2.5 text-[12px]">
