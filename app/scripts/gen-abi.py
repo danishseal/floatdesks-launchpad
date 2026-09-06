@@ -50,6 +50,10 @@ MANIFEST = [
         "pendingRewards", "pools", "positions", "requestUnstake", "stake", "unstakeDelay",
     ]),
     ("ORACLEHUBMEDIAN_ABI", "OracleHubMedian", ["getQuote", "minPosters", "posterFreshWindow"]),
+    # TokenLaunched is what anchors a chart at its opening price: a curve has a
+    # real quoted price from the moment it exists, so a token with one trade
+    # still has a series, and this event is the only exact source for WHEN that
+    # price started. Deriving the time from the first trade would invent one.
     # CurveBuy and CurveSell are the app's only source of price history on this
     # venue. Nothing indexes them: /candles proxied to an indexer that answers []
     # for every token, so a token that had really traded printed "Chart will
@@ -59,7 +63,7 @@ MANIFEST = [
         "launchFeeUsdg", "launchNew", "launchToken", "listFeeUsdg", "previewBuy",
         "previewSell", "raiseTargetOf", "sell", "stockPoolOf", "tokenCount",
         "virtualBps",
-        "CurveBuy", "CurveSell",
+        "CurveBuy", "CurveSell", "TokenLaunched",
     ]),
 ]
 

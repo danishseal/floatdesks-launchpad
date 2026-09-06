@@ -169,9 +169,19 @@ async function send(account: Address, address: Address, functionName: string, ar
   const wc = await walletClient();
   const pc = publicClient();
   const signer = wc.account ?? account;
-  const { request } = await pc.simulateContract({
-    account: signer, address, abi: CURVEFUNDER_ABI as never, functionName, args, chain: floatChain(),
-  });
+  // The simulate is a read, and this RPC throttles: every read path in this
+  // file already retries, and this one did not, so a single 429 between
+  // pressing Buy and signing surfaced as a failed trade. Retried here.
+  //
+  // The write below is NOT retried and must never be. A send that times out
+  // may still have been broadcast, and retrying it risks a second
+  // transaction against the same intent.
+  const { request } = await withRetry(
+    () => pc.simulateContract({
+      account: signer, address, abi: CURVEFUNDER_ABI as never, functionName, args, chain: floatChain(),
+    }),
+    `simulate ${functionName}`,
+  );
   return wc.writeContract({ ...request, account: signer } as never);
 }
 

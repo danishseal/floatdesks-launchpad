@@ -52,6 +52,25 @@ export function readableError(e: unknown): string {
   // Not a contract error at all, and it beats every other reading.
   if (/User rejected|denied transaction|User denied/i.test(msg)) return "Rejected in wallet.";
 
+  // A transport failure is not a contract failure, and the useful part of it is
+  // never on the first line: viem puts the status and the URL underneath.
+  // Returning only the head gave "HTTP request failed." with no cause and no
+  // subject, which is how a failed buy became impossible to diagnose from the
+  // screen. Name who did not answer.
+  if (/HTTP request failed/i.test(msg)) {
+    const status = msg.match(/Status:\s*(\d+)/)?.[1];
+    const url = msg.match(/URL:\s*(\S+)/)?.[1];
+    let host: string | null = null;
+    if (url) {
+      try { host = new URL(url).host; } catch { host = null; }
+    }
+    return [
+      "Could not reach",
+      host ?? "the network",
+      status ? `(HTTP ${status})` : null,
+    ].filter(Boolean).join(" ") + ".";
+  }
+
   const name = msg.match(ERROR_LINE)?.[1];
   if (name && SENTENCE[name]) return SENTENCE[name];
 

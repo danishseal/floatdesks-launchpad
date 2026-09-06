@@ -67,6 +67,20 @@ export interface PriceHistory {
   launcher: Address | null;
   /** The curve as read while resolving the launcher, so callers need not re-read it. */
   curve: CurveFunderCurve | null;
+  /**
+   * The price this curve opened at, and when.
+   *
+   * A constant-product curve with virtual reserves quotes a real price from the
+   * moment it exists: at launch `rQuote` and `sold` are both zero, so the price
+   * is exactly `vQuote / vToken`, and the virtual reserves never change. That
+   * is a genuine quote anyone could have bought at, not a modelled number.
+   *
+   * It is kept OUT of `points` deliberately. `points` are prints, and they feed
+   * the trade counts, the buys/sells bars and the Transactions tab; putting a
+   * non-trade in there would fabricate a trade that never happened. It seeds
+   * the chart's opening candle and nothing else.
+   */
+  launch: { ts: number; priceUsd: number } | null;
 }
 
 /** USDG is 6dp, the launched token is 18dp. */
@@ -150,11 +164,11 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
   const owner = await launcherHolding(token);
   if (owner.kind === "unreadable") {
     unreadable.push(`launcher lookup: ${owner.reasons.join("; ")}`);
-    return { points: [], unreadable, launcher: null, curve: null };
+    return { points: [], unreadable, launcher: null, curve: null, launch: null };
   }
   if (owner.kind === "absent") {
     // Not a curve token on this deployment. That is a real answer, not a gap.
-    return { points: [], unreadable, launcher: null, curve: null };
+    return { points: [], unreadable, launcher: null, curve: null, launch: null };
   }
   const launcher = owner.launcher;
 
@@ -228,7 +242,41 @@ export async function curvePriceHistory(token: Address): Promise<PriceHistory> {
   }
 
   points.sort((a, b) => a.ts - b.ts || a.block - b.block);
-  return { points, unreadable, launcher, curve: owner.curve };
+
+  // When this curve opened, and at what price.
+  //
+  // The price is exact arithmetic on the curve's own constants. The TIME is the
+  // only part that has to be looked up, and TokenLaunched is the sole exact
+  // source for it: deriving it from the first trade would place the opening
+  // wherever the first buyer happened to arrive, which is a made-up timestamp
+  // on a real price. If the log cannot be read we return no anchor at all
+  // rather than guessing, and the chart simply starts at the first print.
+  let launch: { ts: number; priceUsd: number } | null = null;
+  const c = owner.curve;
+  if (c && c.vToken > 0n) {
+    const openPrice = (Number(c.vQuote) / USDG_UNIT) / (Number(c.vToken) / TOKEN_UNIT);
+    if (Number.isFinite(openPrice) && openPrice > 0) {
+      try {
+        const launched = await allLogs(
+          (f, t) => pc.getLogs({
+            address: launcher, event: eventNamed("TokenLaunched"), args: { token },
+            fromBlock: f, toBlock: t,
+          }),
+          head,
+        );
+        const first = launched[0];
+        if (first) {
+          const at = await blockTimes([first.blockNumber ?? 0n]);
+          const ts = at.get(first.blockNumber ?? 0n);
+          if (ts) launch = { ts, priceUsd: openPrice };
+        }
+      } catch (e) {
+        unreadable.push(`TokenLaunched log: ${message(e)}`);
+      }
+    }
+  }
+
+  return { points, unreadable, launcher, curve: owner.curve, launch };
 }
 
 /**
@@ -515,7 +563,10 @@ async function buildPriceHistory(token: Address): Promise<PriceHistory> {
   const points = [...curve.points, ...poolPoints].sort(
     (a, b) => a.ts - b.ts || a.block - b.block,
   );
-  return { points, unreadable, launcher: curve.launcher, curve: curve.curve };
+  return {
+    points, unreadable, launcher: curve.launcher, curve: curve.curve,
+    launch: curve.launch,
+  };
 }
 
 export interface RawCandle {
@@ -542,9 +593,27 @@ export interface RawCandle {
  * Emitting plain dollars here would render every market cap 1e6 too small,
  * which is the same class of mistake as the 1e12 curve-price bug in api.ts.
  */
-export function toCandles(points: PricePoint[], bucketSeconds: number, limit: number): RawCandle[] {
-  if (!points.length || bucketSeconds <= 0) return [];
+export function toCandles(
+  points: PricePoint[],
+  bucketSeconds: number,
+  limit: number,
+  /**
+   * The curve's opening quote, seeded as the first candle so a market that has
+   * printed once still has a series to draw: it opens where the curve opened
+   * and moves to where the trade took it. Carries `n: 0`, because it is a
+   * quote and not a trade, and every count downstream reads `n`.
+   */
+  launch?: { ts: number; priceUsd: number } | null,
+): RawCandle[] {
+  if (bucketSeconds <= 0) return [];
+  if (!points.length && !launch) return [];
   const buckets = new Map<number, RawCandle>();
+
+  if (launch) {
+    const t = Math.floor(launch.ts / bucketSeconds) * bucketSeconds;
+    const price = launch.priceUsd * 1e6;
+    buckets.set(t, { t, o: price, h: price, l: price, c: price, v: 0, n: 0 });
+  }
 
   for (const p of points) {
     const t = Math.floor(p.ts / bucketSeconds) * bucketSeconds;
@@ -603,16 +672,24 @@ const CURVE_BUY_EVENT = CURVEFUNDER_ABI.find(
 const CURVE_SELL_EVENT = CURVEFUNDER_ABI.find(
   (e): e is CurveEvent<"CurveSell"> => e.type === "event" && e.name === "CurveSell",
 );
+const CURVE_LAUNCH_EVENT = CURVEFUNDER_ABI.find(
+  (e): e is CurveEvent<"TokenLaunched"> => e.type === "event" && e.name === "TokenLaunched",
+);
 
-function eventNamed<N extends "CurveBuy" | "CurveSell">(name: N) {
-  const found = name === "CurveBuy" ? CURVE_BUY_EVENT : CURVE_SELL_EVENT;
+function eventNamed<N extends "CurveBuy" | "CurveSell" | "TokenLaunched">(name: N) {
+  const found =
+    name === "CurveBuy" ? CURVE_BUY_EVENT
+    : name === "CurveSell" ? CURVE_SELL_EVENT
+    : CURVE_LAUNCH_EVENT;
   if (!found) {
     // gen-abi.py emitted functions and errors only until the chart needed these.
     // A missing event here means the manifest was trimmed, not that the chain
     // is quiet, so say which.
     throw new Error(`${name} is not in CURVEFUNDER_ABI. Re-run scripts/gen-abi.py.`);
   }
-  return found as N extends "CurveBuy" ? CurveEvent<"CurveBuy"> : CurveEvent<"CurveSell">;
+  return found as N extends "CurveBuy" ? CurveEvent<"CurveBuy">
+    : N extends "CurveSell" ? CurveEvent<"CurveSell">
+    : CurveEvent<"TokenLaunched">;
 }
 
 function message(e: unknown): string {

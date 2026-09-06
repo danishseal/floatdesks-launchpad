@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     // A source that could not be read is not a source with nothing in it. If
     // the logs failed and we have no points, refuse rather than draw an empty
     // chart that claims the token never traded.
-    if (history.unreadable.length && !history.points.length) {
+    if (history.unreadable.length && !history.points.length && !history.launch) {
       return NextResponse.json(
         { error: history.unreadable.join("; ") },
         { status: 502 },
@@ -55,7 +55,10 @@ export async function GET(req: Request) {
     if (history.unreadable.length) {
       headers["x-float-unreadable"] = history.unreadable.join("; ").slice(0, 900);
     }
-    return NextResponse.json(toCandles(history.points, bucket, limit), { headers });
+    return NextResponse.json(
+      toCandles(history.points, bucket, limit, history.launch),
+      { headers },
+    );
   } catch (e) {
     const detail = e instanceof Error ? e.message.split("\n")[0] : String(e);
     return NextResponse.json({ error: detail }, { status: 502 });

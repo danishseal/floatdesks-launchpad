@@ -88,19 +88,16 @@ export function TradingChart({
   // carry trades: 0. Counting them would turn one trade into a chart of
   // hundreds, which is the shape this whole gate exists to refuse.
   const candles = data?.candles ?? [];
-  let printed = 0;
-  let low = Number.POSITIVE_INFINITY;
-  let high = Number.NEGATIVE_INFINITY;
-  for (const candle of candles) {
-    printed += Number(candle.trades ?? 0);
-    if (Number(candle.low) < low) low = Number(candle.low);
-    if (Number(candle.high) > high) high = Number(candle.high);
-  }
-  // A range of exactly zero is one price repeated, not a trend. Drawing it
-  // gives a confident flat line across the pane, which states a market holding
-  // its level through a session. What it is, is a single number.
-  const moved = candles.length > 0 && high > low;
-  const chartData = moved ? data : null;
+  // Draw whenever there is a series at all.
+  //
+  // This used to refuse any series whose high equalled its low, on the grounds
+  // that one repeated price is not a trend. That was right about the data and
+  // wrong about the product: a curve quotes a real price from the moment it
+  // launches, so the series now opens at that quote (see the launch anchor in
+  // curve-trades.ts) and a market with one trade genuinely has two points and a
+  // move. A flat pane is only left when there is nothing at all to plot.
+  const drawable = candles.length > 0;
+  const chartData = drawable ? data : null;
 
   // Loading is not emptiness. The skeleton above is skipped whenever a
   // fallbackPrice is passed, and the token page always passes one, so without
@@ -108,24 +105,16 @@ export function TradingChart({
   // price" for as long as the log scan takes. That is seconds on a cold read,
   // and it is a stated measurement of no trading rather than an absence of one.
   // Only a read that has finished is allowed to report an absence.
-  const vacant = moved
+  const vacant = drawable
     ? null
     : isLoading || !data
       ? {
           head: "Loading price history",
           note: "Reading this market's trades from the chain",
         }
-      : candles.length === 0 || printed === 0
-      ? {
+      : {
           head: "No trades yet",
           note: "This market has not printed a price",
-        }
-      : {
-          head:
-            printed === 1
-              ? "One trade, no price movement yet"
-              : `${printed} trades, all at one price`,
-          note: "There is a single price here, so there is no series to draw",
         };
 
   return (
