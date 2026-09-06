@@ -21,6 +21,7 @@ import {
 import { resolve, detectVenue } from "@/lib/float/registry";
 import { cfAllTokensDetailed, cfCurve, cfTokenMeta, readTokenMeta } from "@/lib/float/curve-funder";
 import { launcherHolding } from "@/lib/float/token-owner";
+import { isHiddenLaunch } from "@/lib/float/hidden-launches";
 
 const API = "/api/float";
 
@@ -486,7 +487,12 @@ async function fetchCurveFunderTokens(): Promise<TokenListItem[]> {
     };
     return t;
   }));
-  const tokens = rows.filter(Boolean) as TokenListItem[];
+  // Bring-up tokens stay off every list. Filtered here rather than in each
+  // consumer so the launchpad grid, the scanner and anything else reading this
+  // agree by construction; `fetchToken` below deliberately does NOT filter, so
+  // a direct link to a hidden token still resolves.
+  const tokens = (rows.filter(Boolean) as TokenListItem[])
+    .filter((t) => !isHiddenLaunch(t.address));
 
   // Overlay the price of the market that actually trades each token. The curve
   // formula above is correct until graduation and meaningless after it, since a
