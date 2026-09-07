@@ -25,6 +25,7 @@ import { readableError } from "@/lib/float/errors";
 import { cfTx, cfLaunchParams, tokenMetaOwner, setTokenMeta } from "@/lib/float/curve-funder";
 import { launchableCandidates, pricedNow, type Candidate } from "@/lib/float/catalogue";
 import { activeNetwork } from "@/lib/float/networks";
+import { resolveTokenImage } from "@/components/token/token-art";
 
 // Geist, the same face the rest of the app uses. This wizard had been running
 // on a woff2 lifted from the template it was cloned from, so it read as a
@@ -641,9 +642,9 @@ function IdentityStep(props: {
       </p>
 
       <div className="mt-12 flex min-h-[100px] items-center gap-4 rounded-[16px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-5 py-4 shadow-[0_14px_40px_rgba(0,0,0,.18)]">
-        {image ? (
+        {resolveTokenImage(image) ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={image} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />
+          <img src={resolveTokenImage(image)!} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />
         ) : (
           <div className="h-14 w-14 shrink-0 rounded-full bg-[radial-gradient(circle_at_32%_28%,#e8e8ec,#71717a_55%,#2a2a30)]" aria-hidden />
         )}
@@ -793,9 +794,9 @@ function ReviewStep({
       </p>
 
       <div className="mt-10 flex items-center gap-4 rounded-[16px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-5 py-4">
-        {image ? (
+        {resolveTokenImage(image) ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={image} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+          <img src={resolveTokenImage(image)!} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
         ) : (
           <div className="h-12 w-12 shrink-0 rounded-full bg-[radial-gradient(circle_at_32%_28%,#e8e8ec,#71717a_55%,#2a2a30)]" aria-hidden />
         )}

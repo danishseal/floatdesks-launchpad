@@ -23,9 +23,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Image as ImageIcon, Spinner, X } from "@phosphor-icons/react";
 import { publicClient } from "@/lib/float/chain";
+import { resolveTokenImage } from "@/components/token/token-art";
 
 /** Logo box. Bigger buys nothing on a 56px avatar and costs gas per byte. */
-const MAX_EDGE = 128;
+// 128 was sharp in a 44px avatar and mush everywhere else: the launchpad grid
+// renders these cards several hundred pixels wide, so every logo was being
+// upscaled roughly three times and looked it. 320 is sharp at the largest
+// place we draw them and still lands well inside HARD_MAX_BYTES once the
+// quality ladder below has run, and the wizard prices the extra bytes as gas
+// before anyone commits to them.
+const MAX_EDGE = 320;
 /** Encoded budget. 6KB is about 0.0016 ETH at 0.40 gwei. */
 const TARGET_BYTES = 6 * 1024;
 /** Refuse above this: it is a launch cost the launcher did not agree to. */
@@ -55,22 +62,78 @@ function storageGas(bytes: number) {
   return Math.ceil(bytes / 32) * 20000 + bytes * 16;
 }
 
+/**
+ * Decode to something drawable.
+ *
+ * Vectors go through an <img> rather than createImageBitmap, which rasterises
+ * an SVG once at its intrinsic size: an icon authored at 24px would be baked
+ * to a 24px raster and then blown up, and an SVG with only a viewBox has no
+ * intrinsic size at all. Drawn from an <img>, the browser re-rasterises the
+ * vector at the destination size, so it comes out sharp at MAX_EDGE.
+ */
+async function decode(file: File): Promise<{
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+  vector: boolean;
+  done: () => void;
+}> {
+  if (file.type === "image/svg+xml") {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.decoding = "sync";
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("that SVG would not render"));
+        img.src = url;
+      });
+      // A viewBox-only SVG reports the 300x150 default replaced-element box.
+      // Its aspect is still right, so it is kept and only the scale is taken
+      // from MAX_EDGE.
+      const w = img.naturalWidth || MAX_EDGE;
+      const h = img.naturalHeight || MAX_EDGE;
+      return { source: img, width: w, height: h, vector: true, done: () => URL.revokeObjectURL(url) };
+    } catch (e) {
+      URL.revokeObjectURL(url);
+      throw e;
+    }
+  }
+  const bitmap = await createImageBitmap(file);
+  return {
+    source: bitmap,
+    width: bitmap.width,
+    height: bitmap.height,
+    vector: false,
+    done: () => bitmap.close(),
+  };
+}
+
 /** Draw to a square canvas, then walk quality down until it fits. */
 async function encodeToBudget(file: File): Promise<{ uri: string; bytes: number }> {
-  const bitmap = await createImageBitmap(file);
-  const edge = Math.min(MAX_EDGE, Math.max(bitmap.width, bitmap.height));
+  const { source, width, height, vector, done } = await decode(file);
+  // Never upscale a raster: a 64px PNG stored at 320px is the same 64px of
+  // detail in five times the bytes. A vector has no such ceiling.
+  const edge = vector ? MAX_EDGE : Math.min(MAX_EDGE, Math.max(width, height));
   const canvas = document.createElement("canvas");
   canvas.width = edge;
   canvas.height = edge;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("this browser gave no 2d canvas to resize with");
+  if (!ctx) {
+    done();
+    throw new Error("this browser gave no 2d canvas to resize with");
+  }
+  // Default smoothing is "low", which on a big downscale drops most of the
+  // source pixels instead of averaging them and reads as aliased mush.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 
   // Cover-fit into the square so a wide logo is not squashed.
-  const scale = Math.max(edge / bitmap.width, edge / bitmap.height);
-  const w = bitmap.width * scale;
-  const h = bitmap.height * scale;
-  ctx.drawImage(bitmap, (edge - w) / 2, (edge - h) / 2, w, h);
-  bitmap.close();
+  const scale = Math.max(edge / width, edge / height);
+  const w = width * scale;
+  const h = height * scale;
+  ctx.drawImage(source, (edge - w) / 2, (edge - h) / 2, w, h);
+  done();
 
   // WebP first, PNG only as a fallback: a browser that cannot encode WebP
   // silently hands back a PNG data URI from toDataURL, so the type is checked
@@ -141,6 +204,9 @@ export function ImageDrop({
     [onChange],
   );
 
+  // A pasted ipfs:// URI is not something a browser will fetch, so the preview
+  // shows what the app will actually draw rather than the raw string.
+  const preview = resolveTokenImage(value);
   const bytes = value && isDataUri(value) ? byteLength(value) : 0;
   const gas = bytes ? storageGas(bytes) : 0;
   const eth = gas && gasPrice ? (Number(gasPrice) * gas) / 1e18 : null;
@@ -174,10 +240,10 @@ export function ImageDrop({
             : "border-[var(--color-border-soft)] bg-[var(--color-bg-page)] hover:border-[var(--color-text-muted)]"
         }`}
       >
-        {value ? (
+        {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={value}
+            src={preview}
             alt=""
             className="h-12 w-12 shrink-0 rounded-full border border-[var(--color-border-soft)] object-cover"
           />

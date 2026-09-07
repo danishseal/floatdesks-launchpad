@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useTokens } from "@/hooks/use-tokens";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import type { TokenListItem } from "@/lib/api";
+import { TokenArt } from "@/components/token/token-art";
 
 type Tab = "creators" | "coins";
 
@@ -84,10 +85,7 @@ export function Leaderboard() {
                     <td className="px-4 py-3">
                       <Link href={`/creator/${c.creator}`} className="flex items-center gap-2.5">
                         <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-[var(--hairline)] bg-[var(--color-bg-raised)]">
-                          {c.image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={c.image} alt="" className="h-full w-full object-cover" />
-                          ) : null}
+                          <TokenArt src={c.image} symbol={short(c.creator)} className="h-full w-full object-cover text-[11px]" />
                         </div>
                         <span className="font-mono text-[13px] font-semibold text-[var(--color-text-primary)] group-hover:text-[var(--color-accent-strong)]">{short(c.creator)}</span>
                       </Link>
@@ -122,10 +120,7 @@ export function Leaderboard() {
                       <td className="px-4 py-3">
                         <Link href={`/token/${t.address}`} className="flex items-center gap-2.5">
                           <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md border border-[var(--hairline)] bg-[var(--color-bg-raised)]">
-                            {t.image ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={t.image} alt="" className="h-full w-full object-cover" />
-                            ) : null}
+                            <TokenArt src={t.image} symbol={t.symbol} className="h-full w-full object-cover text-[11px]" />
                           </div>
                           <div>
                             <p className="text-[13px] font-semibold text-[var(--color-accent-strong)] group-hover:underline">${t.symbol}</p>

@@ -11,6 +11,7 @@ import { fetchGraduationThreshold, type TokenListItem,
 } from "@/lib/api";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import { formatDistanceToNow } from "date-fns";
+import { TokenArt } from "@/components/token/token-art";
 
 function byNewest(tokens: TokenListItem[]): TokenListItem[] {
   return [...tokens].sort(
@@ -351,14 +352,11 @@ function RankedCoin({ token, rank }: { token: TokenListItem; rank: number }) {
         {rank}
       </span>
       <div className="relative aspect-square w-full overflow-hidden bg-[var(--color-bg-page)]">
-        {token.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={token.image} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center font-display text-3xl text-zinc-700">
-            {token.symbol?.[0]}
-          </div>
-        )}
+        <TokenArt
+          src={token.image}
+          symbol={token.symbol}
+          className="h-full w-full object-cover text-3xl transition-transform duration-300 group-hover:scale-[1.03]"
+        />
       </div>
       <div className="flex flex-col gap-1 p-2.5">
         <div className="flex items-center gap-1.5">
@@ -443,14 +441,7 @@ function NewCoinRow({ token }: { token: TokenListItem }) {
     >
       <div className="flex min-w-0 items-center gap-2.5">
         <div className="h-9 w-9 shrink-0 overflow-hidden rounded-[5px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)]">
-          {token.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={token.image} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex h-full items-center justify-center text-xs text-[var(--color-text-subtle)]">
-              {token.symbol?.slice(0, 1) ?? "?"}
-            </span>
-          )}
+          <TokenArt src={token.image} symbol={token.symbol} className="h-full w-full object-cover text-xs" />
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">

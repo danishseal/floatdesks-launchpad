@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useTokens } from "@/hooks/use-tokens";
+import { TokenArt } from "@/components/token/token-art";
 
 // fomo-style token search: magnifier + "/" hotkey, live dropdown of matches.
 export function TokenSearch() {
@@ -63,14 +64,11 @@ export function TokenSearch() {
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--color-bg-page)]"
             >
-              {t.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={t.image} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
-              ) : (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-bg-raised)] text-xs font-bold text-[var(--color-text-secondary)]">
-                  {t.symbol?.[0]}
-                </span>
-              )}
+              <TokenArt
+                src={t.image}
+                symbol={t.symbol}
+                className="h-8 w-8 shrink-0 rounded-lg object-cover text-xs"
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-[var(--color-text-primary)]">{t.name}</p>
                 <p className="truncate text-[11px] font-semibold text-[var(--color-text-muted)]">${t.symbol}</p>

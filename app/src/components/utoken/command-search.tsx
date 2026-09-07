@@ -13,6 +13,7 @@ import { MagnifyingGlass, TrendUp, User } from "@phosphor-icons/react";
 import { useTokens } from "@/hooks/use-tokens";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import type { TokenListItem } from "@/lib/api";
+import { TokenArt } from "@/components/token/token-art";
 
 type TopUser = { address: string; image: string | null; launchedValue: number };
 type Item =
@@ -206,14 +207,7 @@ function SearchModal({ onClose }: { onClose: () => void }) {
                     }`}
                   >
                     <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md border border-[var(--hairline)] bg-[var(--color-bg-raised)]">
-                      {t.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={t.image} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="flex h-full items-center justify-center font-mono text-xs text-[var(--color-text-subtle)]">
-                          {t.symbol?.slice(0, 1)}
-                        </span>
-                      )}
+                      <TokenArt src={t.image} symbol={t.symbol} className="h-full w-full object-cover text-xs" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <span className="font-display text-[14px] font-semibold text-[var(--color-accent-strong)]">

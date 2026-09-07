@@ -19,6 +19,7 @@ import type { Timeframe, TokenListItem, TokenTrade } from "@/lib/api";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
 import { explorerUrl } from "@/lib/floorlaunch/config";
 import { activeNetwork } from "@/lib/float/networks";
+import { TokenArt } from "@/components/token/token-art";
 
 const NETWORK_LABEL = activeNetwork().label;
 
@@ -170,18 +171,12 @@ export default function TokenDetailPage() {
         >
         <div className="flex h-[70px] shrink-0 items-center justify-between gap-6 overflow-x-auto border-b border-[var(--color-border-soft)] px-4 py-2">
           <div className="flex shrink-0 items-center gap-2.5">
-            {token.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={token.image}
-                alt={token.name ?? token.symbol ?? "Token"}
-                className="h-11 w-11 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] object-cover"
-              />
-            ) : (
-              <span className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] text-sm text-[var(--color-text-secondary)]">
-                {token.symbol?.[0]}
-              </span>
-            )}
+            <TokenArt
+              src={token.image}
+              symbol={token.symbol}
+              eager
+              className="h-11 w-11 shrink-0 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] object-cover text-sm"
+            />
             <div className="min-w-0">
               <div className="flex h-8 items-center gap-1.5">
                 {/* Geist, the face the rest of the chrome uses. The body font

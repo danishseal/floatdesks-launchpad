@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
 import { fetchTokens, type TokenListItem } from "@/lib/api";
 import { activeNetwork } from "@/lib/float/networks";
+import { TokenArt } from "@/components/token/token-art";
 
 export default function CreatorPage() {
   const params = useParams<{ address: string }>();
@@ -74,12 +75,11 @@ function CreatorTokenRow({ token }: { token: TokenListItem }) {
 
   return (
     <Link href={`/token/${token.address}`} className="flex items-center gap-4 px-4 py-4">
-      {token.image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={token.image} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
-      ) : (
-        <div className="h-10 w-10 shrink-0 rounded-full bg-[var(--color-bg-page)]" aria-hidden />
-      )}
+      <TokenArt
+        src={token.image}
+        symbol={token.symbol}
+        className="h-10 w-10 shrink-0 rounded-full object-cover text-[13px]"
+      />
       <div className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-semibold text-[var(--color-text-primary)]">
           ${token.symbol}

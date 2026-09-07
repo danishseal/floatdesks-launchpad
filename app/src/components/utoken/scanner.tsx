@@ -20,6 +20,7 @@ import { fetchGraduationThreshold, type TokenListItem,
   graduationProgress,
 } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
+import { TokenArt } from "@/components/token/token-art";
 
 type Filter = "all" | "curve" | "amm";
 type View = "table" | "grid";
@@ -299,14 +300,7 @@ function Spotlight({ icon, label, token, value }: { icon: ReactNode; label: stri
   const body = (
     <div className="flex h-full items-center gap-2.5 rounded-[10px] border border-[var(--hairline)] bg-[var(--color-bg-page)] px-3 py-2.5 transition-colors hover:border-zinc-600">
       <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--color-bg-raised)]">
-        {token?.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={token.image} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span className="flex h-full items-center justify-center text-[11px] text-[var(--color-text-subtle)]">
-            {token?.symbol?.slice(0, 1) ?? "?"}
-          </span>
-        )}
+        <TokenArt src={token?.image} symbol={token?.symbol} className="h-full w-full object-cover text-[11px]" />
       </div>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--color-accent-strong)]">
@@ -425,12 +419,7 @@ function TableRow({ token, rank, thresholdMicro }: { token: TokenListItem; rank:
       <td className="px-4 py-3">
         <Link href={`/token/${token.address}`} className="flex items-center gap-2.5">
           <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-[var(--color-bg-raised)] ring-1 ring-[var(--hairline)]">
-            {token.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={token.image} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="flex h-full items-center justify-center text-[11px] text-[var(--color-text-subtle)]">{token.symbol?.slice(0, 1)}</span>
-            )}
+            <TokenArt src={token.image} symbol={token.symbol} className="h-full w-full object-cover text-[11px]" />
           </div>
           <div className="min-w-0">
             <p className="truncate text-[14px] font-semibold text-[var(--color-accent-strong)] group-hover:underline">${token.symbol}</p>
@@ -498,12 +487,7 @@ function ScannerCard({ token, thresholdMicro }: { token: TokenListItem; threshol
       {/* Identity */}
       <div className="flex items-center gap-2.5">
         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--color-bg-raised)]">
-          {token.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={token.image} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex h-full items-center justify-center text-sm text-[var(--color-text-subtle)]">{token.symbol?.slice(0, 1)}</span>
-          )}
+          <TokenArt src={token.image} symbol={token.symbol} className="h-full w-full object-cover text-sm" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">

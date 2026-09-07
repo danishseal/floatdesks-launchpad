@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ArrowUpRight, Check, CopySimple } from "@phosphor-icons/react";
 import type { TokenListItem } from "@/lib/api";
 import { DEFAULT_TOKEN_SUPPLY } from "@/lib/chain-config";
+import { TokenArt } from "@/components/token/token-art";
 
 interface TokenCardProps { token: TokenListItem }
 
@@ -39,10 +40,7 @@ export function TokenCard({ token }: TokenCardProps) {
         {/* Identity row */}
         <div className="flex items-center gap-2.5">
           <div className="h-11 w-11 shrink-0 overflow-hidden rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)]">
-            {token.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={token.image} alt={token.symbol ?? "token"} className="h-full w-full object-cover" />
-            ) : <div className="flex h-full w-full items-center justify-center text-sm text-[var(--color-text-muted)]">{token.symbol?.slice(0, 1)}</div>}
+            <TokenArt src={token.image} symbol={token.symbol} className="h-full w-full object-cover text-sm" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">

@@ -10,6 +10,7 @@ import { type TokenListItem,
   graduationProgress,
 } from "@/lib/api";
 import styles from "./home.module.css";
+import { TokenArt } from "@/components/token/token-art";
 
 export function UtokenHome() {
   const { data: tokens, isLoading } = useTokens();
@@ -127,12 +128,7 @@ function TokenPreviewBanner({
       <aside key={`stats-${token.address}`} className={`${styles.previewSwap} flex min-h-0 min-w-0 flex-col p-5`}>
         <div className="flex shrink-0 items-start gap-3 border-b border-[var(--color-border-soft)] pb-3">
           <div className="h-11 w-11 shrink-0 overflow-hidden bg-[var(--color-bg-raised)]">
-            {token.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={token.image} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="flex h-full items-center justify-center font-display text-lg text-[var(--color-text-subtle)]">{token.symbol?.slice(0, 1) || "?"}</span>
-            )}
+            <TokenArt src={token.image} symbol={token.symbol} eager className="h-full w-full object-cover text-lg" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
@@ -257,14 +253,12 @@ function FeaturedCard({
       }`}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-[var(--color-bg-raised)]">
-        {token.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={token.image} alt={`${token.name} token artwork`} className="block h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center font-display text-[clamp(2rem,5vw,4rem)] font-semibold text-[var(--color-text-subtle)]">
-            {token.symbol?.slice(0, 1) || "?"}
-          </div>
-        )}
+        <TokenArt
+          src={token.image}
+          symbol={token.symbol}
+          alt={`${token.name} token artwork`}
+          className="block h-full w-full object-cover text-[clamp(2rem,5vw,4rem)]"
+        />
 
       </div>
 
@@ -408,12 +402,7 @@ function RegistryRow({ token, rank }: { token: TokenListItem; rank: number }) {
       <td className="px-4 py-3">
         <Link href={`/token/${token.address}`} className="flex items-center gap-2.5">
           <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-[var(--color-bg-raised)] ring-1 ring-[var(--hairline)]">
-            {token.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={token.image} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="flex h-full items-center justify-center text-[11px] text-[var(--color-text-subtle)]">{token.symbol?.slice(0, 1)}</span>
-            )}
+            <TokenArt src={token.image} symbol={token.symbol} className="h-full w-full object-cover text-[11px]" />
           </div>
           <div className="min-w-0">
             <p className="text-[14px] font-semibold text-[var(--color-accent-strong)] group-hover:underline">{token.symbol}</p>
