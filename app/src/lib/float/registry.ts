@@ -116,12 +116,22 @@ export async function detectVenue(): Promise<VenueKind | null> {
   // alone does not decide it. When both resolve, the preset's declared venue
   // wins; presence only decides when exactly one exists.
   const declared = activeNetwork().venue;
-  const venue: VenueKind | null =
+  // Neither key resolving means the RPC would not answer, NOT that this
+  // deployment has no venue. Guessing "not curve-funder" there re-denominates
+  // the whole app: every price is quoted in the fSHARE instead of dollars, so
+  // a market reading $872.70 renders as $21.07K, roughly 24x out, with nothing
+  // logged and no error shown. The preset already knows what this deployment
+  // is, so fall back to it rather than invent an answer from a failed read.
+  const answered = Boolean(tokenPad || curveFunder);
+  const venue: VenueKind =
     tokenPad && curveFunder ? declared
     : tokenPad ? "token-launchpad"
     : curveFunder ? "curve-funder"
-    : null;
-  venueCache = { registry: reg, venue };
+    : declared;
+  // And only remember an answer that came from the chain. Caching a failure
+  // pins it for the life of the page: one hiccup on load and every number is
+  // wrong until a hard refresh, which is exactly how this was found.
+  if (answered) venueCache = { registry: reg, venue };
   return venue;
 }
 

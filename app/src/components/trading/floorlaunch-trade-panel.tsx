@@ -507,6 +507,13 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   const ethBlocked = payingEth ? ethPlan?.blocked ?? null : null;
 
   /**
+   * Is the input denominated in dollars? Only then does a leading $ belong in
+   * front of it. Selling is denominated in the token, where a dollar sign in
+   * front of a token quantity would be a straightforward lie.
+   */
+  const dollars = side === "buy" && !payingEth;
+
+  /**
    * The quick-size row. Dollars on the way in, fractions of the balance on the
    * way out, because a sell is denominated in a token nobody holds a round
    * number of. `null` means the wallet cannot cover it, which disables the
@@ -566,11 +573,11 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             key={s}
             type="button"
             onClick={() => { setSide(s); setAmount(""); if (s === "sell") setPayWith("quote"); }}
-            className={`rounded-[7px] py-2 font-display text-[13px] font-bold capitalize tracking-[-0.01em] transition-all duration-150 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 ${
+            className={`rounded-[8px] py-2.5 font-display text-[14px] font-bold capitalize tracking-[-0.01em] transition-all duration-150 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 ${
               side === s
-                ? `bg-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/10%)] ${
-                    s === "buy" ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"
-                  }`
+                ? s === "buy"
+                  ? "bg-[var(--color-positive)] text-[var(--color-bg-surface)]"
+                  : "bg-[var(--color-negative)] text-[var(--color-bg-surface)]"
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
           >
@@ -641,36 +648,32 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
 
 
       <div className="mb-3">
-        {/* Three weights: a tracked eyebrow, the balance, and the amount as a
-            display number. Everything here was 13px grey, which reads as a
-            form rather than the one field the panel exists for. */}
-        <div className="mb-2 flex items-baseline justify-between">
-          <label className="font-display text-[10px] font-medium uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
-            You pay
-          </label>
-          <span className="font-display text-[11px] tabular-nums text-[var(--color-text-subtle)]">
-            {balance === null ? "-" : `${balance.toFixed(4)} ${inLabel}`}
-            {maxAmount !== null && maxAmount > 0 ? (
-              <button
-                type="button"
-                className="ml-2 font-semibold text-[var(--color-text-secondary)] underline underline-offset-2 hover:text-[var(--color-text-primary)]"
-                onClick={() => setAmount(String(maxAmount))}
-              >
-                max
-              </button>
-            ) : null}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-2 rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3.5 py-3 transition-colors focus-within:border-[var(--color-border-muted)]">
+        {/* A filled field, not a labelled form row. The label and the balance
+            used to sit above it; the balance now reads as "available" beneath
+            the presets, which is where a trader looks for it, and the field is
+            left to be the one obvious thing on the card. */}
+        <div className="flex items-baseline gap-2 rounded-[10px] bg-[var(--color-bg-page)] px-4 py-3.5 transition-colors focus-within:bg-[var(--color-bg-raised)]">
+          {dollars ? (
+            <span
+              aria-hidden
+              className={`shrink-0 font-display text-[30px] font-medium leading-none tracking-[-0.02em] ${
+                numeric > 0 ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-subtle)]"
+              }`}
+            >
+              $
+            </span>
+          ) : null}
           <input
-            className="w-full bg-transparent font-display text-[28px] font-medium leading-none tabular-nums tracking-[-0.02em] outline-none placeholder:text-[var(--color-text-subtle)]"
+            className="w-full min-w-0 bg-transparent font-display text-[30px] font-medium leading-none tabular-nums tracking-[-0.02em] outline-none placeholder:text-[var(--color-text-subtle)]"
             inputMode="decimal"
             placeholder="0"
             aria-label={`Amount to ${side} in ${inLabel}`}
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
           />
-          <span className="shrink-0 font-display text-[12px] font-medium text-[var(--color-text-muted)]">{inLabel}</span>
+          <span className="shrink-0 font-display text-[13px] font-medium text-[var(--color-text-subtle)]">
+            {numeric > 0 ? inLabel : "Enter amount"}
+          </span>
         </div>
 
         {/* Preset sizes, and the slippage gear beside them.
@@ -686,7 +689,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
               type="button"
               disabled={p.value === null}
               onClick={() => p.value !== null && setAmount(trimZeros(p.value))}
-              className="flex-1 rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-2 py-1.5 font-display text-[12px] font-bold tabular-nums text-[var(--color-text-secondary)] transition-all duration-150 hover:border-[var(--color-border-muted)] hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-text-primary)] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--color-bg-page)] motion-reduce:transition-none motion-reduce:active:scale-100"
+              className="flex-1 rounded-[8px] bg-[var(--color-bg-page)] px-2 py-2 font-display text-[12px] font-bold tabular-nums text-[var(--color-text-secondary)] transition-all duration-150 hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-text-primary)] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--color-bg-page)] motion-reduce:transition-none motion-reduce:active:scale-100"
             >
               {p.label}
             </button>
@@ -695,16 +698,30 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             type="button"
             aria-label="Slippage settings"
             onClick={() => setShowSlippage((v) => !v)}
-            className="shrink-0 rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] p-1.5 text-[var(--color-text-secondary)] transition-all duration-150 hover:border-[var(--color-border-muted)] hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-text-primary)] active:scale-[0.92] motion-reduce:transition-none motion-reduce:active:scale-100"
+            className="shrink-0 rounded-[8px] bg-[var(--color-bg-page)] p-2 text-[var(--color-text-secondary)] transition-all duration-150 hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-text-primary)] active:scale-[0.92] motion-reduce:transition-none motion-reduce:active:scale-100"
           >
             <Gear size={14} />
           </button>
+        </div>
+
+        {/* What you can actually spend, under the sizes that spend it. */}
+        <div className="mt-2 font-display text-[12px] tabular-nums text-[var(--color-text-muted)]">
+          {balance === null ? "-" : `${balance.toFixed(4)} ${inLabel}`} available
+          {maxAmount !== null && maxAmount > 0 ? (
+            <button
+              type="button"
+              className="ml-2 font-medium text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--color-text-primary)]"
+              onClick={() => setAmount(String(maxAmount))}
+            >
+              max
+            </button>
+          ) : null}
         </div>
       </div>
 
       {/* One surface with dividers, not three rows floating in whitespace.
           Values are tabular so they do not jitter as the quote updates. */}
-      <div className="mb-4 divide-y divide-[var(--color-border-soft)] rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3.5">
+      <div className="mb-4 divide-y divide-[var(--color-border-soft)] rounded-[10px] bg-[var(--color-bg-page)] px-4">
         <div className="flex items-baseline justify-between gap-3 py-2.5">
           <span className="text-[12px] text-[var(--color-text-muted)]">You receive</span>
           <span className="font-display text-[13px] font-medium tabular-nums">

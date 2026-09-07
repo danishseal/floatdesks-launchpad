@@ -14,9 +14,3 @@ indexer/data/
 .env*
 
 # throwaway e2e signing key lives in ~/.float, never in the repo
-
-# Licensed Aeonik webfonts. The licence covers serving these from floatdesks
-# domains, not redistributing the files, and this repository is public: a
-# commit here hands them to anyone who clones it. Deployed separately, see
-# the note in app/src/app/globals.css.
-app/public/Aeonik-*.woff2

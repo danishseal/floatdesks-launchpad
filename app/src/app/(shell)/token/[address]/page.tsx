@@ -224,7 +224,7 @@ export default function TokenDetailPage() {
                   </>
                 )}
               </div>
-              <div className="flex h-5 items-center gap-2 text-[11px] font-medium text-[var(--color-text-muted)]">
+              <div className="flex h-5 items-center gap-2 font-display text-[11px] font-medium text-[var(--color-text-muted)]">
                 <span className="max-w-40 truncate">{collectibleName}</span>
                 <span className="h-4 w-px bg-[var(--color-bg-hover)]" />
                 <CopyValue value={token.mint} />
@@ -252,8 +252,8 @@ export default function TokenDetailPage() {
               onClick={() => setTimeframe(value)}
               className={
                 timeframe === value
-                  ? "rounded-md bg-[var(--color-bg-hover)] px-2.5 py-1 text-xs font-semibold text-[var(--color-text-primary)]"
-                  : "rounded-md px-2.5 py-1 text-xs font-semibold hover:bg-[var(--color-bg-page)] hover:text-[var(--color-text-primary)]"
+                  ? "rounded-md bg-[var(--color-bg-hover)] px-2.5 py-1 font-display text-xs font-bold text-[var(--color-text-primary)] transition-all duration-150 active:scale-[0.95] motion-reduce:transition-none motion-reduce:active:scale-100"
+                  : "rounded-md px-2.5 py-1 font-display text-xs font-medium transition-all duration-150 active:scale-[0.95] motion-reduce:transition-none motion-reduce:active:scale-100 hover:bg-[var(--color-bg-page)] hover:text-[var(--color-text-primary)]"
               }
             >
               {label}
@@ -382,7 +382,7 @@ function InformationTabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`h-10 border-b-2 text-sm font-semibold transition-colors ${
+      className={`h-10 border-b-2 font-display text-sm font-bold transition-all duration-150 active:scale-[0.95] motion-reduce:transition-none motion-reduce:active:scale-100 ${
         active
           ? "border-[var(--color-border-soft)] text-[var(--color-text-primary)]"
           : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
@@ -672,14 +672,14 @@ function Overview({ token, trades }: { token: TokenListItem; trades: TokenTrade[
               key={item.value}
               type="button"
               onClick={() => setRange(item.value)}
-              className={`h-[46px] rounded-lg border px-1 py-1.5 text-center transition-colors ${
+              className={`h-[46px] rounded-lg border px-1 py-1.5 text-center transition-all duration-150 active:scale-[0.95] motion-reduce:transition-none motion-reduce:active:scale-100 ${
                 active
                   ? "border-[var(--color-border-soft)] bg-[var(--color-bg-raised)]"
                   : "border-[var(--color-border-soft)] bg-transparent hover:bg-[var(--color-bg-page)]"
               }`}
             >
-              <span className="block text-[10px] font-semibold leading-3 text-[var(--color-text-secondary)]">{item.label}</span>
-              <span className={`mt-0.5 block text-[11px] font-bold leading-4 ${change == null ? "text-[var(--color-text-muted)]" : change >= 0 ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"}`}>
+              <span className="block font-display text-[10px] font-medium leading-3 text-[var(--color-text-secondary)]">{item.label}</span>
+              <span className={`mt-0.5 block font-display text-[11px] font-bold tabular-nums leading-4 ${change == null ? "text-[var(--color-text-muted)]" : change >= 0 ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"}`}>
                 {change == null ? "-" : `${change >= 0 ? "▲" : "▼"} ${Math.abs(change).toFixed(2)}%`}
               </span>
             </button>
@@ -733,7 +733,7 @@ function Overview({ token, trades }: { token: TokenListItem; trades: TokenTrade[
         type="button"
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
-        className="absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-[var(--color-bg-raised)] px-3 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-text-primary)]"
+        className="absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-[var(--color-bg-raised)] px-3 py-1 font-display text-[10px] font-medium text-[var(--color-text-secondary)] transition-all duration-150 active:scale-[0.94] motion-reduce:transition-none motion-reduce:active:scale-100 hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]"
       >
         {expanded ? "View less" : "View more"}
       </button>
@@ -861,17 +861,17 @@ function CopyValue({ value }: { value: string }) {
     <button
       type="button"
       onClick={copy}
-      className="group inline-flex max-w-full items-center gap-1.5 font-medium text-[var(--color-text-primary)] transition-colors hover:text-[#8ff573]"
+      className="group inline-flex max-w-full items-center gap-1.5 font-display font-medium tabular-nums text-[var(--color-text-primary)] transition-all duration-150 active:scale-[0.94] motion-reduce:transition-none motion-reduce:active:scale-100 hover:text-[var(--color-accent-strong)]"
       aria-label={`Copy ${value}`}
       title={value}
     >
       <span className="truncate">{short(value)}</span>
       {copied ? (
-        <Check size={15} weight="bold" className="shrink-0 text-emerald-400" />
+        <Check size={15} weight="bold" className="shrink-0 text-[var(--color-positive)]" />
       ) : (
         <CopySimple
           size={15}
-          className="shrink-0 text-[var(--color-text-muted)] transition-colors group-hover:text-[#8ff573]"
+          className="shrink-0 text-[var(--color-text-muted)] transition-colors group-hover:text-[var(--color-accent-strong)]"
         />
       )}
     </button>
