@@ -555,14 +555,23 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
 
   return (
     <div className="rounded-[14px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-4">
-      <div className="mb-4 flex items-center gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
+      {/* A segmented control, not two filled buttons. The active side used to
+          be a solid black slab, which is the heaviest thing the palette has and
+          put the loudest element on a control rather than on the action. It
+          lifts to the surface colour instead and takes the side's own tint, so
+          buy and sell are told apart by more than which one is dark. */}
+      <div className="mb-5 grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
         {(["buy", "sell"] as const).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => { setSide(s); setAmount(""); if (s === "sell") setPayWith("quote"); }}
-            className={`flex-1 rounded-[8px] py-2 text-[14px] font-semibold capitalize transition ${
-              side === s ? "bg-[var(--color-text-primary)] text-[var(--color-bg-page)]" : "text-[var(--color-text-secondary)]"
+            className={`rounded-[7px] py-2 font-display text-[13px] font-semibold capitalize tracking-[-0.01em] transition-colors ${
+              side === s
+                ? `bg-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/10%)] ${
+                    s === "buy" ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"
+                  }`
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             {s}
@@ -656,24 +665,36 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
       ) : null}
 
       <div className="mb-3">
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className="text-[13px] text-[var(--color-text-secondary)]">You pay</label>
-          <span className="text-[12px] text-[var(--color-text-subtle)]">
+        {/* Three weights: a tracked eyebrow, the balance, and the amount as a
+            display number. Everything here was 13px grey, which reads as a
+            form rather than the one field the panel exists for. */}
+        <div className="mb-2 flex items-baseline justify-between">
+          <label className="font-display text-[10px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
+            You pay
+          </label>
+          <span className="font-display text-[11px] tabular-nums text-[var(--color-text-subtle)]">
             {balance === null ? "-" : `${balance.toFixed(4)} ${inLabel}`}
             {maxAmount !== null && maxAmount > 0 ? (
-              <button type="button" className="ml-2 underline" onClick={() => setAmount(String(maxAmount))}>max</button>
+              <button
+                type="button"
+                className="ml-2 font-semibold text-[var(--color-text-secondary)] underline underline-offset-2 hover:text-[var(--color-text-primary)]"
+                onClick={() => setAmount(String(maxAmount))}
+              >
+                max
+              </button>
             ) : null}
           </span>
         </div>
-        <div className="flex items-center gap-2 rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3 py-2.5">
+        <div className="flex items-baseline gap-2 rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3.5 py-3 transition-colors focus-within:border-[var(--color-border-muted)]">
           <input
-            className="w-full bg-transparent text-[16px] outline-none"
+            className="w-full bg-transparent font-display text-[28px] font-semibold leading-none tabular-nums tracking-[-0.02em] outline-none placeholder:text-[var(--color-text-subtle)]"
             inputMode="decimal"
-            placeholder="0.00"
+            placeholder="0"
+            aria-label={`Amount to ${side} in ${inLabel}`}
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
           />
-          <span className="shrink-0 text-[13px] font-semibold">{inLabel}</span>
+          <span className="shrink-0 font-display text-[12px] font-semibold text-[var(--color-text-muted)]">{inLabel}</span>
         </div>
 
         {/* Preset sizes, and the slippage gear beside them.
@@ -705,29 +726,44 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         </div>
       </div>
 
-      <div className="mb-4 flex items-center justify-between text-[13px]">
-        <span className="text-[var(--color-text-secondary)]">You receive</span>
-        <span className="font-semibold">
-          {shownOut === null
-            ? (payingEth && planning ? "Pricing…" : "-")
-            : `${fmtAmount(shownOut)} ${outLabel}`}
-        </span>
-      </div>
-
-      {priceImpact !== null && Number.isFinite(priceImpact) ? (
-        <div className="mb-4 flex items-center justify-between text-[12px]">
-          <span className="text-[var(--color-text-secondary)]">Price impact</span>
-          <span
-            className={
-              priceImpact >= 0.05
-                ? "font-semibold text-[var(--color-negative)]"
-                : "font-semibold text-[var(--color-text-primary)]"
-            }
-          >
-            {priceImpact < 0 && priceImpact > -0.0001 ? "0.00%" : `${(priceImpact * 100).toFixed(2)}%`}
+      {/* One surface with dividers, not three rows floating in whitespace.
+          Values are tabular so they do not jitter as the quote updates. */}
+      <div className="mb-4 divide-y divide-[var(--color-border-soft)] rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3.5">
+        <div className="flex items-baseline justify-between gap-3 py-2.5">
+          <span className="text-[12px] text-[var(--color-text-muted)]">You receive</span>
+          <span className="font-display text-[13px] font-semibold tabular-nums">
+            {shownOut === null
+              ? (payingEth && planning ? "Pricing…" : "-")
+              : `${fmtAmount(shownOut)} ${outLabel}`}
           </span>
         </div>
-      ) : null}
+
+        {priceImpact !== null && Number.isFinite(priceImpact) ? (
+          <div className="flex items-baseline justify-between gap-3 py-2.5">
+            <span className="text-[12px] text-[var(--color-text-muted)]">Price impact</span>
+            <span
+              className={`font-display text-[13px] font-semibold tabular-nums ${
+                priceImpact >= 0.05 ? "text-[var(--color-negative)]" : "text-[var(--color-text-primary)]"
+              }`}
+            >
+              {priceImpact < 0 && priceImpact > -0.0001 ? "0.00%" : `${(priceImpact * 100).toFixed(2)}%`}
+            </span>
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => setShowSlippage((v) => !v)}
+          className="flex w-full items-baseline justify-between gap-3 py-2.5 text-left"
+        >
+          <span className="text-[12px] text-[var(--color-text-muted)]">
+            Slippage{payingEth ? " per hop" : ""}
+          </span>
+          <span className="font-display text-[13px] font-semibold tabular-nums text-[var(--color-text-secondary)] underline underline-offset-2">
+            {pctLabel(slippage)}
+          </span>
+        </button>
+      </div>
 
       {payingEth && ethPlan ? (
         <div className="mb-4 rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3 py-2.5 text-[12px]">
@@ -791,13 +827,6 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
       ) : null}
 
       <div className="mb-4">
-        <button
-          type="button"
-          onClick={() => setShowSlippage((v) => !v)}
-          className="flex items-center gap-1.5 text-[12px] text-[var(--color-text-subtle)]"
-        >
-          <Gear size={13} /> Slippage {pctLabel(slippage)}{payingEth ? " per hop" : ""}
-        </button>
         {showSlippage ? (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {SLIPPAGE_PRESETS.map((p) => (
@@ -827,7 +856,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
       </div>
 
       {!wallet.connected ? (
-        <Button className="w-full" onClick={() => void wallet.connect()}>Connect wallet</Button>
+        <Button className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-bg-surface)] transition-colors hover:bg-[var(--color-text-secondary)] disabled:opacity-40 disabled:hover:bg-[var(--color-text-primary)]" onClick={() => void wallet.connect()}>Connect wallet</Button>
       ) : token.graduated && !route ? (
         <div className="rounded-[10px] border border-[var(--color-border-soft)] px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
           {routeError
@@ -836,7 +865,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         </div>
       ) : payingEth ? (
         <Button
-          className="w-full"
+          className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-bg-surface)] transition-colors hover:bg-[var(--color-text-secondary)] disabled:opacity-40 disabled:hover:bg-[var(--color-text-primary)]"
           disabled={
             busy || planning || !ethPlan || ethBlocked !== null
             || numeric <= 0 || (balance !== null && numeric > balance)
@@ -869,7 +898,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             </p>
           ) : null}
           <Button
-            className="w-full"
+            className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-bg-surface)] transition-colors hover:bg-[var(--color-text-secondary)] disabled:opacity-40 disabled:hover:bg-[var(--color-text-primary)]"
             disabled={busy || deskRefusal !== null}
             onClick={getUnderlying}
           >
@@ -880,7 +909,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         </div>
       ) : (
         <Button
-          className="w-full"
+          className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-bg-surface)] transition-colors hover:bg-[var(--color-text-secondary)] disabled:opacity-40 disabled:hover:bg-[var(--color-text-primary)]"
           disabled={busy || numeric <= 0 || (balance !== null && numeric > balance)}
           onClick={trade}
         >
