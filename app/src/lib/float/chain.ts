@@ -578,6 +578,22 @@ export const tx = {
  * VaultFunder.onlyOwnerOrOperator, because gating the control on the owner
  * alone would hide it from an operator key that the contract accepts.
  */
+/**
+ * Whether the funder has already opened this market once.
+ *
+ * VaultFunder.fundFromCurve sets a listing Live only while `poured` is false;
+ * the flag is one-shot. So a market that was opened and later set SettleOnly
+ * (a stale oracle, a wind-down) will NOT reopen on a curve's first buy, and
+ * every buy against it reverts SettleOnly. Launching against one produces a
+ * token nobody can ever trade, which is why the wizard has to ask.
+ */
+export async function funderPoured(assetId: `0x${string}`): Promise<boolean> {
+  const funder = await resolve("FUNDER");
+  return (await readRetrying(() => publicClient().readContract({
+    address: funder, abi: VAULTFUNDER_ABI, functionName: "poured", args: [assetId],
+  }))) as boolean;
+}
+
 export async function funderCanEnqueue(account: Address): Promise<boolean> {
   try {
     const funder = await resolve("FUNDER");

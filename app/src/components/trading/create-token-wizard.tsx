@@ -132,11 +132,22 @@ export function CreateTokenWizard() {
 
   // TokenLaunchpad reverts UnderlyingNotLive on anything but an open market.
   // CurveFunder accepts a HALTED one, which goes Live on the first buy, so on
-  // that venue every listing is launchable and restricting to open markets
-  // would hide most of them for no reason.
+  // that venue restricting to open markets would hide most of them for no
+  // reason.
+  //
+  // But NOT every closed market reopens. VaultFunder.fundFromCurve is what
+  // flips the listing Live, and it only does so while `poured` is false: the
+  // flag is one-shot. A market that was opened once and later set SettleOnly
+  // (a stale oracle, a wind-down) keeps that status, and every buy against a
+  // token built on it reverts SettleOnly. Offering one sells a launch fee for
+  // a token that can never trade, which has already happened once on mainnet.
+  // A null `poured` means the read failed, and a failed read is not a reason
+  // to hide a market, so only a confirmed true excludes it.
   const curveFunder = data?.venue === "curve-funder";
+  const reopens = (m: { status: number; poured: boolean | null }) =>
+    m.status === 0 || m.poured !== true;
   const listedAll = useMemo(
-    () => (data?.markets ?? []).filter((m) => (curveFunder ? true : m.status === 0)),
+    () => (data?.markets ?? []).filter((m) => (curveFunder ? reopens(m) : m.status === 0)),
     [data?.markets, curveFunder],
   );
   // ONE rule for both groups: offer a market only if the oracle prices it NOW.
@@ -542,8 +553,9 @@ function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, sele
             displayName={m.displayName}
             token={m.token}
             price={usd(px8(m.markPx), { max: 2 })}
-            status={m.status !== 0
+            status={m.status === 2
               ? "halted, opens on the first buy"
+              : m.status === 1 ? "settle only, reopens when its oracle does"
               : m.marketOpen ? "home market open" : "quoted overnight"}
             selected={selected === m.assetId}
             onSelect={() => onSelect(m.assetId)}
@@ -774,7 +786,9 @@ function ReviewStep({
     ...((isNew || market?.status !== 0) && curveFunder
       ? [["Market status", isNew
           ? "not listed yet, this launch lists it and it goes live on the first buy"
-          : "halted, and goes live on the first buy"] as [string, string]]
+          : market?.status === 1
+            ? "settle only, so it will not open on the first buy"
+            : "halted, and goes live on the first buy"] as [string, string]]
       : []),
     ...(params ? [
       ["Launch fee", `${fee?.toFixed(2)} ${data.quote.symbol}${gasEst ? ` + ~${gasEst} gas` : " + network gas"}`] as [string, string],

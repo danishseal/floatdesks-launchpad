@@ -9,6 +9,8 @@ export interface PoolsMarket {
   displayName: string;
   token: `0x${string}`;
   status: 0 | 1 | 2;
+  /** True when the funder already opened this market once; it will not reopen. */
+  poured: boolean | null;
   spot: boolean;
   markPx: string;
   oraclePx: string | null;

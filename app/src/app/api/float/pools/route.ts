@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import {
   deskVault, funderQueue, getListing, listingIds, markPx, netOI,
   oracleQuote, stakePool, effectiveOiCap, tokenCurve, launchpadParams, erc20, publicClient,
+  funderPoured,
   funderAcceptsContribution,
 } from "@/lib/float/chain";
 import { mapLimited } from "@/lib/float/retry";
@@ -186,6 +187,10 @@ export async function GET() {
         oracleQuote(assetId).catch(() => null),
         stakePool(assetId).catch(() => null),
       ]);
+      // One-shot flag: a poured market that is no longer Live will not reopen
+      // on a curve's first buy. Null when unread, so the caller can tell "not
+      // poured" from "did not answer" rather than reading a failure as a yes.
+      const poured = await funderPoured(assetId).catch(() => null);
       // The cap a trade is measured against is the LISTED cap plus whatever
       // StakeVaults has boosted it by, at the oracle price. Read it from the
       // contract rather than recomputing the boost here, so the rule keeps one
@@ -202,6 +207,7 @@ export async function GET() {
         displayName: l.displayName,
         token: l.token,
         status: l.status,
+        poured,
         spot: l.spot,
         markPx: mark.toString(),
         oraclePx: oracle ? oracle.price.toString() : null,
