@@ -184,7 +184,11 @@ export default function TokenDetailPage() {
             )}
             <div className="min-w-0">
               <div className="flex h-8 items-center gap-1.5">
-                <p className="max-w-52 truncate text-[15px] font-bold leading-none text-[var(--color-text-primary)]">{token.name}</p>
+                {/* Geist, the face the rest of the chrome uses. The body font
+                    here is PPNeueMontrealBook, which set the name in the same
+                    weight and width as the paragraph text under it, so the
+                    title of the page read as a label. */}
+                <p className="max-w-52 truncate font-display text-[16px] font-semibold tracking-[-0.01em] leading-none text-[var(--color-text-primary)]">{token.name}</p>
                 {/* The pair, not the venue. "AMM" was the same word on every
                     graduated token and said nothing about what this one is
                     priced in; the pair names the fSHARE underneath it. Not
@@ -193,7 +197,7 @@ export default function TokenDetailPage() {
                     absent if it cannot be read, rather than falling back to a
                     category that would read as an answer. */}
                 {contracts.data?.pair && (
-                  <span className="shrink-0 rounded border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-1.5 py-1 text-[10px] font-semibold tracking-tight text-[var(--color-text-secondary)]">
+                  <span className="shrink-0 rounded border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-1.5 py-1 font-display text-[10px] font-semibold tracking-tight text-[var(--color-text-secondary)]">
                     {contracts.data.pair}
                   </span>
                 )}

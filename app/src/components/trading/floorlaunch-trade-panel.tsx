@@ -107,6 +107,11 @@ function fmtUnits(raw: bigint, decimals: number): string {
   return fmtAmount(Number(formatUnits(raw, decimals)));
 }
 
+/** A preset written the way the input expects: plain digits, no exponent. */
+function trimZeros(v: number): string {
+  return v.toFixed(v >= 1000 ? 2 : v >= 1 ? 4 : 8).replace(/\.?0+$/, "");
+}
+
 export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   const wallet = useFloatWallet();
   const queryClient = useQueryClient();
@@ -502,6 +507,22 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   const ethBlocked = payingEth ? ethPlan?.blocked ?? null : null;
 
   /**
+   * The quick-size row. Dollars on the way in, fractions of the balance on the
+   * way out, because a sell is denominated in a token nobody holds a round
+   * number of. `null` means the wallet cannot cover it, which disables the
+   * button rather than removing it.
+   */
+  const presets: Array<{ label: string; value: number | null }> = side === "buy"
+    ? [10, 100, 500, 1000].map((v) => ({
+        label: `$${v.toLocaleString()}`,
+        value: maxAmount !== null && maxAmount < v ? null : v,
+      }))
+    : [0.25, 0.5, 0.75, 1].map((f) => ({
+        label: f === 1 ? "Max" : `${f * 100}%`,
+        value: maxAmount && maxAmount > 0 ? maxAmount * f : null,
+      }));
+
+  /**
    * How far the price this trade actually gets is from the current price.
    *
    * Taken from the quote already in hand rather than a second read: the
@@ -653,6 +674,34 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
           />
           <span className="shrink-0 text-[13px] font-semibold">{inLabel}</span>
+        </div>
+
+        {/* Preset sizes, and the slippage gear beside them.
+            A buy is denominated in dollars so the presets are dollars. A sell
+            is denominated in the token, where a fixed ladder is meaningless
+            (nobody holds exactly 100), so it offers fractions of the balance
+            instead. A preset the wallet cannot cover is disabled rather than
+            hidden, so the row does not reflow as the balance moves. */}
+        <div className="mt-2 flex items-center gap-1.5">
+          {presets.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              disabled={p.value === null}
+              onClick={() => p.value !== null && setAmount(trimZeros(p.value))}
+              className="flex-1 rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-2 py-1.5 text-[12px] font-semibold text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-border)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-label="Slippage settings"
+            onClick={() => setShowSlippage((v) => !v)}
+            className="shrink-0 rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] p-1.5 text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-border)] hover:text-[var(--color-text-primary)]"
+          >
+            <Gear size={14} />
+          </button>
         </div>
       </div>
 
