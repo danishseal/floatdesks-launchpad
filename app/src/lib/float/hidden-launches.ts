@@ -30,6 +30,7 @@ const HIDDEN: ReadonlySet<string> = new Set(
     "0xD4f8cDCa49dc8C6896312d1FE3b9123924ee960d", // FDTEST6584 Floatdesk Launch Test
     "0xDf1D02dDE151D3cE69a7AA7f3F40E799a80015a1", // PANDA      Panda Money
     "0xe39a49E4963B09933CFFeAb59FDcE87645770179", // TEST       TEST
+    "0x7DEeB5F1941060C71e0f2DC3d21Dc27F0417c438", // CHECK      Curve Check
   ].map((a) => a.toLowerCase()),
 );
 
