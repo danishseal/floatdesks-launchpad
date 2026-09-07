@@ -25,7 +25,7 @@
  * is a UX decision about what "You receive" means, not part of the buy flow.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatUnits, parseUnits } from "viem";
@@ -112,6 +112,11 @@ function trimZeros(v: number): string {
   return v.toFixed(v >= 1000 ? 2 : v >= 1 ? 4 : 8).replace(/\.?0+$/, "");
 }
 
+/**
+ * h-auto with a height transition. `interpolate-size` in globals.css is what
+ * makes that animate rather than snap, so the card grows and shrinks with the
+ * side you pick, in step with the toggle sliding above it.
+ */
 export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   const wallet = useFloatWallet();
   const queryClient = useQueryClient();
@@ -507,6 +512,57 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   const ethBlocked = payingEth ? ethPlan?.blocked ?? null : null;
 
   /**
+   * The card's height, measured rather than left to `auto`.
+   *
+   * Switching side changes what the card contains, and `height: auto` is not a
+   * value CSS can interpolate. `interpolate-size` was supposed to cover that
+   * and did not hold up when measured, so the height is taken from the content
+   * with a ResizeObserver and written as a pixel value the transition can
+   * actually animate between. Null until first measure, so the first paint is
+   * whatever the content needs rather than zero.
+   */
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [shellHeight, setShellHeight] = useState<number | null>(null);
+  /**
+   * Animate the card between sizes, explicitly.
+   *
+   * A CSS transition on height was the obvious approach and it does not fire
+   * here: measured frame by frame, the card jumped to its new size inside
+   * 16ms and stayed. React commits the content and the new height together, so
+   * there is no pair of values for the transition to interpolate between.
+   *
+   * So the animation is driven rather than declared. The previous height is
+   * kept, the new one is measured before paint, and the shell is animated from
+   * one to the other. Explicit, and it cannot silently do nothing.
+   */
+  const shellRef = useRef<HTMLDivElement>(null);
+  const lastHeight = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const shell = shellRef.current;
+    if (!body || !shell) return;
+
+    const apply = () => {
+      const next = body.getBoundingClientRect().height;
+      const prev = lastHeight.current;
+      lastHeight.current = next;
+      setShellHeight(next);
+      if (prev === null || Math.abs(prev - next) < 1) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      shell.animate(
+        [{ height: `${prev}px` }, { height: `${next}px` }],
+        { duration: 280, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+    };
+
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(body);
+    return () => ro.disconnect();
+  }, []);
+
+
+  /**
    * Is the input denominated in dollars? Only then does a leading $ belong in
    * front of it. Selling is denominated in the token, where a dollar sign in
    * front of a token quantity would be a straightforward lie.
@@ -561,23 +617,43 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
   })();
 
   return (
-    <div className="rounded-[14px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-4">
+    <div
+      ref={shellRef}
+      className="overflow-hidden rounded-[14px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)]"
+      style={shellHeight === null ? undefined : { height: shellHeight }}
+    >
+      <div ref={bodyRef} className="p-4">
       {/* A segmented control, not two filled buttons. The active side used to
           be a solid black slab, which is the heaviest thing the palette has and
           put the loudest element on a control rather than on the action. It
           lifts to the surface colour instead and takes the side's own tint, so
           buy and sell are told apart by more than which one is dark. */}
-      <div className="mb-5 grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
+      {/* The selected side SLIDES. It used to be a background colour swapped
+          between two buttons, which lands instantly and reads as a redraw
+          rather than a control responding. One indicator moves under the
+          labels instead, and it changes colour on the way across.
+
+          `translate` and `width` are set as CSS properties rather than through
+          a transform, so this composes with the global press scale instead of
+          fighting it. */}
+      <div className="relative mb-5 grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-1 left-1 rounded-[8px] transition-[translate,background-color] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+          style={{
+            width: "calc(50% - 0.375rem)",
+            translate: side === "buy" ? "0" : "calc(100% + 0.25rem)",
+            backgroundColor: side === "buy" ? "var(--color-positive)" : "var(--color-negative)",
+          }}
+        />
         {(["buy", "sell"] as const).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => { setSide(s); setAmount(""); if (s === "sell") setPayWith("quote"); }}
-            className={`rounded-[8px] py-2.5 font-display text-[14px] font-bold capitalize tracking-[-0.01em] transition-all duration-150 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 ${
+            className={`relative z-10 rounded-[8px] py-2.5 font-display text-[14px] font-bold capitalize tracking-[-0.01em] transition-colors duration-200 ${
               side === s
-                ? s === "buy"
-                  ? "bg-[var(--color-positive)] text-[var(--color-bg-surface)]"
-                  : "bg-[var(--color-negative)] text-[var(--color-bg-surface)]"
+                ? "text-[var(--color-bg-surface)]"
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
           >
@@ -705,7 +781,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         </div>
 
         {/* What you can actually spend, under the sizes that spend it. */}
-        <div className="mt-2 font-display text-[12px] tabular-nums text-[var(--color-text-muted)]">
+        <div className="mt-2 font-display text-[12px] font-medium tabular-nums text-[var(--color-text-secondary)]">
           {balance === null ? "-" : `${balance.toFixed(4)} ${inLabel}`} available
           {maxAmount !== null && maxAmount > 0 ? (
             <button
@@ -723,8 +799,8 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           Values are tabular so they do not jitter as the quote updates. */}
       <div className="mb-4 divide-y divide-[var(--color-border-soft)] rounded-[10px] bg-[var(--color-bg-page)] px-4">
         <div className="flex items-baseline justify-between gap-3 py-2.5">
-          <span className="text-[12px] text-[var(--color-text-muted)]">You receive</span>
-          <span className="font-display text-[13px] font-medium tabular-nums">
+          <span className="font-display text-[12px] font-medium text-[var(--color-text-secondary)]">You receive</span>
+          <span className="font-display text-[13px] font-bold tabular-nums transition-[color,opacity] duration-200">
             {shownOut === null
               ? (payingEth && planning ? "Pricing…" : "-")
               : `${fmtAmount(shownOut)} ${outLabel}`}
@@ -733,9 +809,9 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
 
         {priceImpact !== null && Number.isFinite(priceImpact) ? (
           <div className="flex items-baseline justify-between gap-3 py-2.5">
-            <span className="text-[12px] text-[var(--color-text-muted)]">Price impact</span>
+            <span className="font-display text-[12px] font-medium text-[var(--color-text-secondary)]">Price impact</span>
             <span
-              className={`font-display text-[13px] font-medium tabular-nums ${
+              className={`font-display text-[13px] font-bold tabular-nums transition-colors duration-200 ${
                 priceImpact >= 0.05 ? "text-[var(--color-negative)]" : "text-[var(--color-text-primary)]"
               }`}
             >
@@ -749,10 +825,10 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           onClick={() => setShowSlippage((v) => !v)}
           className="flex w-full items-baseline justify-between gap-3 py-2.5 text-left"
         >
-          <span className="text-[12px] text-[var(--color-text-muted)]">
+          <span className="font-display text-[12px] font-medium text-[var(--color-text-secondary)]">
             Slippage{payingEth ? " per hop" : ""}
           </span>
-          <span className="font-display text-[13px] font-medium tabular-nums text-[var(--color-text-secondary)] underline underline-offset-2">
+          <span className="font-display text-[13px] font-bold tabular-nums text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors duration-200">
             {pctLabel(slippage)}
           </span>
         </button>
@@ -821,7 +897,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
 
       <div className="mb-4">
         {showSlippage ? (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <div className="settings-pop mt-2 flex flex-wrap items-center gap-1.5">
             {SLIPPAGE_PRESETS.map((p) => (
               <button
                 key={p}
@@ -859,7 +935,15 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           <div className="mb-1.5 font-display text-[10px] font-medium uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
             Pay with
           </div>
-          <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
+          <div className="relative grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-1 left-1 rounded-[7px] bg-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/10%)] transition-[translate] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+              style={{
+                width: "calc(50% - 0.375rem)",
+                translate: payWith === "quote" ? "0" : "calc(100% + 0.25rem)",
+              }}
+            />
             {([
               { key: "quote" as const, label: quoteLabel },
               { key: "eth" as const, label: "ETH" },
@@ -868,9 +952,9 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
                 key={o.key}
                 type="button"
                 onClick={() => { setPayWith(o.key); setAmount(""); }}
-                className={`rounded-[7px] py-1.5 font-display text-[12px] font-medium transition-all duration-150 active:scale-[0.97] ${
+                className={`relative z-10 rounded-[7px] py-1.5 font-display text-[12px] font-medium transition-colors duration-200 ${
                   payWith === o.key
-                    ? "bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-[0_1px_2px_rgb(26_26_26/10%)]"
+                    ? "text-[var(--color-text-primary)]"
                     : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                 }`}
               >
@@ -952,6 +1036,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           fSHARE. The quote above is the chain&apos;s own, not an estimate.
         </p>
       ) : null}
+      </div>
     </div>
   );
 }

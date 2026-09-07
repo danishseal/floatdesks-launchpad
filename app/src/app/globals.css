@@ -111,6 +111,54 @@
   }
 }
 
+/* Let height animate to and from `auto`.
+ *
+ * The trade panel changes height when you switch side: buy carries a Pay with
+ * row that sell does not, and the two sides quote different rows. Without this
+ * the card snaps to its new size while the toggle underneath it slides, which
+ * is the one part of the interaction that still looked broken.
+ *
+ * `interpolate-size` is what makes `height: auto` a transitionable value.
+ * Browsers without it simply keep the old snap, so this degrades to exactly
+ * what was there before rather than to a broken layout.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+}
+
+/* The slippage editor, appearing.
+ *
+ * It was mounted straight in, which on a control that opens under your cursor
+ * reads as a layout jump rather than a panel opening. It now expands from
+ * nothing and settles, with the content fading a beat behind the height so the
+ * text is not sliding while it is still being read.
+ */
+@keyframes settings-in {
+  from {
+    opacity: 0;
+    scale: 0.98;
+    translate: 0 -4px;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+.settings-pop {
+  animation: settings-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-pop {
+    animation: none;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
