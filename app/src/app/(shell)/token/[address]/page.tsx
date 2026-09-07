@@ -544,6 +544,20 @@ function PanelMessage({ children }: { children: React.ReactNode }) {
 }
 
 
+/**
+ * One figure in the token header.
+ *
+ * Geist and tabular figures. These were set in the body face with proportional
+ * digits, so every stat re-flowed its own width whenever a value changed: the
+ * price ticks and the whole row shuffles sideways, which makes the steadiest
+ * thing on the page the twitchiest. The label is a tracked eyebrow rather than
+ * a second line of body text, so the number is unambiguously what is being
+ * read.
+ *
+ * The negative tone also stopped being a raw hex. #f87171 is a dark-mode red
+ * on a cream page, and it was the one colour in this header answering to no
+ * token.
+ */
 function StatTile({
   label,
   value,
@@ -555,10 +569,16 @@ function StatTile({
 }) {
   return (
     <div className="min-w-[88px] shrink-0 px-3 py-1.5">
-      <p className="text-center text-[11px] font-medium text-[var(--color-text-muted)]">{label}</p>
+      <p className="text-center font-display text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
+        {label}
+      </p>
       <p
-        className={`text-center text-[15px] font-bold leading-5 ${
-          tone == null ? "text-[var(--color-text-primary)]" : tone >= 0 ? "text-[var(--color-positive)]" : "text-[#f87171]"
+        className={`mt-0.5 text-center font-display text-[15px] font-semibold leading-5 tabular-nums tracking-[-0.01em] ${
+          tone == null
+            ? "text-[var(--color-text-primary)]"
+            : tone >= 0
+              ? "text-[var(--color-positive)]"
+              : "text-[var(--color-negative)]"
         }`}
       >
         {value}
