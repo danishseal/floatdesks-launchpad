@@ -18,6 +18,7 @@ import {
   oracleQuote, stakePool, effectiveOiCap, tokenCurve, launchpadParams, erc20, publicClient,
   funderAcceptsContribution,
 } from "@/lib/float/chain";
+import { mapLimited } from "@/lib/float/retry";
 import { resolve, detectVenue } from "@/lib/float/registry";
 import { cfAllTokensDetailed, cfCurve, cfTokenMeta } from "@/lib/float/curve-funder";
 import { activeNetwork, indexerOrigin} from "@/lib/float/networks";
@@ -102,7 +103,18 @@ function revertReason(e: unknown): string {
   const named = lines.find((l) => /^(Error: )?[A-Z][A-Za-z0-9_]*\(/.test(l));
   if (named) return named.replace(/^Error: /, "").slice(0, 140);
   const sig = lines.find((l) => /^0x[0-9a-fA-F]{8}$/.test(l));
-  return [lines[0], sig].filter(Boolean).join(" ").slice(0, 140);
+  if (sig) return [lines[0], sig].filter(Boolean).join(" ").slice(0, 140);
+  // Not a revert at all. viem's first line for a refused or timed out request
+  // is "An unknown RPC error occurred", which told a reader nothing and, worse,
+  // read like the asset was the problem. Name the transport instead: the fix
+  // for one is to wait, and for the other to look at the listing.
+  const text = e.message;
+  if (/429|too many requests|rate limit/i.test(text)) return "rate limited by the RPC, try again shortly";
+  if (/timed out|timeout/i.test(text)) return "the RPC timed out";
+  if (/HTTP request failed|fetch failed|Failed to fetch|network error|ECONN/i.test(text)) {
+    return "the RPC did not respond";
+  }
+  return lines[0].slice(0, 140);
 }
 
 export async function GET() {
@@ -161,7 +173,11 @@ export async function GET() {
     // delisted or zeroed listing, and inside a shared Promise.all one such
     // revert rejected the whole board, so a single bad row took down the Desk
     // vault card people deposit into. Drop the row, keep the board.
-    const marketRows = await Promise.all(ids.map(async (assetId) => {
+    // mapLimited, not Promise.all: 40 listings x 5 reads each fired ~200
+    // concurrent requests at the node, which rate limited itself and dropped
+    // EVERY market with an RPC error. The cap is the same one the retries
+    // respect, so a retry cannot burst past it either.
+    const marketRows = await mapLimited(ids, async (assetId) => {
       try {
       const [l, mark, oi, oracle, pool] = await Promise.all([
         getListing(assetId),
@@ -208,7 +224,7 @@ export async function GET() {
         // short, and without this they look identical to anyone reading it.
         return { __dropped: assetId, reason: revertReason(e) };
       }
-    }));
+    });
 
     type Dropped = { __dropped: string; reason: string };
     const isDropped = (r: unknown): r is Dropped =>

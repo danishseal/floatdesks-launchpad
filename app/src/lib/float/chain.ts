@@ -151,12 +151,17 @@ export async function listingIds(): Promise<`0x${string}`[]> {
 
 export async function getListing(assetId: `0x${string}`): Promise<Listing> {
   const listings = await resolve("LISTINGS");
-  const l = (await publicClient().readContract({
+  // Retried, because the liquidity board fans this out across every listing at
+  // once and a single refused call used to drop that market off the board with
+  // "An unknown RPC error occurred" against it. A revert still throws on the
+  // first attempt, so a delisted asset is not retried three times to reach the
+  // same answer.
+  const l = (await readRetrying(() => publicClient().readContract({
     address: listings,
     abi: LISTINGS_ABI,
     functionName: "get",
     args: [assetId],
-  })) as {
+  }))) as {
     assetId: `0x${string}`; token: Address; status: number; spot: boolean;
     baseSpreadBps: number; ahSpreadBps: number; maxImpactBps: number;
     maxStaleness: bigint; oiCapQuote: bigint; ticker: string; displayName: string;
@@ -370,6 +375,17 @@ async function simulateRetrying<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export { simulateRetrying };
+
+/**
+ * A read that survives a rate limit but never a revert.
+ *
+ * Same policy as simulateRetrying, exported for plain reads. The distinction it
+ * preserves is the whole point: Listings.get reverts UnknownAsset for a genuinely
+ * delisted asset, and that must stay tellable apart from the node refusing to
+ * answer. Wrapping this in withRetry instead would flatten both into one
+ * RpcError and erase the difference.
+ */
+export const readRetrying = simulateRetrying;
 
 async function send(
   account: Address,
