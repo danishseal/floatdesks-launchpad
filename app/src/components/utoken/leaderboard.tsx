@@ -37,7 +37,7 @@ export function Leaderboard() {
   return (
     <div className="space-y-5 font-sans">
       <div>
-        <h1 className="font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">Leaderboard</h1>
+        <h1 className="font-display text-[24px] font-bold tracking-tight text-[var(--color-text-primary)]">Leaderboard</h1>
         <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">Top creators and coins on Floatdesk, by market value.</p>
       </div>
 

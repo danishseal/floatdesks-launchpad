@@ -188,7 +188,7 @@ export default function TokenDetailPage() {
                     here is PPNeueMontrealBook, which set the name in the same
                     weight and width as the paragraph text under it, so the
                     title of the page read as a label. */}
-                <p className="max-w-52 truncate font-display text-[16px] font-semibold tracking-[-0.01em] leading-none text-[var(--color-text-primary)]">{token.name}</p>
+                <p className="max-w-52 truncate font-display text-[16px] font-medium tracking-[-0.01em] leading-none text-[var(--color-text-primary)]">{token.name}</p>
                 {/* The pair, not the venue. "AMM" was the same word on every
                     graduated token and said nothing about what this one is
                     priced in; the pair names the fSHARE underneath it. Not
@@ -197,7 +197,7 @@ export default function TokenDetailPage() {
                     absent if it cannot be read, rather than falling back to a
                     category that would read as an answer. */}
                 {contracts.data?.pair && (
-                  <span className="shrink-0 rounded border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-1.5 py-1 font-display text-[10px] font-semibold tracking-tight text-[var(--color-text-secondary)]">
+                  <span className="shrink-0 rounded border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-1.5 py-1 font-display text-[10px] font-medium tracking-tight text-[var(--color-text-secondary)]">
                     {contracts.data.pair}
                   </span>
                 )}
@@ -569,11 +569,11 @@ function StatTile({
 }) {
   return (
     <div className="min-w-[88px] shrink-0 px-3 py-1.5">
-      <p className="text-center font-display text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
+      <p className="text-center font-display text-[10px] font-medium uppercase tracking-[0.07em] text-[var(--color-text-muted)]">
         {label}
       </p>
       <p
-        className={`mt-0.5 text-center font-display text-[15px] font-semibold leading-5 tabular-nums tracking-[-0.01em] ${
+        className={`mt-0.5 text-center font-display text-[15px] font-bold leading-5 tabular-nums tracking-[-0.01em] ${
           tone == null
             ? "text-[var(--color-text-primary)]"
             : tone >= 0
@@ -633,7 +633,7 @@ function Overview({ token, trades }: { token: TokenListItem; trades: TokenTrade[
 
   return (
     <section className="relative rounded-xl bg-[var(--color-bg-page)] px-3 pb-4 pt-3">
-      <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">About {token.name}</h2>
+      <h2 className="text-sm font-bold text-[var(--color-text-primary)]">About {token.name}</h2>
       <p className="mt-1.5 line-clamp-3 text-[11px] leading-[15px] text-[var(--color-text-secondary)]">
         {token.description?.trim() || `${token.name} is quoted and settled in ${token.base_label}, so every buy of it buys the equity underneath.`}
       </p>

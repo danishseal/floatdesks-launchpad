@@ -559,7 +559,7 @@ function UnderlyingStep({ data, live, candidates, hiddenUnpriced, selected, sele
 
       {candidates.length > 0 ? (
         <div className="mt-10">
-          <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">
             Not listed yet
           </h3>
           <p style={BODY} className="mt-2 text-[13px] text-[var(--color-text-secondary)]">

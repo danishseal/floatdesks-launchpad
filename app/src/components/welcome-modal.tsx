@@ -43,7 +43,7 @@ export function WelcomeModal() {
         {/* Body */}
         <div className="space-y-4 px-6 py-5 text-sm text-zinc-700">
           <div>
-            <h3 className="mb-1 font-semibold text-zinc-900">How it works</h3>
+            <h3 className="mb-1 font-bold text-zinc-900">How it works</h3>
             <p>
               Every token launches on a bonding curve: price starts low and rises as people buy.
               Once the reserve hits the graduation threshold, liquidity auto-migrates to the AMM
@@ -52,7 +52,7 @@ export function WelcomeModal() {
           </div>
 
           <div>
-            <h3 className="mb-1 font-semibold text-zinc-900">Non-extractive by design</h3>
+            <h3 className="mb-1 font-bold text-zinc-900">Non-extractive by design</h3>
             <p className="mb-2">
               The fee structure is intentionally asymmetric to discourage quick dumps and reward conviction:
             </p>
@@ -72,7 +72,7 @@ export function WelcomeModal() {
           </div>
 
           <div>
-            <h3 className="mb-1 font-semibold text-zinc-900">Limited tickers, limited supply</h3>
+            <h3 className="mb-1 font-bold text-zinc-900">Limited tickers, limited supply</h3>
             <p>
               Every token has a fixed supply on its bonding curve: no unlimited minting, no hidden inflation.
               Wallets are capped at 3% of total supply, so no single buyer can hog the curve.

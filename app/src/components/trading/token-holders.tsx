@@ -17,7 +17,7 @@ export function TokenHolders({ tokenAddress, tokenSymbol }: TokenHoldersProps) {
 
   return (
     <div className="h-full">
-      <h2 className="mb-3 text-lg font-semibold text-zinc-900">
+      <h2 className="mb-3 text-lg font-bold text-zinc-900">
         Holders
         {holders && holders.length > 0 && (
           <span className="ml-2 text-sm font-normal text-[var(--color-text-muted)]">

@@ -54,7 +54,7 @@ export default function AnalyticsPage() {
       {/* Header + window selector */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2 font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">
+          <h1 className="flex items-center gap-2 font-display text-[24px] font-bold tracking-tight text-[var(--color-text-primary)]">
             <ChartLineUp size={20} weight="fill" className="text-[var(--color-accent-strong)]" />
             Analytics
           </h1>
@@ -338,7 +338,7 @@ function Card({
     <div className="rounded-2xl border border-[var(--hairline)] bg-[var(--color-bg-surface)]">
       <div className="flex items-start justify-between gap-4 border-b border-[var(--hairline)] px-4 py-3">
         <div>
-          <h2 className="font-display text-[14px] font-semibold text-[var(--color-text-primary)]">{title}</h2>
+          <h2 className="font-display text-[14px] font-bold text-[var(--color-text-primary)]">{title}</h2>
           {subtitle && <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">{subtitle}</p>}
         </div>
         {right}

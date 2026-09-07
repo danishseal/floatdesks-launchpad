@@ -566,7 +566,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             key={s}
             type="button"
             onClick={() => { setSide(s); setAmount(""); if (s === "sell") setPayWith("quote"); }}
-            className={`rounded-[7px] py-2 font-display text-[13px] font-semibold capitalize tracking-[-0.01em] transition-all duration-150 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 ${
+            className={`rounded-[7px] py-2 font-display text-[13px] font-bold capitalize tracking-[-0.01em] transition-all duration-150 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 ${
               side === s
                 ? `bg-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/10%)] ${
                     s === "buy" ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"
@@ -645,7 +645,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             display number. Everything here was 13px grey, which reads as a
             form rather than the one field the panel exists for. */}
         <div className="mb-2 flex items-baseline justify-between">
-          <label className="font-display text-[10px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
+          <label className="font-display text-[10px] font-medium uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
             You pay
           </label>
           <span className="font-display text-[11px] tabular-nums text-[var(--color-text-subtle)]">
@@ -663,14 +663,14 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         </div>
         <div className="flex items-baseline gap-2 rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3.5 py-3 transition-colors focus-within:border-[var(--color-border-muted)]">
           <input
-            className="w-full bg-transparent font-display text-[28px] font-semibold leading-none tabular-nums tracking-[-0.02em] outline-none placeholder:text-[var(--color-text-subtle)]"
+            className="w-full bg-transparent font-display text-[28px] font-medium leading-none tabular-nums tracking-[-0.02em] outline-none placeholder:text-[var(--color-text-subtle)]"
             inputMode="decimal"
             placeholder="0"
             aria-label={`Amount to ${side} in ${inLabel}`}
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
           />
-          <span className="shrink-0 font-display text-[12px] font-semibold text-[var(--color-text-muted)]">{inLabel}</span>
+          <span className="shrink-0 font-display text-[12px] font-medium text-[var(--color-text-muted)]">{inLabel}</span>
         </div>
 
         {/* Preset sizes, and the slippage gear beside them.
@@ -686,7 +686,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
               type="button"
               disabled={p.value === null}
               onClick={() => p.value !== null && setAmount(trimZeros(p.value))}
-              className="flex-1 rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-2 py-1.5 font-display text-[12px] font-semibold tabular-nums text-[var(--color-text-secondary)] transition-all duration-150 hover:border-[var(--color-border-muted)] hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-text-primary)] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--color-bg-page)] motion-reduce:transition-none motion-reduce:active:scale-100"
+              className="flex-1 rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-2 py-1.5 font-display text-[12px] font-bold tabular-nums text-[var(--color-text-secondary)] transition-all duration-150 hover:border-[var(--color-border-muted)] hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-text-primary)] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--color-bg-page)] motion-reduce:transition-none motion-reduce:active:scale-100"
             >
               {p.label}
             </button>
@@ -707,7 +707,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
       <div className="mb-4 divide-y divide-[var(--color-border-soft)] rounded-[10px] border border-[var(--color-border-soft)] bg-[var(--color-bg-page)] px-3.5">
         <div className="flex items-baseline justify-between gap-3 py-2.5">
           <span className="text-[12px] text-[var(--color-text-muted)]">You receive</span>
-          <span className="font-display text-[13px] font-semibold tabular-nums">
+          <span className="font-display text-[13px] font-medium tabular-nums">
             {shownOut === null
               ? (payingEth && planning ? "Pricing…" : "-")
               : `${fmtAmount(shownOut)} ${outLabel}`}
@@ -718,7 +718,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           <div className="flex items-baseline justify-between gap-3 py-2.5">
             <span className="text-[12px] text-[var(--color-text-muted)]">Price impact</span>
             <span
-              className={`font-display text-[13px] font-semibold tabular-nums ${
+              className={`font-display text-[13px] font-medium tabular-nums ${
                 priceImpact >= 0.05 ? "text-[var(--color-negative)]" : "text-[var(--color-text-primary)]"
               }`}
             >
@@ -735,7 +735,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           <span className="text-[12px] text-[var(--color-text-muted)]">
             Slippage{payingEth ? " per hop" : ""}
           </span>
-          <span className="font-display text-[13px] font-semibold tabular-nums text-[var(--color-text-secondary)] underline underline-offset-2">
+          <span className="font-display text-[13px] font-medium tabular-nums text-[var(--color-text-secondary)] underline underline-offset-2">
             {pctLabel(slippage)}
           </span>
         </button>
@@ -810,15 +810,17 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
                 key={p}
                 type="button"
                 onClick={() => setSlippage(p)}
-                className={`rounded-[7px] border px-2 py-1 text-[12px] ${
-                  slippage === p ? "border-[var(--color-text-primary)]" : "border-[var(--color-border-soft)]"
+                className={`rounded-[7px] border px-2.5 py-1 font-display text-[12px] font-medium tabular-nums transition-all duration-150 hover:bg-[var(--color-bg-raised)] active:scale-[0.95] motion-reduce:transition-none motion-reduce:active:scale-100 ${
+                  slippage === p
+                    ? "border-[var(--color-text-primary)] text-[var(--color-text-primary)]"
+                    : "border-[var(--color-border-soft)] text-[var(--color-text-secondary)]"
                 }`}
               >
                 {pctLabel(p)}
               </button>
             ))}
             <input
-              className="w-20 rounded-[7px] border border-[var(--color-border-soft)] bg-transparent px-2 py-1 text-[12px] outline-none"
+              className="w-24 rounded-[7px] border border-[var(--color-border-soft)] bg-transparent px-2.5 py-1 font-display text-[12px] tabular-nums outline-none transition-colors focus:border-[var(--color-border-muted)]"
               placeholder="custom %"
               value={customSlippage}
               onChange={(e) => {
@@ -837,7 +839,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
           further down the card. */}
       {ethOffered ? (
         <div className="mb-4">
-          <div className="mb-1.5 font-display text-[10px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
+          <div className="mb-1.5 font-display text-[10px] font-medium uppercase tracking-[0.09em] text-[var(--color-text-muted)]">
             Pay with
           </div>
           <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--color-bg-page)] p-1">
@@ -849,7 +851,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
                 key={o.key}
                 type="button"
                 onClick={() => { setPayWith(o.key); setAmount(""); }}
-                className={`rounded-[7px] py-1.5 font-display text-[12px] font-semibold transition-all duration-150 active:scale-[0.97] ${
+                className={`rounded-[7px] py-1.5 font-display text-[12px] font-medium transition-all duration-150 active:scale-[0.97] ${
                   payWith === o.key
                     ? "bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-[0_1px_2px_rgb(26_26_26/10%)]"
                     : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
@@ -862,7 +864,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         </div>
       ) : null}
       {!wallet.connected ? (
-        <Button className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/12%)] transition-all duration-150 hover:bg-[var(--color-text-secondary)] hover:shadow-[0_2px_6px_rgb(26_26_26/18%)] active:scale-[0.99] active:shadow-none disabled:opacity-40 disabled:shadow-none disabled:hover:bg-[var(--color-text-primary)] motion-reduce:transition-none motion-reduce:active:scale-100" onClick={() => void wallet.connect()}>Connect wallet</Button>
+        <Button className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-bold tracking-[-0.01em] text-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/12%)] transition-all duration-150 hover:bg-[var(--color-text-secondary)] hover:shadow-[0_2px_6px_rgb(26_26_26/18%)] active:scale-[0.99] active:shadow-none disabled:opacity-40 disabled:shadow-none disabled:hover:bg-[var(--color-text-primary)] motion-reduce:transition-none motion-reduce:active:scale-100" onClick={() => void wallet.connect()}>Connect wallet</Button>
       ) : token.graduated && !route ? (
         <div className="rounded-[10px] border border-[var(--color-border-soft)] px-3 py-3 text-[13px] text-[var(--color-text-secondary)]">
           {routeError
@@ -871,7 +873,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         </div>
       ) : payingEth ? (
         <Button
-          className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/12%)] transition-all duration-150 hover:bg-[var(--color-text-secondary)] hover:shadow-[0_2px_6px_rgb(26_26_26/18%)] active:scale-[0.99] active:shadow-none disabled:opacity-40 disabled:shadow-none disabled:hover:bg-[var(--color-text-primary)] motion-reduce:transition-none motion-reduce:active:scale-100"
+          className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-bold tracking-[-0.01em] text-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/12%)] transition-all duration-150 hover:bg-[var(--color-text-secondary)] hover:shadow-[0_2px_6px_rgb(26_26_26/18%)] active:scale-[0.99] active:shadow-none disabled:opacity-40 disabled:shadow-none disabled:hover:bg-[var(--color-text-primary)] motion-reduce:transition-none motion-reduce:active:scale-100"
           disabled={
             busy || planning || !ethPlan || ethBlocked !== null
             || numeric <= 0 || (balance !== null && numeric > balance)
@@ -904,7 +906,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
             </p>
           ) : null}
           <Button
-            className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/12%)] transition-all duration-150 hover:bg-[var(--color-text-secondary)] hover:shadow-[0_2px_6px_rgb(26_26_26/18%)] active:scale-[0.99] active:shadow-none disabled:opacity-40 disabled:shadow-none disabled:hover:bg-[var(--color-text-primary)] motion-reduce:transition-none motion-reduce:active:scale-100"
+            className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-bold tracking-[-0.01em] text-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/12%)] transition-all duration-150 hover:bg-[var(--color-text-secondary)] hover:shadow-[0_2px_6px_rgb(26_26_26/18%)] active:scale-[0.99] active:shadow-none disabled:opacity-40 disabled:shadow-none disabled:hover:bg-[var(--color-text-primary)] motion-reduce:transition-none motion-reduce:active:scale-100"
             disabled={busy || deskRefusal !== null}
             onClick={getUnderlying}
           >
@@ -915,7 +917,7 @@ export function FloorlaunchTradePanel({ token }: { token: TokenListItem }) {
         </div>
       ) : (
         <Button
-          className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/12%)] transition-all duration-150 hover:bg-[var(--color-text-secondary)] hover:shadow-[0_2px_6px_rgb(26_26_26/18%)] active:scale-[0.99] active:shadow-none disabled:opacity-40 disabled:shadow-none disabled:hover:bg-[var(--color-text-primary)] motion-reduce:transition-none motion-reduce:active:scale-100"
+          className="h-11 w-full rounded-[10px] bg-[var(--color-text-primary)] font-display text-[13px] font-bold tracking-[-0.01em] text-[var(--color-bg-surface)] shadow-[0_1px_2px_rgb(26_26_26/12%)] transition-all duration-150 hover:bg-[var(--color-text-secondary)] hover:shadow-[0_2px_6px_rgb(26_26_26/18%)] active:scale-[0.99] active:shadow-none disabled:opacity-40 disabled:shadow-none disabled:hover:bg-[var(--color-text-primary)] motion-reduce:transition-none motion-reduce:active:scale-100"
           disabled={busy || numeric <= 0 || (balance !== null && numeric > balance)}
           onClick={trade}
         >

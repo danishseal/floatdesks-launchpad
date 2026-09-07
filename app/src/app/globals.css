@@ -24,6 +24,41 @@
   height: 100%;
 }
 
+/* Aeonik, licensed from CoType Foundry.
+ *
+ * Converted from the supplied ttf to woff2, which is a third of the size over
+ * the wire and the only format worth serving. Three weights, because that is
+ * what the design uses: Regular carries body, Medium carries the amount field
+ * and its hint, Bold carries the Buy and Sell tabs.
+ *
+ * No synthetic weights. A face is declared here only if its file exists, so
+ * the browser is never asked to fake one, which is the thing that makes a
+ * licensed font look wrong.
+ */
+@font-face {
+  font-family: "Aeonik";
+  src: url("/Aeonik-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aeonik";
+  src: url("/Aeonik-Medium.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aeonik";
+  src: url("/Aeonik-Bold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "NeueBit";
   src: url("/NeueBit-Bold.woff2") format("woff2");
@@ -55,7 +90,7 @@
   --color-foreground: var(--foreground);
   /* Match float-web body copy while keeping the app's display and data roles. */
   --font-sans: "PPNeueMontrealBook", ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Aeonik", var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-float-header: "PPNeueMontrealMonoBook", ui-monospace, monospace;
   --font-neue-bit: "NeueBit", monospace;

@@ -11,7 +11,7 @@ export function ActivityFeed() {
     <div className="space-y-4">
       {/* Section header with live indicator */}
       <div className="flex items-center gap-2">
-        <h2 className="text-xl font-semibold text-zinc-900">Recent Activity</h2>
+        <h2 className="text-xl font-bold text-zinc-900">Recent Activity</h2>
         <span className="h-2 w-2 animate-pulse rounded-sm bg-primary" />
       </div>
 

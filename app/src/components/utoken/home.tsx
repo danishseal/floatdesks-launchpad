@@ -38,7 +38,7 @@ export function UtokenHome() {
       <section className="w-full max-w-none">
         <div className="mb-4">
           <div>
-            <h2 className="font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">
+            <h2 className="font-display text-[24px] font-bold tracking-tight text-[var(--color-text-primary)]">
               Live coins
             </h2>
             <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">
@@ -87,7 +87,7 @@ function TokenPreviewBanner({
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--color-text-muted)]">Live market preview</p>
             <div className="mt-2 flex items-baseline gap-3">
-              <h1 className="font-display text-[24px] font-semibold uppercase leading-none tracking-[-0.02em] text-[var(--color-text-primary)] sm:text-[30px]">
+              <h1 className="font-display text-[24px] font-bold uppercase leading-none tracking-[-0.02em] text-[var(--color-text-primary)] sm:text-[30px]">
                 {token.name}
               </h1>
               <span className="font-mono text-[12px] font-semibold text-[var(--color-accent-strong)]">${token.symbol}</span>
@@ -339,7 +339,7 @@ function Registry({ tokens, loading }: { tokens: TokenListItem[]; loading: boole
   return (
     <section>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">
+        <h2 className="font-display text-[24px] font-bold tracking-tight text-[var(--color-text-primary)]">
           The Bullpen <span className="font-sans text-[13px] font-normal text-[var(--color-text-muted)]">{tokens.length} tokens</span>
         </h2>
         {/* Segmented control */}

@@ -30,7 +30,7 @@ export function BondingCurveChart({ tokenAddress }: BondingCurveChartProps) {
     return (
       <div className="space-y-3 rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-4 shadow-sm">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-zinc-900">Bonding Curve</h3>
+          <h3 className="font-bold text-zinc-900">Bonding Curve</h3>
           <Badge variant="secondary">Graduated</Badge>
         </div>
         <p className="text-sm text-[var(--color-text-muted)]">
@@ -50,7 +50,7 @@ export function BondingCurveChart({ tokenAddress }: BondingCurveChartProps) {
   return (
     <div className="space-y-2 rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-zinc-900">Bonding Curve Progress</h3>
+        <h3 className="text-sm font-bold text-zinc-900">Bonding Curve Progress</h3>
         <span className="text-xs font-mono font-medium text-zinc-700">
           {progressPct.toFixed(1)}%
         </span>

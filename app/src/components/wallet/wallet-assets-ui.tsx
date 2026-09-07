@@ -5,7 +5,7 @@ import { Coins, SpinnerGap } from "@phosphor-icons/react";
 import { ConnectButton } from "@/components/wallet/connect-button";
 
 export function PageHeader({ title, description, count }: { title: string; description: string; count?: number }) {
-  return <header className="rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-7"><div className="flex items-end justify-between gap-4"><div><h1 className="text-3xl font-semibold tracking-[-0.03em]">{title}</h1><p className="mt-2 text-sm text-[var(--color-text-secondary)]">{description}</p></div>{count !== undefined && <span className="text-sm text-[var(--color-text-muted)]">{count} {count === 1 ? "asset" : "assets"}</span>}</div></header>;
+  return <header className="rounded-[8px] border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] p-7"><div className="flex items-end justify-between gap-4"><div><h1 className="text-3xl font-bold tracking-[-0.03em]">{title}</h1><p className="mt-2 text-sm text-[var(--color-text-secondary)]">{description}</p></div>{count !== undefined && <span className="text-sm text-[var(--color-text-muted)]">{count} {count === 1 ? "asset" : "assets"}</span>}</div></header>;
 }
 
 export function ConnectState({ title, description }: { title: string; description: string }) {

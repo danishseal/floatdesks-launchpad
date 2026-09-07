@@ -79,7 +79,7 @@ export function ContractsGrid({ address }: { address: string }) {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <section className="rounded-xl bg-[var(--color-bg-page)] px-3 pb-3 pt-3">
-      <h2 className="mb-2 text-sm font-semibold text-[var(--color-text-primary)]">Contracts</h2>
+      <h2 className="mb-2 text-sm font-bold text-[var(--color-text-primary)]">Contracts</h2>
       {children}
     </section>
   );

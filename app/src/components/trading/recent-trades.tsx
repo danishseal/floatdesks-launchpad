@@ -17,7 +17,7 @@ export function RecentTrades({ tokenAddress, tokenSymbol }: RecentTradesProps) {
 
   return (
     <div className="h-full">
-      <h2 className="mb-3 text-lg font-semibold text-zinc-900">Recent Transactions</h2>
+      <h2 className="mb-3 text-lg font-bold text-zinc-900">Recent Transactions</h2>
       <div className="min-h-[22rem] overflow-hidden rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-bg-surface)] shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

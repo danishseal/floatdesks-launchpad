@@ -84,7 +84,7 @@ export function Scanner() {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[24px] font-semibold tracking-tight text-[var(--color-text-primary)]">Scanner</h1>
+          <h1 className="font-display text-[24px] font-bold tracking-tight text-[var(--color-text-primary)]">Scanner</h1>
           <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">
             Every coin on Floatdesk, across the bonding curve and its graduated v4 pool.
           </p>

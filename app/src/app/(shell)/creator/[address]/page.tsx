@@ -39,7 +39,7 @@ export default function CreatorPage() {
         <p className="text-[12px] uppercase tracking-wide text-[var(--color-text-subtle)]">
           {isSelf ? "Your launches" : "Creator"}
         </p>
-        <h1 className="mt-1 break-all text-[22px] font-semibold text-[var(--color-text-primary)]">
+        <h1 className="mt-1 break-all text-[22px] font-bold text-[var(--color-text-primary)]">
           {address}
         </h1>
         <a
