@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePools, fromUnits, usd, pct, duration, POOLS_QUERY_KEY, type PoolsResponse } from "./use-pools";
 import styles from "./liquidity.module.css";
 import { TokenPair } from "./token-pair";
 import { useFloatWallet } from "@/components/wallet/float-wallet-provider";
-import { tx, waitFor, deskShares } from "@/lib/float/chain";
+import { tx, waitFor, deskShares, funderCanEnqueue } from "@/lib/float/chain";
 import { readableError } from "@/lib/float/errors";
 
 /**
@@ -226,12 +226,72 @@ function FunderContribute({ data, funder }: { data: PoolsResponse; funder: NonNu
   const qc = useQueryClient();
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [qAsset, setQAsset] = useState("");
+  const [qTarget, setQTarget] = useState("");
+  // 1x, which is VaultFunder's own defaultCapMultiplierBps on this deployment.
+  const [qCap, setQCap] = useState("10000");
 
   const dp = data.quote.decimals;
   const target = fromUnits(funder.target, dp);
   const funded = fromUnits(funder.funded, dp);
   const head = data.markets.find((m) => m.assetId.toLowerCase() === funder.assetId.toLowerCase());
   const n = Number(amount) || 0;
+
+  // The head is fully funded and only needs someone to call pour(). Compared on
+  // the raw integers, not the display floats, so a market a few micro-units
+  // short does not render as ready and revert.
+  const ready = BigInt(funder.target) > 0n && BigInt(funder.funded) >= BigInt(funder.target);
+
+  const account = wallet.connected ? wallet.getAccount() : null;
+  const { data: canEnqueue } = useQuery({
+    queryKey: ["funder-can-enqueue", account],
+    queryFn: () => (account ? funderCanEnqueue(account) : Promise.resolve(false)),
+    enabled: Boolean(account),
+    staleTime: 60_000,
+  });
+
+  // Anything not Live is a candidate. Halted is the normal case; SettleOnly
+  // markets are here too, since funding one is how it gets reopened.
+  const closed = data.markets.filter((m) => m.status !== 0);
+
+  async function enqueueMarket() {
+    setBusy(true);
+    try {
+      const acct = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      const hash = await tx.enqueue(
+        acct,
+        qAsset as `0x${string}`,
+        BigInt(Math.round((Number(qTarget) || 0) * 10 ** dp)),
+        Number(qCap),
+      );
+      await waitFor(hash);
+      toast.success(`Queued ${closed.find((m) => m.assetId === qAsset)?.ticker ?? "market"}.`);
+      setQAsset("");
+      setQTarget("");
+      await qc.invalidateQueries({ queryKey: POOLS_QUERY_KEY });
+    } catch (e) {
+      toast.error(readableError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openMarket() {
+    setBusy(true);
+    try {
+      const acct = wallet.getAccount();
+      if (wallet.wrongChain) await wallet.switchChain();
+      const hash = await tx.pour(acct);
+      await waitFor(hash);
+      toast.success(`${head?.ticker ?? "The market"} is open.`);
+      await qc.invalidateQueries({ queryKey: POOLS_QUERY_KEY });
+    } catch (e) {
+      toast.error(readableError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function contribute() {
     setBusy(true);
@@ -270,6 +330,29 @@ function FunderContribute({ data, funder }: { data: PoolsResponse; funder: NonNu
         same vault position as a direct deposit, bought earlier.
       </p>
 
+      {ready ? (
+        <section className={styles.formSection}>
+          <div className={styles.sectionTitleRow}>
+            <h2 className={styles.sectionTitle}>Ready to open</h2>
+            <span className={styles.balance}>{usd(funded)} raised</span>
+          </div>
+          <p className={styles.cellSubtle}>
+            {head?.ticker ?? "This market"} has its full target. Opening deposits the
+            raise into the Desk, sizes the open-interest cap and sets the listing
+            Live. Anyone can do it and it costs only gas.
+          </p>
+          {wallet.connected ? (
+            <button type="button" className={styles.connectButton} disabled={busy} onClick={openMarket}>
+              {busy ? "Confirming…" : `Open ${head?.ticker ?? "market"}`}
+            </button>
+          ) : (
+            <button type="button" className={styles.connectButton} onClick={() => void wallet.connect()}>
+              Connect wallet
+            </button>
+          )}
+        </section>
+      ) : null}
+
       <section className={styles.formSection}>
         <div className={styles.sectionTitleRow}>
           <h2 className={styles.sectionTitle}>Contribute</h2>
@@ -307,6 +390,71 @@ function FunderContribute({ data, funder }: { data: PoolsResponse; funder: NonNu
           </button>
         )}
       </section>
+
+      {canEnqueue ? (
+        <section className={styles.formSection}>
+          <div className={styles.sectionTitleRow}>
+            <h2 className={styles.sectionTitle}>Queue a market</h2>
+            <span className={styles.balance}>{funder.queueLength} queued</span>
+          </div>
+          <p className={styles.cellSubtle}>
+            Owner and operator only. A market has to be queued before anyone can
+            contribute to it: contribute() reverts NotQueued otherwise, which is why
+            a halted listing cannot be funded until it appears here.
+          </p>
+          <div className={styles.queueGrid}>
+            <select
+              className={styles.queueControl}
+              value={qAsset}
+              onChange={(e) => setQAsset(e.target.value)}
+              aria-label="Market to queue"
+            >
+              <option value="">Choose a market…</option>
+              {closed.map((m) => (
+                <option key={m.assetId} value={m.assetId}>
+                  {m.ticker} · {m.displayName}
+                </option>
+              ))}
+            </select>
+            <div className={styles.queueRow}>
+              <input
+                className={styles.queueControl}
+                inputMode="decimal"
+                placeholder={`Funding target in ${data.quote.symbol}`}
+                value={qTarget}
+                onChange={(e) => setQTarget(e.target.value.replace(/[^0-9.]/g, ""))}
+                aria-label={`Funding target in ${data.quote.symbol}`}
+              />
+              <input
+                className={styles.queueControl}
+                inputMode="numeric"
+                placeholder="10000"
+                value={qCap}
+                onChange={(e) => setQCap(e.target.value.replace(/[^0-9]/g, ""))}
+                aria-label="Open interest cap multiplier, in basis points"
+              />
+            </div>
+            <p className={styles.cellSubtle}>
+              Cap multiplier in bps. At {qCap || "0"} the open-interest cap is{" "}
+              {((Number(qCap) || 0) / 10_000).toLocaleString(undefined, { maximumFractionDigits: 2 })}x
+              the target{Number(qTarget) > 0 ? `, so ${usd((Number(qTarget) || 0) * (Number(qCap) || 0) / 10_000)}` : ""}.
+            </p>
+          </div>
+          <button
+            type="button"
+            className={styles.connectButton}
+            disabled={busy || !qAsset || Number(qTarget) <= 0 || Number(qCap) <= 0 || Number(qCap) > 50_000}
+            onClick={enqueueMarket}
+          >
+            {busy
+              ? "Confirming…"
+              : !qAsset ? "Choose a market"
+              : Number(qTarget) <= 0 ? "Enter a target"
+              : Number(qCap) <= 0 || Number(qCap) > 50_000 ? "Cap must be 1 to 50000 bps"
+              : `Queue ${closed.find((m) => m.assetId === qAsset)?.ticker ?? "market"}`}
+          </button>
+        </section>
+      ) : null}
     </>
   );
 }

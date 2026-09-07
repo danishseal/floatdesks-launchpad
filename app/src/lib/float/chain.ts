@@ -506,6 +506,34 @@ export const tx = {
     const funder = await resolve("FUNDER");
     return send(account, funder, VAULTFUNDER_ABI, "claimLaunchShares", [assetId]);
   },
+  /**
+   * Open the funded market at the head of the queue.
+   *
+   * Permissionless on purpose, and the contract is the guard: pour() walks the
+   * queue and breaks unless fees plus contributions already cover the head's
+   * target, so calling it early is a no-op that costs the caller gas and
+   * nothing else. It is the call that actually deposits the raise into the
+   * Desk, sizes the OI cap and flips the listing Live, and nothing in this app
+   * made it before, so a market could be fully funded and still never open.
+   */
+  async pour(account: Address) {
+    const funder = await resolve("FUNDER");
+    return send(account, funder, VAULTFUNDER_ABI, "pour", []);
+  },
+  /** Pour a specific funded market rather than the queue head. */
+  async pourFunded(account: Address, assetId: `0x${string}`) {
+    const funder = await resolve("FUNDER");
+    return send(account, funder, VAULTFUNDER_ABI, "pourFunded", [assetId]);
+  },
+  /**
+   * Queue an equity for funding. Owner or operator only; the contract reverts
+   * BadParams for anyone else, and for a zero target or a cap multiplier over
+   * 50000 bps.
+   */
+  async enqueue(account: Address, assetId: `0x${string}`, target: bigint, capMultiplierBps: number) {
+    const funder = await resolve("FUNDER");
+    return send(account, funder, VAULTFUNDER_ABI, "enqueue", [assetId, target, capMultiplierBps]);
+  },
   async stake(account: Address, assetId: `0x${string}`, amount: bigint, fshare: Address) {
     const sv = await resolve("STAKE_VAULTS");
     await ensureAllowance(account, fshare, sv, amount);
@@ -529,6 +557,26 @@ export const tx = {
  * fundFromCurve, say) is never enqueued at all. Gate the UI on this, not on
  * which network is selected.
  */
+/**
+ * Whether this account may enqueue. Owner or operator, matching
+ * VaultFunder.onlyOwnerOrOperator, because gating the control on the owner
+ * alone would hide it from an operator key that the contract accepts.
+ */
+export async function funderCanEnqueue(account: Address): Promise<boolean> {
+  try {
+    const funder = await resolve("FUNDER");
+    const pc = publicClient();
+    const [owner, isOp] = await Promise.all([
+      pc.readContract({ address: funder, abi: VAULTFUNDER_ABI, functionName: "owner" }) as Promise<Address>,
+      pc.readContract({ address: funder, abi: VAULTFUNDER_ABI, functionName: "operators", args: [account] }) as Promise<boolean>,
+    ]);
+    return owner.toLowerCase() === account.toLowerCase() || isOp;
+  } catch {
+    // A read that will not answer is not permission. Hide the control.
+    return false;
+  }
+}
+
 export async function funderAcceptsContribution(assetId: `0x${string}`): Promise<boolean> {
   const funder = await resolve("FUNDER");
   const pc = publicClient();

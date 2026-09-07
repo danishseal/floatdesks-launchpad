@@ -1038,3 +1038,36 @@
     margin: 10px;
   }
 }
+
+/* Owner-only queue form.
+   These are settings, not a trade amount, so they deliberately avoid
+   .amountInput's 27px display size: at that scale a bps figure and a ticker
+   name both overflow their field, and the target input collapsed to three
+   characters when it shared a row with one. */
+.queueGrid {
+  display: grid;
+  gap: 10px;
+}
+.queueRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 10px;
+}
+.queueControl {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-page);
+  padding: 11px 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  outline: 0;
+}
+.queueControl:focus {
+  border-color: var(--color-text-primary);
+}
+.queueControl::placeholder {
+  color: var(--color-text-subtle);
+}
