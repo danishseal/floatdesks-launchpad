@@ -861,7 +861,7 @@ function CopyValue({ value }: { value: string }) {
     <button
       type="button"
       onClick={copy}
-      className="group inline-flex max-w-full items-center gap-1.5 font-display font-medium tabular-nums text-[var(--color-text-primary)] transition-all duration-150 active:scale-[0.94] motion-reduce:transition-none motion-reduce:active:scale-100 hover:text-[var(--color-accent-strong)]"
+      className="group inline-flex max-w-full items-center gap-1.5 font-display font-medium tabular-nums text-[var(--color-text-subtle)] transition-all duration-150 active:scale-[0.94] motion-reduce:transition-none motion-reduce:active:scale-100 hover:text-[var(--color-text-primary)]"
       aria-label={`Copy ${value}`}
       title={value}
     >
@@ -871,7 +871,7 @@ function CopyValue({ value }: { value: string }) {
       ) : (
         <CopySimple
           size={15}
-          className="shrink-0 text-[var(--color-text-muted)] transition-colors group-hover:text-[var(--color-accent-strong)]"
+          className="shrink-0 text-[var(--color-text-subtle)] transition-colors group-hover:text-[var(--color-text-primary)]"
         />
       )}
     </button>

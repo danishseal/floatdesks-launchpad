@@ -83,6 +83,34 @@
   font-display: swap;
 }
 
+/* Press feedback, on every button in the app.
+ *
+ * Uses the standalone `scale` property rather than a transform. Several
+ * controls here are positioned with a translate (the chart's view-more pill is
+ * -translate-x-1/2), and a transform-based scale would overwrite that and make
+ * the button jump sideways on press. `scale` composes with translate instead.
+ *
+ * Disabled controls are excluded: a button that presses and does nothing reads
+ * as a broken button rather than a refused one.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    transition:
+      scale 120ms ease,
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease,
+      opacity 150ms ease;
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    scale: 0.97;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
